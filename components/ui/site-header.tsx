@@ -11,7 +11,7 @@ function getInitials(email: string, firstName?: string | null) {
   return email.slice(0, 1).toUpperCase();
 }
 
-export async function SiteHeader() {
+export async function SiteHeader({ title = "FurrowDev" }: { title?: string }) {
   const { user } = await withAuth();
 
   return (
@@ -21,7 +21,7 @@ export async function SiteHeader() {
           href="/"
           className="font-heading text-[2rem] font-semibold tracking-tight text-foreground"
         >
-          FurrowDev
+          {title}
         </Link>
 
         {user ? (

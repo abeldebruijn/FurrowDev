@@ -125,12 +125,9 @@ export default async function ConceptProjectPage({ params }: ConceptProjectPageP
 
   return (
     <>
-      <SiteHeader />
+      <SiteHeader title={getName(conceptProject.name)} />
       <main className="mx-auto flex min-h-[calc(100vh-61px)] w-full max-w-6xl flex-col gap-6 px-4 py-8 sm:px-6">
         <section className="space-y-2">
-          <h1 className="font-heading text-4xl font-semibold tracking-tight text-foreground">
-            {getName(conceptProject.name)}
-          </h1>
           <p className="max-w-3xl text-sm text-muted-foreground">
             {getDescription(conceptProject.description)}
           </p>
