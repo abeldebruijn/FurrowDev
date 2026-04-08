@@ -7,7 +7,7 @@ import type { NextRequest } from "next/server";
 import { users } from "@/drizzle/schema";
 import { getDb } from "@/lib/db";
 import { getWorkOSUserDisplayName } from "@/lib/zero/user-display-name";
-import { getWorkOSSession } from "@/lib/workos-session";
+import { getWorkOSSession, type WorkOSSession } from "@/lib/workos-session";
 
 export type ZeroContext = {
   viewerId: string;
@@ -31,13 +31,7 @@ function getStringArray(value: unknown) {
     : [];
 }
 
-export async function getZeroContext(request: NextRequest): Promise<ZeroContext | null> {
-  const session = await getWorkOSSession(request);
-
-  if (!session) {
-    return null;
-  }
-
+export async function upsertViewerFromWorkOSSession(session: WorkOSSession) {
   const db = getDb();
   const name = getWorkOSUserDisplayName(session.user);
   const [viewer] = await db
@@ -57,6 +51,18 @@ export async function getZeroContext(request: NextRequest): Promise<ZeroContext 
       id: users.id,
       workosUserId: users.workosUserId,
     });
+
+  return viewer;
+}
+
+export async function getZeroContext(request: NextRequest): Promise<ZeroContext | null> {
+  const session = await getWorkOSSession(request);
+
+  if (!session) {
+    return null;
+  }
+
+  const viewer = await upsertViewerFromWorkOSSession(session);
 
   const claims = await getTokenClaims<TokenClaims>(session.accessToken);
 

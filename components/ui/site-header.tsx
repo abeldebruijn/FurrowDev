@@ -38,7 +38,7 @@ export async function SiteHeader() {
             </Link>
             <Link
               href="/settings"
-              className="flex size-10 items-center justify-center rounded-full bg-[radial-gradient(circle_at_30%_30%,#b287ff,#7c3aed_60%,#5b21b6)] font-sans text-sm font-semibold text-white shadow-sm"
+              className="flex size-8 items-center justify-center rounded-full bg-[radial-gradient(circle_at_30%_30%,#b287ff,#7c3aed_60%,#5b21b6)] font-sans text-sm font-semibold text-white shadow-sm"
             >
               {getInitials(user.email, user.firstName)}
             </Link>

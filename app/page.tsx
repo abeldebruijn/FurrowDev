@@ -1,18 +1,16 @@
-import { signOut, withAuth } from "@workos-inc/authkit-nextjs";
+import { withAuth } from "@workos-inc/authkit-nextjs";
+import { asc, eq, or } from "drizzle-orm";
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, LockKeyhole, ShieldCheck } from "lucide-react";
+import { redirect } from "next/navigation";
 
-import { SiteHeader } from "@/components/ui/site-header";
+import { createConceptProject } from "@/app/actions/concept-projects";
+import { conceptProjects, organisations } from "@/drizzle/schema";
+import { getDb } from "@/lib/db";
+import { upsertViewerFromWorkOSSession } from "@/lib/zero/context";
+import { getWorkOSSession } from "@/lib/workos-session";
 import { Button } from "@/components/ui/button";
-import { buttonVariants } from "@/components/ui/button-variants";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { SiteHeader } from "@/components/ui/site-header";
 import {
   Table,
   TableBody,
@@ -22,226 +20,110 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+function getProjectName(name: string | null) {
+  return name?.trim() || "Untitled concept project";
+}
+
+function getProjectDescription(description: string | null) {
+  return description?.trim() || "No description yet.";
+}
+
 export default async function Home() {
-  const { user } = await withAuth();
+  await withAuth({ ensureSignedIn: true });
 
-  if (!user) {
-    return (
-      <>
-        <SiteHeader />
-        <main className="mx-auto flex min-h-[calc(100vh-61px)] w-full max-w-6xl flex-col gap-8 px-4 py-8 sm:px-6">
-          <section className="animate-fade-in-up space-y-3">
-            <h1 className="font-heading text-5xl font-semibold tracking-tight text-foreground">
-              Jouw dashboard
-            </h1>
-            <p className="max-w-3xl text-lg text-muted-foreground">
-              Meld je aan om je beveiligde omgeving te openen, sessies te beheren en direct verder
-              te gaan in je private werkruimte.
-            </p>
-          </section>
+  const session = await getWorkOSSession();
 
-          <Card className="overflow-hidden rounded-lg border bg-card shadow-none">
-            <CardHeader className="border-b pb-5">
-              <CardTitle className="text-2xl">Welkom bij FurrowDev</CardTitle>
-              <CardDescription className="max-w-2xl text-base leading-7">
-                De interface volgt de rustige, redactionele stijl van `voortgangs`: veel witruimte,
-                zachte randen, serif typografie en duidelijke acties.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-8 py-8 md:grid-cols-[1.15fr_0.85fr]">
-              <div className="space-y-5">
-                <div className="rounded-xl border bg-muted/35 p-5">
-                  <p className="text-sm text-muted-foreground">Beveiligde toegang</p>
-                  <ul className="mt-4 space-y-3 text-sm leading-7 text-foreground">
-                    <li className="flex items-center gap-3">
-                      <ShieldCheck className="size-4 text-muted-foreground" />
-                      Hosted WorkOS sign-in en sign-up
-                    </li>
-                    <li className="flex items-center gap-3">
-                      <LockKeyhole className="size-4 text-muted-foreground" />
-                      Callback op `/auth/callback`
-                    </li>
-                    <li className="flex items-center gap-3">
-                      <CheckCircle2 className="size-4 text-muted-foreground" />
-                      instellingen
-                    </li>
-                  </ul>
-                </div>
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <Link
-                    href="/login"
-                    className={buttonVariants({
-                      size: "lg",
-                      className: "rounded-lg",
-                    })}
-                  >
-                    Aanmelden
-                    <ArrowRight className="size-4" />
-                  </Link>
-                  <Link
-                    href="/sign-up"
-                    className={buttonVariants({
-                      variant: "outline",
-                      size: "lg",
-                      className: "rounded-lg",
-                    })}
-                  >
-                    Account aanmaken
-                  </Link>
-                </div>
-              </div>
-
-              <div className="rounded-xl border bg-background p-5">
-                <p className="font-heading text-2xl font-semibold">Wat je krijgt</p>
-                <Table className="mt-4">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Onderdeel</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell>Inloggen met WorkOS</TableCell>
-                      <TableCell>Actief</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>Server-side sessies</TableCell>
-                      <TableCell>Actief</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>Afgeschermde routes</TableCell>
-                      <TableCell>Klaar</TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-            <CardFooter className="justify-between text-sm text-muted-foreground">
-              <span>Open eerst een sessie om het dashboard te zien.</span>
-              <span>Callback: `/auth/callback`</span>
-            </CardFooter>
-          </Card>
-        </main>
-      </>
-    );
+  if (!session) {
+    redirect("/login");
   }
+
+  const viewer = await upsertViewerFromWorkOSSession(session);
+  const db = getDb();
+
+  const rows = await db
+    .select({
+      description: conceptProjects.description,
+      id: conceptProjects.id,
+      name: conceptProjects.name,
+    })
+    .from(conceptProjects)
+    .leftJoin(organisations, eq(conceptProjects.orgOwner, organisations.id))
+    .where(or(eq(conceptProjects.userOwner, viewer.id), eq(organisations.ownerId, viewer.id)))
+    .orderBy(asc(conceptProjects.id));
+
+  const isEmpty = rows.length === 0;
 
   return (
     <>
       <SiteHeader />
-      <main className="mx-auto flex min-h-[calc(100vh-61px)] w-full max-w-6xl flex-col gap-8 px-4 py-8 sm:px-6">
-        <section className="animate-fade-in-up space-y-3">
-          <h1 className="font-heading text-5xl font-semibold tracking-tight text-foreground">
-            Jouw dashboard
-          </h1>
-          <p className="max-w-4xl text-lg text-muted-foreground">
-            Start een nieuwe sessie, ga verder met je beveiligde omgeving of beheer je WorkOS
-            aanmelding vanuit dezelfde rustige dashboardweergave.
-          </p>
+      <main className="mx-auto flex min-h-[calc(100vh-61px)] w-full max-w-6xl flex-col px-4 py-8 sm:px-6">
+        <section className="flex flex-col gap-6">
+          <div className="flex items-start justify-between gap-4">
+            {!isEmpty ? (
+              <form action={createConceptProject}>
+                <Button type="submit">New Concept Project</Button>
+              </form>
+            ) : null}
+          </div>
+
+          {isEmpty ? (
+            <Card className="bg-linear-to-br from-sky-100/30 via-sky-50 to-blue-100/70 shadow-none dark:from-background dark:via-blue-950/30 dark:to-sky-900/20">
+              <CardHeader>
+                <CardTitle>Start with a Concept Project</CardTitle>
+                <CardDescription className="max-w-2xl leading-6 font-sans">
+                  A <span className="font-semibold">Concept Project</span> is the entry point for
+                  every new project in FurrowDev. You start by chatting with an agent to discover
+                  the project, then the agent turns that into a name, description, and initial
+                  roadmap before it graduates into a full project.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3">
+                <div className="flex">
+                  <form action={createConceptProject}>
+                    <Button className="cursor-pointer" size="lg" type="submit">
+                      New Concept Project
+                    </Button>
+                  </form>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="p-0!">
+              <CardContent className="px-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.map((project) => (
+                      <TableRow key={project.id}>
+                        <TableCell className="font-medium">
+                          {getProjectName(project.name)}
+                        </TableCell>
+                        <TableCell className="max-w-xl text-muted-foreground">
+                          {getProjectDescription(project.description)}
+                        </TableCell>
+                        <TableCell>Concept</TableCell>
+                        <TableCell className="text-right">
+                          <Link href={`/concept-project/${project.id}`}>
+                            <Button size="sm" variant="outline">
+                              Open
+                            </Button>
+                          </Link>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
         </section>
-
-        <Card className="rounded-lg border bg-card shadow-none">
-          <CardHeader className="border-b pb-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <CardTitle className="text-2xl">Mijn omgeving</CardTitle>
-              <CardDescription className="mt-1 text-base">
-                Ingelogd als {user.email}. Kies waar je verder wilt.
-              </CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Onderdeel</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead className="text-right">Actie</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow>
-                  <TableCell className="font-medium">Beveiligde werkruimte</TableCell>
-                  <TableCell>Beschikbaar</TableCell>
-                  <TableCell>Privé route</TableCell>
-                  <TableCell className="text-right">
-                    <Link href="/settings">
-                      <Button variant="outline" size="sm">
-                        Settings
-                      </Button>
-                    </Link>
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell className="font-medium">Sessie</TableCell>
-                  <TableCell>Actief</TableCell>
-                  <TableCell>WorkOS</TableCell>
-                  <TableCell className="text-right">
-                    <form
-                      action={async () => {
-                        "use server";
-                        await signOut();
-                      }}
-                    >
-                      <Button type="submit" variant="outline" size="sm">
-                        Afmelden
-                      </Button>
-                    </form>
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell className="font-medium">Profiel</TableCell>
-                  <TableCell>{user.firstName ? "Persoonlijk" : "Basis"}</TableCell>
-                  <TableCell>Account</TableCell>
-                  <TableCell className="text-right">
-                    <Link
-                      href="/settings"
-                      className={buttonVariants({ variant: "outline", size: "sm" })}
-                    >
-                      Bekijken
-                    </Link>
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </CardContent>
-          <CardFooter className="justify-between text-sm text-muted-foreground">
-            <span>{user.id}</span>
-            <span>Pagina 1 van 1</span>
-          </CardFooter>
-        </Card>
-
-        <Card className="rounded-lg border bg-card shadow-none">
-          <CardHeader className="border-b pb-4">
-            <CardTitle className="text-2xl">Accountgegevens</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Naam</TableHead>
-                  <TableHead>Waarde</TableHead>
-                  <TableHead className="text-right">Actie</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow>
-                  <TableCell className="font-medium">E-mail</TableCell>
-                  <TableCell>{user.email}</TableCell>
-                  <TableCell className="text-right">
-                    <Link
-                      href="/settings"
-                      className={buttonVariants({ variant: "outline", size: "sm" })}
-                    >
-                      Beheer
-                    </Link>
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
       </main>
     </>
   );
