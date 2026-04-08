@@ -4,6 +4,8 @@ import { DefaultChatTransport } from "ai";
 import { useChat } from "@ai-sdk/react";
 import { useQuery, useZero } from "@rocicorp/zero/react";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import type { ConceptProjectAgentUIMessage } from "@/lib/agents/concept-project";
@@ -94,6 +96,77 @@ function getTextFromUIMessage(message: ConceptProjectAgentUIMessage) {
     .flatMap((part) => (part.type === "text" ? [part.text] : []))
     .join("")
     .trim();
+}
+
+function MessageMarkdown({
+  isAgent,
+  text,
+}: {
+  isAgent: boolean;
+  text: string;
+}) {
+  const mutedClass = isAgent ? "text-muted-foreground" : "text-background/80";
+  const codeClass = isAgent
+    ? "rounded bg-background px-1.5 py-0.5 text-foreground"
+    : "rounded bg-background/15 px-1.5 py-0.5 text-background";
+  const preClass = isAgent
+    ? "overflow-x-auto rounded-xl border border-border bg-background px-4 py-3 text-foreground"
+    : "overflow-x-auto rounded-xl border border-background/20 bg-background/10 px-4 py-3 text-background";
+
+  return (
+    <div className="mt-2 text-sm leading-6">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          a: ({ node: _node, ...props }) => (
+            <a
+              {...props}
+              className="underline underline-offset-4"
+              rel="noreferrer"
+              target="_blank"
+            />
+          ),
+          code: ({ children, className, node: _node, ...props }) => {
+            const isBlock = Boolean(className);
+
+            if (isBlock) {
+              return (
+                <code {...props} className={className}>
+                  {children}
+                </code>
+              );
+            }
+
+            return (
+              <code {...props} className={codeClass}>
+                {children}
+              </code>
+            );
+          },
+          em: ({ node: _node, ...props }) => <em {...props} className="italic" />,
+          li: ({ node: _node, ...props }) => <li {...props} className="ml-5 pl-1" />,
+          ol: ({ node: _node, ...props }) => <ol {...props} className="list-decimal space-y-1" />,
+          p: ({ node: _node, ...props }) => <p {...props} className="my-0" />,
+          pre: ({ node: _node, ...props }) => <pre {...props} className={preClass} />,
+          strong: ({ node: _node, ...props }) => <strong {...props} className="font-semibold" />,
+          table: ({ node: _node, ...props }) => (
+            <div className="overflow-x-auto">
+              <table {...props} className="w-full border-collapse text-left text-sm" />
+            </div>
+          ),
+          td: ({ node: _node, ...props }) => (
+            <td {...props} className={`border px-3 py-2 align-top ${mutedClass}`} />
+          ),
+          th: ({ node: _node, ...props }) => (
+            <th {...props} className="border px-3 py-2 font-semibold" />
+          ),
+          ul: ({ node: _node, ...props }) => <ul {...props} className="list-disc space-y-1" />,
+        }}
+      >
+        {text || "..."}
+      </ReactMarkdown>
+    </div>
+  );
 }
 
 type ConceptProjectDiscoveryViewProps = {
@@ -422,9 +495,7 @@ function ConceptProjectDiscoveryView({
                       </span>
                     ) : null}
                   </div>
-                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6">
-                    {message.text || "..."}
-                  </p>
+                  <MessageMarkdown isAgent={isAgent} text={message.text} />
                 </div>
                 {showSuggestOptionsAction ? (
                   <div className="mt-1 flex justify-end">
