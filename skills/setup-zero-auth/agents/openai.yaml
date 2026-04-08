@@ -1,0 +1,4 @@
+interface:
+  display_name: "Setup Zero Auth"
+  short_description: "Help set up Zero authentication flows"
+  default_prompt: "Use $setup-zero-auth to design Zero auth, viewer context, and route protection."

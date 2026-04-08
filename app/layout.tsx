@@ -1,4 +1,7 @@
 import type { Metadata } from "next";
+
+import { ZeroProviderClient } from "@/components/providers/zero-provider-client";
+import { getWorkOSSession } from "@/lib/workos-session";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -6,14 +9,21 @@ export const metadata: Metadata = {
   description: "WorkOS auth dashboard",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const session = await getWorkOSSession();
+  const userID = session?.user.id ?? "anon";
+
   return (
     <html lang="en" className="h-full">
-      <body className="min-h-full antialiased">{children}</body>
+      <body className="min-h-full antialiased">
+        <ZeroProviderClient cacheURL={process.env.NEXT_PUBLIC_ZERO_CACHE_URL} userID={userID}>
+          {children}
+        </ZeroProviderClient>
+      </body>
     </html>
   );
 }

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Setup Zero"
+  short_description: "Help set up Zero sync foundations"
+  default_prompt: "Use $setup-zero to wire Zero client, server, schema, and sync endpoints."
