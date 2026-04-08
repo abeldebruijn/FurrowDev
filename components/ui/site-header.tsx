@@ -30,9 +30,9 @@ export async function SiteHeader({
               href={back}
               className={buttonVariants({
                 variant: "outline",
-                size: "sm",
+                size: "icon",
               })}
-              aria-label="Ga terug"
+              aria-label="Go back"
             >
               <ChevronLeft />
             </Link>

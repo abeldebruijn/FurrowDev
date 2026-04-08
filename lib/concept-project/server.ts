@@ -178,6 +178,28 @@ export async function ensureConceptProjectOpeningMessage(
   });
 }
 
+export async function deleteAccessibleConceptProject(
+  viewerId: string,
+  conceptProjectId: string,
+  db: Database = getDb(),
+) {
+  const conceptProject = await getAccessibleConceptProject(viewerId, conceptProjectId, db);
+
+  if (!conceptProject) {
+    return false;
+  }
+
+  await db.transaction(async (tx) => {
+    if (conceptProject.roadmapId) {
+      await tx.delete(roadmaps).where(eq(roadmaps.id, conceptProject.roadmapId));
+    }
+
+    await tx.delete(conceptProjects).where(eq(conceptProjects.id, conceptProject.id));
+  });
+
+  return true;
+}
+
 export async function getConceptProjectRoadmapItems(
   roadmapId: string | null,
   db: Database = getDb(),

@@ -98,13 +98,7 @@ function getTextFromUIMessage(message: ConceptProjectAgentUIMessage) {
     .trim();
 }
 
-function MessageMarkdown({
-  isAgent,
-  text,
-}: {
-  isAgent: boolean;
-  text: string;
-}) {
+function MessageMarkdown({ isAgent, text }: { isAgent: boolean; text: string }) {
   const mutedClass = isAgent ? "text-muted-foreground" : "text-background/80";
   const codeClass = isAgent
     ? "rounded bg-background px-1.5 py-0.5 text-foreground"
@@ -114,7 +108,7 @@ function MessageMarkdown({
     : "overflow-x-auto rounded-xl border border-background/20 bg-background/10 px-4 py-3 text-background";
 
   return (
-    <div className="mt-2 text-sm leading-6">
+    <div className="mt-1 text-sm leading-6">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
@@ -161,6 +155,7 @@ function MessageMarkdown({
             <th {...props} className="border px-3 py-2 font-semibold" />
           ),
           ul: ({ node: _node, ...props }) => <ul {...props} className="list-disc space-y-1" />,
+          hr: ({ node: _node, ...props }) => <hr {...props} className="my-4" />,
         }}
       >
         {text || "..."}
@@ -468,26 +463,26 @@ function ConceptProjectDiscoveryView({
             return (
               <div
                 key={message.id}
-                className={isAgent ? "mr-auto max-w-[85%]" : "ml-auto max-w-[85%]"}
+                className={isAgent ? "mr-auto max-w-[85%]" : "ml-auto max-w-[60ch]"}
               >
                 <div
                   className={`rounded-2xl border px-4 py-3 ${
                     isAgent
                       ? "border-border bg-muted/50"
-                      : "border-foreground bg-foreground text-background"
+                      : "border-foreground bg-accent text-accent-foreground"
                   }`}
                 >
                   <div className="flex items-center gap-2">
-                    <span
-                      className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${
-                        isAgent ? "text-muted-foreground" : "text-background/70"
-                      }`}
-                    >
-                      {isAgent ? CONCEPT_PROJECT_STAGE_LABELS[message.stage] : "You"}
-                    </span>
+                    {isAgent ? (
+                      <span
+                        className={`text-xs font-semibold font-mono text-mutedtext-muted-foreground`}
+                      >
+                        {`${CONCEPT_PROJECT_STAGE_LABELS[message.stage]} agent:`}
+                      </span>
+                    ) : null}
                     {message.isTransient ? (
                       <span
-                        className={`text-[11px] ${
+                        className={`text-[10px] ${
                           isAgent ? "text-muted-foreground" : "text-background/70"
                         }`}
                       >

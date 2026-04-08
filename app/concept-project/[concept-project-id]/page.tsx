@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { ConceptProjectDiscovery } from "@/components/concept-project/concept-project-discovery";
+import { ConceptProjectSettings } from "@/components/concept-project/concept-project-settings";
 import { SiteHeader } from "@/components/ui/site-header";
 import {
   ensureConceptProjectOpeningMessage,
@@ -13,8 +14,6 @@ import {
 import { getDb } from "@/lib/db";
 import { upsertViewerFromWorkOSSession } from "@/lib/zero/context";
 import { getWorkOSSession } from "@/lib/workos-session";
-import { Button } from "@/components/ui/button";
-import { Settings } from "lucide-react";
 
 type ConceptProjectPageProps = {
   params: Promise<{
@@ -62,9 +61,11 @@ export default async function ConceptProjectPage({ params }: ConceptProjectPageP
     <>
       <SiteHeader back="/">
         {getName(conceptProject.name)}
-        <Button variant="ghost" size="icon" className="ml-1">
-          <Settings />
-        </Button>
+        <ConceptProjectSettings
+          conceptProjectId={conceptProject.id}
+          description={conceptProject.description}
+          name={conceptProject.name}
+        />
       </SiteHeader>
 
       <main className="mx-auto flex min-h-[calc(100vh-61px)] w-full max-w-350 flex-col gap-6 px-4 py-8 sm:px-6">
