@@ -106,7 +106,9 @@ export default async function Home() {
                           {getProjectName(project.name)}
                         </TableCell>
                         <TableCell className="max-w-xl text-muted-foreground">
-                          {getProjectDescription(project.description)}
+                          <p className="line-clamp-3">
+                            {getProjectDescription(project.description)}
+                          </p>
                         </TableCell>
                         <TableCell>Concept</TableCell>
                         <TableCell className="text-right">
