@@ -17,7 +17,6 @@ import {
   type ConceptProjectRoadmapDraftItem,
   type ConceptProjectStage,
   CONCEPT_PROJECT_OPENING_MESSAGE,
-  getNextConceptProjectStage,
 } from "@/lib/concept-project/shared";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
@@ -55,10 +54,8 @@ type AppendConceptProjectChatMessageArgs = {
 };
 
 type ApplyConceptProjectStageUnderstandingArgs = {
-  chatId: string;
   conceptProjectId: string;
   description: string;
-  handoffMessage: string;
   name: string;
   roadmapItems: ConceptProjectRoadmapDraftItem[];
   stage: Exclude<ConceptProjectStage, "setup">;
@@ -322,10 +319,8 @@ export async function replaceConceptProjectRoadmapItems(
 export async function applyConceptProjectStageUnderstanding(
   tx: Transaction,
   {
-    chatId,
     conceptProjectId,
     description,
-    handoffMessage,
     name,
     roadmapItems: nextRoadmapItems,
     stage,
@@ -335,7 +330,6 @@ export async function applyConceptProjectStageUnderstanding(
 ) {
   const summaryColumn = getSummaryColumn(stage);
   const timestampColumn = getTimestampColumn(stage);
-  const nextStage = getNextConceptProjectStage(stage);
 
   const nextRoadmapId = await replaceConceptProjectRoadmapItems(tx, {
     conceptProjectId,
@@ -346,7 +340,6 @@ export async function applyConceptProjectStageUnderstanding(
   await tx
     .update(conceptProjects)
     .set({
-      currentStage: nextStage,
       description: description.trim(),
       name: name.trim(),
       roadmapId: nextRoadmapId,
@@ -354,13 +347,6 @@ export async function applyConceptProjectStageUnderstanding(
       [timestampColumn]: new Date(),
     })
     .where(eq(conceptProjects.id, conceptProjectId));
-
-  await appendConceptProjectChatMessage(tx, {
-    chatId,
-    message: handoffMessage.trim(),
-    stage: nextStage,
-    type: "agent",
-  });
 }
 
 export async function setConceptProjectCurrentStage(

@@ -1,12 +1,21 @@
 import { z } from "zod";
 import type { NextRequest } from "next/server";
 
-import { deleteAccessibleConceptProject, getAccessibleConceptProject } from "@/lib/concept-project/server";
+import {
+  appendConceptProjectChatMessage,
+  getConceptProjectTranscript,
+  deleteAccessibleConceptProject,
+  getAccessibleConceptProject,
+} from "@/lib/concept-project/server";
 import { getDb } from "@/lib/db";
 import { upsertViewerFromWorkOSSession } from "@/lib/zero/context";
 import { getWorkOSSession } from "@/lib/workos-session";
 import { conceptProjects } from "@/drizzle/schema";
 import { eq } from "drizzle-orm";
+import {
+  CONCEPT_PROJECT_STAGE_INTRO_MESSAGES,
+  conceptProjectStages,
+} from "@/lib/concept-project/shared";
 
 type ConceptProjectSettingsRouteProps = {
   params: Promise<{
@@ -14,9 +23,15 @@ type ConceptProjectSettingsRouteProps = {
   }>;
 };
 
-const updateSchema = z.object({
-  name: z.string().trim().min(1).max(120),
-});
+const updateSchema = z
+  .object({
+    appendIntroMessage: z.boolean().optional(),
+    currentStage: z.enum(conceptProjectStages).optional(),
+    name: z.string().trim().min(1).max(120).optional(),
+  })
+  .refine((value) => value.name !== undefined || value.currentStage !== undefined, {
+    message: "Nothing to update",
+  });
 
 export async function PATCH(request: NextRequest, { params }: ConceptProjectSettingsRouteProps) {
   const session = await getWorkOSSession(request);
@@ -43,9 +58,31 @@ export async function PATCH(request: NextRequest, { params }: ConceptProjectSett
   await db
     .update(conceptProjects)
     .set({
-      name: body.data.name.trim(),
+      ...(body.data.name ? { name: body.data.name.trim() } : {}),
+      ...(body.data.currentStage ? { currentStage: body.data.currentStage } : {}),
     })
     .where(eq(conceptProjects.id, conceptProject.id));
+
+  if (
+    body.data.currentStage &&
+    body.data.appendIntroMessage &&
+    body.data.currentStage !== "what"
+  ) {
+    const nextStage = body.data.currentStage;
+    const transcript = await getConceptProjectTranscript(conceptProject.id, db);
+    const latestMessage = transcript.at(-1);
+
+    if (latestMessage?.message !== CONCEPT_PROJECT_STAGE_INTRO_MESSAGES[nextStage]) {
+      await db.transaction(async (tx) => {
+        await appendConceptProjectChatMessage(tx, {
+          chatId: conceptProject.chatId,
+          message: CONCEPT_PROJECT_STAGE_INTRO_MESSAGES[nextStage],
+          stage: nextStage,
+          type: "agent",
+        });
+      });
+    }
+  }
 
   return Response.json({ ok: true });
 }

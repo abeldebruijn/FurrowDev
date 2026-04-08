@@ -10,8 +10,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import type { ConceptProjectAgentUIMessage } from "@/lib/agents/concept-project";
 import {
+  CONCEPT_PROJECT_STAGE_INTRO_MESSAGES,
   CONCEPT_PROJECT_STAGE_LABELS,
   conceptProjectStages,
+  getNextConceptProjectStage,
   getConceptProjectStageIndex,
   getConceptProjectWordCount,
   type ConceptProjectStage,
@@ -41,6 +43,7 @@ type RoadmapItem = {
 };
 
 type ConceptProjectSnapshot = {
+  chatId: string;
   currentStage: ConceptProjectStage;
   description: string | null;
   forWhomSummary: string | null;
@@ -70,12 +73,27 @@ type RenderMessage = {
   type: "agent" | "person";
 };
 
-function getDisplayName(name: string | null | undefined) {
-  return name?.trim() || "Untitled concept project";
-}
-
-function getDisplayDescription(description: string | null | undefined) {
-  return description?.trim() || "No description yet.";
+function getStageProgressCard(stage: Exclude<ConceptProjectStage, "setup">) {
+  switch (stage) {
+    case "what":
+      return {
+        body: "I understand what you want to create. You can keep refining the concept, or continue into who this is for.",
+        buttonLabel: "Continue to for whom",
+        title: "What Agent",
+      };
+    case "for_whom":
+      return {
+        body: "I understand who this project is for and how broad the audience should be. You can keep refining the audience, or continue into how it should work.",
+        buttonLabel: "Continue to how",
+        title: "For Whom Agent",
+      };
+    case "how":
+      return {
+        body: "I understand the technical shape and product constraints. You can keep refining the implementation direction, or continue into setup.",
+        buttonLabel: "Continue to setup",
+        title: "How Agent",
+      };
+  }
 }
 
 function getStageSummaryLabel(stage: ConceptProjectStage) {
@@ -171,7 +189,7 @@ type ConceptProjectDiscoveryViewProps = {
   isSwitchingStage: boolean;
   messages: PersistedMessage[];
   onChatFinish?: () => void;
-  onStageSelect?: (stage: ConceptProjectStage) => void;
+  onStageSelect?: (stage: ConceptProjectStage, options?: { appendIntroMessage?: boolean }) => void;
   roadmap: RoadmapItem[];
 };
 
@@ -297,6 +315,16 @@ function ConceptProjectDiscoveryView({
   const latestFinishedAgentMessage = [...renderedMessages]
     .reverse()
     .find((message) => message.type === "agent" && !message.isTransient);
+  const latestUserMessage = [...renderedMessages]
+    .reverse()
+    .find((message) => message.type === "person");
+  const canProgressToNextStage =
+    currentStage !== "setup" &&
+    ((currentStage === "what" && Boolean(conceptProject.understoodWhatAt)) ||
+      (currentStage === "for_whom" && Boolean(conceptProject.understoodForWhomAt)) ||
+      (currentStage === "how" && Boolean(conceptProject.understoodHowAt)));
+  const nextStage = currentStage === "setup" ? null : getNextConceptProjectStage(currentStage);
+  const progressCard = canProgressToNextStage ? getStageProgressCard(currentStage) : null;
 
   function getComposerOffset() {
     const composerHeight = composerShellRef.current?.offsetHeight ?? 0;
@@ -426,7 +454,10 @@ function ConceptProjectDiscoveryView({
     await submitUserMessage(input.trim());
   }
 
-  function handleStageSelect(stage: ConceptProjectStage) {
+  function handleStageSelect(
+    stage: ConceptProjectStage,
+    options?: { appendIntroMessage?: boolean },
+  ) {
     if (
       !canSwitchStages ||
       isSubmitting ||
@@ -435,7 +466,7 @@ function ConceptProjectDiscoveryView({
       return;
     }
 
-    onStageSelect?.(stage);
+    onStageSelect?.(stage, options);
   }
 
   function handleComposerKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -459,48 +490,76 @@ function ConceptProjectDiscoveryView({
               latestFinishedAgentMessage?.id === message.id &&
               isAgent &&
               !message.isTransient;
+            const showProgressAction =
+              canProgressToNextStage &&
+              nextStage !== null &&
+              !isSubmitting &&
+              latestUserMessage?.id === message.id &&
+              !isAgent;
 
             return (
-              <div
-                key={message.id}
-                className={isAgent ? "mr-auto max-w-[85%]" : "ml-auto max-w-[60ch]"}
-              >
-                <div
-                  className={`rounded-2xl border px-4 py-3 ${
-                    isAgent
-                      ? "border-border bg-muted/50"
-                      : "border-foreground bg-accent text-accent-foreground"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    {isAgent ? (
-                      <span
-                        className={`text-xs font-semibold font-mono text-mutedtext-muted-foreground`}
-                      >
-                        {`${CONCEPT_PROJECT_STAGE_LABELS[message.stage]} agent:`}
-                      </span>
-                    ) : null}
-                    {message.isTransient ? (
-                      <span
-                        className={`text-[10px] ${
-                          isAgent ? "text-muted-foreground" : "text-background/70"
-                        }`}
-                      >
-                        live
-                      </span>
-                    ) : null}
+              <div key={message.id} className="space-y-3">
+                <div className={isAgent ? "mr-auto max-w-[85%]" : "ml-auto max-w-[60ch]"}>
+                  <div
+                    className={`rounded-2xl border px-4 py-3 ${
+                      isAgent
+                        ? "border-border bg-muted/50"
+                        : "border-foreground bg-accent text-accent-foreground"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      {isAgent ? (
+                        <span
+                          className={`text-xs font-semibold font-mono text-mutedtext-muted-foreground`}
+                        >
+                          {`${CONCEPT_PROJECT_STAGE_LABELS[message.stage]} agent:`}
+                        </span>
+                      ) : null}
+                      {message.isTransient ? (
+                        <span
+                          className={`text-[10px] ${
+                            isAgent ? "text-muted-foreground" : "text-background/70"
+                          }`}
+                        >
+                          live
+                        </span>
+                      ) : null}
+                    </div>
+                    <MessageMarkdown isAgent={isAgent} text={message.text} />
                   </div>
-                  <MessageMarkdown isAgent={isAgent} text={message.text} />
                 </div>
                 {showSuggestOptionsAction ? (
-                  <div className="mt-1 flex justify-end">
+                  <div className="flex justify-end">
                     <Button
-                      className="h-auto px-4 py-3 text-base cursor-pointer"
+                      className="cursor-pointer"
                       onClick={() => submitUserMessage(SUGGEST_OPTIONS_PROMPT)}
                       type="button"
                     >
                       {SUGGEST_OPTIONS_PROMPT}
                     </Button>
+                  </div>
+                ) : null}
+                {showProgressAction && nextStage && progressCard ? (
+                  <div className="space-y-3">
+                    <div className="mr-auto max-w-[85%] rounded-2xl border border-border bg-muted/50 px-4 py-3">
+                      <p className="text-xs font-semibold font-mono text-muted-foreground">
+                        {`${progressCard.title}:`}
+                      </p>
+                      <p className="mt-1 text-sm leading-6 text-foreground">{progressCard.body}</p>
+                    </div>
+                    <div className="flex justify-end">
+                      <Button
+                        className="cursor-pointer"
+                        onClick={() =>
+                          handleStageSelect(nextStage, {
+                            appendIntroMessage: true,
+                          })
+                        }
+                        type="button"
+                      >
+                        {progressCard.buttonLabel}
+                      </Button>
+                    </div>
                   </div>
                 ) : null}
               </div>
@@ -625,13 +684,8 @@ function ZeroBackedConceptProjectDiscovery({
   initialMessages,
   initialRoadmap,
 }: Omit<ConceptProjectDiscoveryProps, "zeroEnabled">) {
-  const zero = useZero() as unknown as {
-    mutate: {
-      conceptProjects: {
-        setStage: (args: { currentStage: ConceptProjectStage; id: string }) => void;
-      };
-    };
-  };
+  useZero();
+  const router = useRouter();
   const [isSwitchingStage, startStageTransition] = useTransition();
   const [conceptProjectResult] = useQuery(queries.conceptProjects.byId({ id: conceptProjectId }));
   const [messagesResult] = useQuery(
@@ -651,11 +705,22 @@ function ZeroBackedConceptProjectDiscovery({
       ? zeroRoadmap
       : initialRoadmap;
 
-  function handleStageSelect(stage: ConceptProjectStage) {
+  function handleStageSelect(
+    stage: ConceptProjectStage,
+    options?: { appendIntroMessage?: boolean },
+  ) {
     startStageTransition(() => {
-      zero.mutate.conceptProjects.setStage({
-        currentStage: stage,
-        id: conceptProjectId,
+      void fetch(`/api/concept-project/${conceptProjectId}/settings`, {
+        body: JSON.stringify({
+          appendIntroMessage: options?.appendIntroMessage,
+          currentStage: stage,
+        }),
+        headers: {
+          "content-type": "application/json",
+        },
+        method: "PATCH",
+      }).then(() => {
+        router.refresh();
       });
     });
   }
@@ -689,6 +754,20 @@ function FallbackConceptProjectDiscovery({
       isSwitchingStage={false}
       messages={initialMessages}
       onChatFinish={() => {
+        router.refresh();
+      }}
+      onStageSelect={async (stage, options) => {
+        await fetch(`/api/concept-project/${conceptProjectId}/settings`, {
+          body: JSON.stringify({
+            appendIntroMessage: options?.appendIntroMessage,
+            currentStage: stage,
+          }),
+          headers: {
+            "content-type": "application/json",
+          },
+          method: "PATCH",
+        });
+
         router.refresh();
       }}
       roadmap={initialRoadmap}

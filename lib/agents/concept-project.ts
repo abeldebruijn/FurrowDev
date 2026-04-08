@@ -12,6 +12,7 @@ import {
   type ConceptProjectRoadmapDraftItem,
   type ConceptProjectStage,
   CONCEPT_PROJECT_OPENING_MESSAGE,
+  getNextConceptProjectStage,
 } from "@/lib/concept-project/shared";
 import { getDb } from "@/lib/db";
 
@@ -19,7 +20,6 @@ const CONCEPT_PROJECT_MODEL = "anthropic/claude-sonnet-4.6";
 
 const stageCompletionSchema = z.object({
   description: z.string().trim().min(1).max(600),
-  handoffMessage: z.string().trim().min(1).max(600),
   name: z.string().trim().min(1).max(120),
   roadmapItems: z
     .array(
@@ -149,10 +149,8 @@ function createStageTools(context: ConceptProjectAgentContext) {
       await applyConceptProjectStageUnderstanding(
         tx,
         {
-          chatId: latestConceptProject.chatId,
           conceptProjectId: latestConceptProject.id,
           description: input.description,
-          handoffMessage: input.handoffMessage,
           name: input.name,
           roadmapItems: sanitizeRoadmapItems(input.roadmapItems),
           stage,
@@ -163,7 +161,7 @@ function createStageTools(context: ConceptProjectAgentContext) {
     });
 
     return {
-      nextStage: stage === "what" ? "for_whom" : stage === "for_whom" ? "how" : "setup",
+      nextStage: getNextConceptProjectStage(stage),
       ok: true,
     };
   };
@@ -208,7 +206,6 @@ function createWhatInstructions(context: ConceptProjectAgentContext) {
     "The name should feel specific and product-ready.",
     "The description should be short and concrete.",
     "Draft 3 to 6 roadmap items.",
-    "The handoffMessage should clearly transition into the for whom stage.",
     "After you call the tool, do not add extra text.",
     "Project context:",
     buildProjectSnapshot(context),
@@ -225,7 +222,6 @@ function createForWhomInstructions(context: ConceptProjectAgentContext) {
     "Do not repeat what is already settled unless the user changes it.",
     "When you clearly understand the audience and scale, call understandsForWhom.",
     "You may refine the draft name, description, and roadmap if the new audience context changes them.",
-    "The handoffMessage should clearly transition into the how stage.",
     "After you call the tool, do not add extra text.",
     "Project context:",
     buildProjectSnapshot(context),
@@ -241,7 +237,6 @@ function createHowInstructions(context: ConceptProjectAgentContext) {
     "Do not revisit already settled audience or product-concept topics unless the user changes them.",
     "When you clearly understand the technical shape, call understandsHow.",
     "You may refine the draft name, description, and roadmap if the how constraints change them.",
-    "The handoffMessage should explain that setup is next and that the setup agent is not implemented yet.",
     "After you call the tool, do not add extra text.",
     "Project context:",
     buildProjectSnapshot(context),

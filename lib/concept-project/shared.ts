@@ -28,6 +28,14 @@ export const CONCEPT_PROJECT_STAGE_LABELS: Record<ConceptProjectStage, string> =
   setup: "Setup",
 };
 
+export const CONCEPT_PROJECT_STAGE_INTRO_MESSAGES: Record<ConceptProjectStage, string> = {
+  what: CONCEPT_PROJECT_OPENING_MESSAGE,
+  for_whom:
+    "Now that I understand what you want to build, let’s define who this is for. Tell me about the users, audience, and expected scale. Do you expect this project to be a **small prototype** or a **full-scale application**?",
+  how: "We now know what the project is and who it serves. Next, let’s shape how it should work at a high level: constraints, technical needs, and product qualities. Does the project need to be mobile-friendly?",
+  setup: "Discovery is complete. Setup comes next, but the setup agent is not implemented yet.",
+};
+
 export function getConceptProjectStageIndex(stage: ConceptProjectStage) {
   return conceptProjectStages.indexOf(stage);
 }
