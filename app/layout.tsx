@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { CSSStudio } from "@/components/providers/css-studio";
 import { ZeroProviderClient } from "@/components/providers/zero-provider-client";
 import { getWorkOSSession } from "@/lib/workos-session";
 import "./globals.css";
@@ -21,6 +22,7 @@ export default async function RootLayout({
     <html lang="en" className="h-full">
       <body className="min-h-full antialiased">
         <ZeroProviderClient cacheURL={process.env.NEXT_PUBLIC_ZERO_CACHE_URL} userID={userID}>
+          <CSSStudio />
           {children}
         </ZeroProviderClient>
       </body>
