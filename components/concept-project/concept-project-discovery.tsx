@@ -4,20 +4,23 @@ import { DefaultChatTransport } from "ai";
 import { useChat } from "@ai-sdk/react";
 import { useQuery, useZero } from "@rocicorp/zero/react";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import type { ConceptProjectAgentUIMessage } from "@/lib/agents/concept-project";
 import {
   CONCEPT_PROJECT_STAGE_LABELS,
   conceptProjectStages,
-  getConceptProjectStageDescription,
   getConceptProjectStageIndex,
   getConceptProjectWordCount,
   type ConceptProjectStage,
 } from "@/lib/concept-project/shared";
 import { queries } from "@/zero/queries";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArrowDownIcon, CommandIcon, CornerDownLeftIcon } from "lucide-react";
+
+const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 24;
+const AUTO_SCROLL_COMPOSER_GAP_PX = 16;
+const SUGGEST_OPTIONS_PROMPT = "I don't know, suggest 5 options";
 
 type PersistedMessage = {
   id: string;
@@ -114,10 +117,17 @@ function ConceptProjectDiscoveryView({
   onStageSelect,
   roadmap,
 }: ConceptProjectDiscoveryViewProps) {
+  const searchParams = useSearchParams();
   const [input, setInput] = useState("");
+  const [isAtBottom, setIsAtBottom] = useState(true);
   const [composerError, setComposerError] = useState<string | null>(null);
   const clearLocalMessagesTimeoutRef = useRef<number | null>(null);
+  const contentShellRef = useRef<HTMLDivElement | null>(null);
   const composerFormRef = useRef<HTMLFormElement | null>(null);
+  const composerShellRef = useRef<HTMLDivElement | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const isAtBottomRef = useRef(true);
+  const didHandleInitialScrollRef = useRef(false);
   const currentStage = conceptProject.currentStage;
   const hasAnsweredOpeningPrompt = messages.some((message) => message.type === "person");
   const openingWordCount = getConceptProjectWordCount(input);
@@ -216,13 +226,108 @@ function ConceptProjectDiscoveryView({
 
   const isSetupStage = currentStage === "setup";
   const isSubmitting = status === "submitted" || status === "streaming";
+  const latestFinishedAgentMessage = [...renderedMessages]
+    .reverse()
+    .find((message) => message.type === "agent" && !message.isTransient);
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function getComposerOffset() {
+    const composerHeight = composerShellRef.current?.offsetHeight ?? 0;
 
-    const nextInput = input.trim();
+    return composerHeight + AUTO_SCROLL_COMPOSER_GAP_PX;
+  }
 
-    if (!nextInput || isSubmitting || isSetupStage) {
+  function computeIsAtBottom() {
+    const scrollBottom = window.scrollY + window.innerHeight;
+    const pageBottom = document.documentElement.scrollHeight;
+
+    return pageBottom - scrollBottom <= AUTO_SCROLL_BOTTOM_THRESHOLD_PX;
+  }
+
+  function scrollToBottom(behavior: ScrollBehavior = "smooth") {
+    window.scrollTo({
+      behavior,
+      top: document.documentElement.scrollHeight,
+    });
+
+    isAtBottomRef.current = true;
+    setIsAtBottom(true);
+  }
+
+  useEffect(() => {
+    function syncComposerOffset() {
+      const nextOffset = getComposerOffset();
+
+      if (nextOffset > 0 && contentShellRef.current) {
+        contentShellRef.current.style.paddingBottom = `${nextOffset}px`;
+      }
+    }
+
+    syncComposerOffset();
+    window.addEventListener("resize", syncComposerOffset);
+
+    return () => {
+      window.removeEventListener("resize", syncComposerOffset);
+    };
+  }, [isAtBottom, isSetupStage]);
+
+  useEffect(() => {
+    function handleScroll() {
+      const nextIsAtBottom = computeIsAtBottom();
+
+      isAtBottomRef.current = nextIsAtBottom;
+      setIsAtBottom(nextIsAtBottom);
+    }
+
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", handleScroll);
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", handleScroll);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (contentShellRef.current) {
+      contentShellRef.current.style.paddingBottom = `${getComposerOffset()}px`;
+    }
+
+    const nextIsAtBottom = computeIsAtBottom();
+
+    isAtBottomRef.current = nextIsAtBottom;
+    setIsAtBottom(nextIsAtBottom);
+
+    if (!isAtBottomRef.current) {
+      return;
+    }
+
+    scrollToBottom("smooth");
+  }, [currentStage, renderedMessages.length]);
+
+  useEffect(() => {
+    if (didHandleInitialScrollRef.current) {
+      return;
+    }
+
+    if (searchParams.get("scroll") !== "latest") {
+      didHandleInitialScrollRef.current = true;
+      return;
+    }
+
+    didHandleInitialScrollRef.current = true;
+
+    window.requestAnimationFrame(() => {
+      if (contentShellRef.current) {
+        contentShellRef.current.style.paddingBottom = `${getComposerOffset()}px`;
+      }
+
+      scrollToBottom("auto");
+    });
+  }, [searchParams]);
+
+  async function submitUserMessage(nextInput: string) {
+    if (!nextInput.trim() || isSubmitting || isSetupStage) {
       return;
     }
 
@@ -247,6 +352,12 @@ function ConceptProjectDiscoveryView({
     });
   }
 
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    await submitUserMessage(input.trim());
+  }
+
   function handleStageSelect(stage: ConceptProjectStage) {
     if (
       !canSwitchStages ||
@@ -269,24 +380,28 @@ function ConceptProjectDiscoveryView({
   }
 
   return (
-    <div className="grid gap-6">
-      <Card className="shadow-none">
-        <CardHeader className="border-b">
-          <CardTitle>{CONCEPT_PROJECT_STAGE_LABELS[currentStage]} Agent</CardTitle>
-          <CardDescription>{getConceptProjectStageDescription(currentStage)}</CardDescription>
-        </CardHeader>
-        <CardContent className="flex min-h-[620px] flex-col gap-4 p-0">
-          <div className="flex-1 space-y-3 overflow-y-auto px-6 py-5">
-            {renderedMessages.map((message) => {
-              const isAgent = message.type === "agent";
+    <>
+      <div className="grid gap-6" ref={contentShellRef}>
+        <div className="flex-1 space-y-3 overflow-y-auto px-6 py-5">
+          {renderedMessages.map((message) => {
+            const isAgent = message.type === "agent";
+            const showSuggestOptionsAction =
+              !isSetupStage &&
+              !isSubmitting &&
+              latestFinishedAgentMessage?.id === message.id &&
+              isAgent &&
+              !message.isTransient;
 
-              return (
+            return (
+              <div
+                key={message.id}
+                className={isAgent ? "mr-auto max-w-[85%]" : "ml-auto max-w-[85%]"}
+              >
                 <div
-                  key={message.id}
-                  className={`max-w-[85%] rounded-2xl border px-4 py-3 ${
+                  className={`rounded-2xl border px-4 py-3 ${
                     isAgent
-                      ? "mr-auto border-border bg-muted/50"
-                      : "ml-auto border-foreground bg-foreground text-background"
+                      ? "border-border bg-muted/50"
+                      : "border-foreground bg-foreground text-background"
                   }`}
                 >
                   <div className="flex items-center gap-2">
@@ -311,11 +426,40 @@ function ConceptProjectDiscoveryView({
                     {message.text || "..."}
                   </p>
                 </div>
-              );
-            })}
-          </div>
+                {showSuggestOptionsAction ? (
+                  <div className="mt-1 flex justify-end">
+                    <Button
+                      className="h-auto px-4 py-3 text-base cursor-pointer"
+                      onClick={() => submitUserMessage(SUGGEST_OPTIONS_PROMPT)}
+                      type="button"
+                    >
+                      {SUGGEST_OPTIONS_PROMPT}
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+          <div aria-hidden="true" ref={messagesEndRef} />
+        </div>
+      </div>
 
-          <div className="border-t px-6 py-5">
+      <div className="fixed inset-x-0 bottom-0 z-20" ref={composerShellRef}>
+        <div className="mx-auto w-full max-w-240 px-4 pb-6 sm:px-6">
+          <div className="mb-3 flex h-14 justify-center">
+            {!isAtBottom ? (
+              <Button
+                aria-label="Scroll to latest message"
+                className="size-11 rounded-full shadow-md"
+                onClick={() => scrollToBottom("smooth")}
+                size="icon"
+                type="button"
+              >
+                <ArrowDownIcon className="size-5" />
+              </Button>
+            ) : null}
+          </div>
+          <div className="rounded-2xl border bg-background/95 px-6 py-5 shadow-lg backdrop-blur supports-backdrop-filter:bg-background/95">
             {isSetupStage ? (
               <div className="rounded-xl border border-dashed px-4 py-4 text-sm text-muted-foreground">
                 Setup comes next. The setup agent is not implemented yet.
@@ -337,7 +481,9 @@ function ConceptProjectDiscoveryView({
                               ? "border-border bg-background text-foreground hover:border-foreground/40"
                               : "cursor-not-allowed border-border/60 bg-muted/40 text-muted-foreground"
                         }`}
-                        disabled={!canSwitchStages || !isUnlocked || isSubmitting || isSwitchingStage}
+                        disabled={
+                          !canSwitchStages || !isUnlocked || isSubmitting || isSwitchingStage
+                        }
                         key={stage}
                         onClick={() => handleStageSelect(stage)}
                         type="button"
@@ -347,17 +493,39 @@ function ConceptProjectDiscoveryView({
                     );
                   })}
                 </div>
-                <textarea
-                  className="min-h-32 w-full rounded-2xl border bg-background px-4 py-3 text-sm outline-none transition focus:border-foreground"
-                  onChange={(event) => setInput(event.target.value)}
-                  onKeyDown={handleComposerKeyDown}
-                  placeholder={
-                    hasAnsweredOpeningPrompt
-                      ? "Answer the current question or add more detail."
-                      : "Keep the first answer concise."
-                  }
-                  value={input}
-                />
+
+                <div className="relative">
+                  <textarea
+                    className="min-h-32 w-full rounded-2xl border bg-background px-4 py-3 text-sm outline-none transition focus:border-foreground"
+                    onChange={(event) => setInput(event.target.value)}
+                    onKeyDown={handleComposerKeyDown}
+                    placeholder={
+                      hasAnsweredOpeningPrompt
+                        ? "Answer the current question or add more detail."
+                        : "Keep the first answer concise."
+                    }
+                    value={input}
+                  />
+
+                  <Button
+                    disabled={!input.trim() || isSubmitting}
+                    type="submit"
+                    className="absolute right-2 bottom-4"
+                  >
+                    {isSubmitting ? (
+                      "Thinking..."
+                    ) : (
+                      <>
+                        Send
+                        <div className="flex">
+                          <CommandIcon className="size-2.5" />{" "}
+                          <CornerDownLeftIcon className="size-2.5" />
+                        </div>
+                      </>
+                    )}
+                  </Button>
+                </div>
+
                 <div className="flex items-center justify-between gap-3">
                   <div className="space-y-1">
                     {!hasAnsweredOpeningPrompt ? (
@@ -375,16 +543,13 @@ function ConceptProjectDiscoveryView({
                       <p className="text-xs text-destructive">{error.message}</p>
                     ) : null}
                   </div>
-                  <Button disabled={!input.trim() || isSubmitting} type="submit">
-                    {isSubmitting ? "Thinking..." : "Send"}
-                  </Button>
                 </div>
               </form>
             )}
           </div>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </div>
+    </>
   );
 }
 

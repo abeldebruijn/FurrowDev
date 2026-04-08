@@ -36,16 +36,3 @@ export function getNextConceptProjectStage(stage: Exclude<ConceptProjectStage, "
 export function getConceptProjectWordCount(value: string) {
   return value.trim().split(/\s+/).filter(Boolean).length;
 }
-
-export function getConceptProjectStageDescription(stage: ConceptProjectStage) {
-  switch (stage) {
-    case "what":
-      return "Discover what the project is and why it should exist.";
-    case "for_whom":
-      return "Define the audience, scale, and product niche.";
-    case "how":
-      return "Shape the technical constraints and product qualities.";
-    case "setup":
-      return "Setup comes next. The setup agent is not implemented yet.";
-  }
-}

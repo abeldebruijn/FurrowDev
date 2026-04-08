@@ -110,7 +110,7 @@ export default async function Home() {
                         </TableCell>
                         <TableCell>Concept</TableCell>
                         <TableCell className="text-right">
-                          <Link href={`/concept-project/${project.id}`}>
+                          <Link href={`/concept-project/${project.id}?scroll=latest`}>
                             <Button size="sm" variant="outline">
                               Open
                             </Button>

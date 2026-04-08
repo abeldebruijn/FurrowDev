@@ -13,6 +13,8 @@ import {
 import { getDb } from "@/lib/db";
 import { upsertViewerFromWorkOSSession } from "@/lib/zero/context";
 import { getWorkOSSession } from "@/lib/workos-session";
+import { Button } from "@/components/ui/button";
+import { Settings } from "lucide-react";
 
 type ConceptProjectPageProps = {
   params: Promise<{
@@ -58,7 +60,13 @@ export default async function ConceptProjectPage({ params }: ConceptProjectPageP
 
   return (
     <>
-      <SiteHeader title={getName(conceptProject.name)} />
+      <SiteHeader back="/">
+        {getName(conceptProject.name)}
+        <Button variant="ghost" size="icon" className="ml-1">
+          <Settings />
+        </Button>
+      </SiteHeader>
+
       <main className="mx-auto flex min-h-[calc(100vh-61px)] w-full max-w-350 flex-col gap-6 px-4 py-8 sm:px-6">
         <ConceptProjectDiscovery
           conceptProjectId={conceptProject.id}
