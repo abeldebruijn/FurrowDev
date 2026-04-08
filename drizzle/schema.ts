@@ -16,6 +16,12 @@ export const conceptProjectChatMessageType = pgEnum("concept_project_chat_messag
   "agent",
   "person",
 ]);
+export const conceptProjectStage = pgEnum("concept_project_stage", [
+  "what",
+  "for_whom",
+  "how",
+  "setup",
+]);
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey(),
@@ -63,6 +69,13 @@ export const conceptProjects = pgTable(
     id: uuid("id").primaryKey(),
     name: text("name"),
     description: text("description"),
+    currentStage: conceptProjectStage("current_stage").notNull().default("what"),
+    whatSummary: text("what_summary"),
+    forWhomSummary: text("for_whom_summary"),
+    howSummary: text("how_summary"),
+    understoodWhatAt: timestamp("understood_what_at", { withTimezone: true }),
+    understoodForWhomAt: timestamp("understood_for_whom_at", { withTimezone: true }),
+    understoodHowAt: timestamp("understood_how_at", { withTimezone: true }),
     roadmapId: uuid("roadmap_id").references(() => roadmaps.id, { onDelete: "set null" }),
     userOwner: uuid("user_owner").references(() => users.id, { onDelete: "cascade" }),
     orgOwner: uuid("org_owner").references(() => organisations.id, { onDelete: "cascade" }),
@@ -96,6 +109,7 @@ export const conceptProjectChatMessages = pgTable(
     message: text("message").notNull(),
     order: integer("order").notNull(),
     type: conceptProjectChatMessageType("type").notNull(),
+    stage: conceptProjectStage("stage").notNull().default("what"),
     userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
     conceptProjectChatId: uuid("concept_project_chat_id")
       .notNull()

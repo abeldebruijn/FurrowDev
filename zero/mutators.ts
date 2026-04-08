@@ -2,6 +2,7 @@ import { ApplicationError, defineMutatorWithType, defineMutators } from "@rocico
 import { z } from "zod";
 
 import type { ZeroContext } from "@/lib/zero/context";
+import { conceptProjectStages } from "@/lib/concept-project/shared";
 import {
   assertCanAccessConceptProjectServer,
   assertChatBelongsToConceptProjectServer,
@@ -88,11 +89,13 @@ export const mutators = defineMutators({
         id: z.uuid(),
         name: z.string().trim().min(1).optional(),
         description: z.string().optional(),
+        currentStage: z.enum(conceptProjectStages).optional(),
       }),
       async ({ args, ctx, tx }) => {
         await assertCanAccessConceptProjectServer(tx, ctx, args.id);
 
         const next: {
+          currentStage?: "what" | "for_whom" | "how" | "setup";
           id: string;
           name?: string | null;
           description?: string | null;
@@ -108,11 +111,33 @@ export const mutators = defineMutators({
           next.description = args.description;
         }
 
-        if (next.name === undefined && next.description === undefined) {
+        if (args.currentStage !== undefined) {
+          next.currentStage = args.currentStage;
+        }
+
+        if (
+          next.name === undefined &&
+          next.description === undefined &&
+          next.currentStage === undefined
+        ) {
           return;
         }
 
         await tx.mutate.conceptProjects.update(next as any);
+      },
+    ),
+    setStage: defineMutator(
+      z.object({
+        currentStage: z.enum(conceptProjectStages),
+        id: z.uuid(),
+      }),
+      async ({ args, ctx, tx }) => {
+        await assertCanAccessConceptProjectServer(tx, ctx, args.id);
+
+        await tx.mutate.conceptProjects.update({
+          currentStage: args.currentStage,
+          id: args.id,
+        } as any);
       },
     ),
   },
@@ -124,6 +149,7 @@ export const mutators = defineMutators({
         conceptProjectChatId: z.uuid(),
         message: z.string().min(1),
         order: z.int(),
+        stage: z.enum(conceptProjectStages),
         type: z.enum(["agent", "person"]),
       }),
       async ({ args, ctx, tx }) => {
@@ -138,6 +164,7 @@ export const mutators = defineMutators({
           id: args.id,
           message: args.message,
           order: args.order,
+          stage: args.stage,
           type: args.type,
           userId: args.type === "person" ? ctx.viewerId : undefined,
           conceptProjectChatId: args.conceptProjectChatId,

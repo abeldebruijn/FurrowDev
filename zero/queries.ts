@@ -2,7 +2,7 @@ import { defineQueries, defineQueryWithType } from "@rocicorp/zero";
 import { z } from "zod";
 
 import type { ZeroContext } from "@/lib/zero/context";
-import { visibleConceptProjectsQuery } from "@/zero/shared";
+import { scopeConceptProjectsToViewer, visibleConceptProjectsQuery } from "@/zero/shared";
 import { schema, zql } from "@/zero/schema";
 
 const defineQuery = defineQueryWithType<typeof schema, ZeroContext>();
@@ -22,8 +22,8 @@ export const queries = defineQueries({
     byConceptProjectId: defineQuery(z.object({ conceptProjectId: z.uuid() }), ({ args, ctx }) =>
       zqlAny.conceptProjectChats
         .where("conceptProjectId", args.conceptProjectId)
-        .whereExists("conceptProject", (_query: any) =>
-          visibleConceptProjectsQuery(ctx).where("id", args.conceptProjectId),
+        .whereExists("conceptProject", (query: any) =>
+          scopeConceptProjectsToViewer(query.where("id", args.conceptProjectId), ctx),
         )
         .one(),
     ),
@@ -34,8 +34,11 @@ export const queries = defineQueries({
           .whereExists("conceptProjectChat", (query: any) =>
             query
               .where("conceptProjectId", args.conceptProjectId)
-              .whereExists("conceptProject", () =>
-                visibleConceptProjectsQuery(ctx).where("id", args.conceptProjectId),
+              .whereExists("conceptProject", (conceptProjectQuery: any) =>
+                scopeConceptProjectsToViewer(
+                  conceptProjectQuery.where("id", args.conceptProjectId),
+                  ctx,
+                ),
               ),
           )
           .orderBy("order", "asc"),
@@ -44,8 +47,8 @@ export const queries = defineQueries({
   roadmaps: {
     byConceptProjectId: defineQuery(z.object({ conceptProjectId: z.uuid() }), ({ args, ctx }) =>
       zqlAny.roadmaps
-        .whereExists("conceptProjects", (_query: any) =>
-          visibleConceptProjectsQuery(ctx).where("id", args.conceptProjectId),
+        .whereExists("conceptProjects", (query: any) =>
+          scopeConceptProjectsToViewer(query.where("id", args.conceptProjectId), ctx),
         )
         .one(),
     ),
@@ -54,8 +57,11 @@ export const queries = defineQueries({
       ({ args, ctx }) =>
         zqlAny.roadmapItems
           .whereExists("roadmap", (roadmapQuery: any) =>
-            roadmapQuery.whereExists("conceptProjects", () =>
-              visibleConceptProjectsQuery(ctx).where("id", args.conceptProjectId),
+            roadmapQuery.whereExists("conceptProjects", (conceptProjectQuery: any) =>
+              scopeConceptProjectsToViewer(
+                conceptProjectQuery.where("id", args.conceptProjectId),
+                ctx,
+              ),
             ),
           )
           .orderBy("majorVersion", "asc")

@@ -1,31 +1,32 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { ZeroProvider } from "@rocicorp/zero/react";
 
+import type { ZeroContext } from "@/lib/zero/context";
 import { mutators } from "@/zero/mutators";
 import { schema } from "@/zero/schema";
 
 type ZeroProviderClientProps = {
   cacheURL?: string | null;
   children: React.ReactNode;
+  zeroContext?: ZeroContext | null;
   userID: string;
 };
 
-export function ZeroProviderClient({ cacheURL, children, userID }: ZeroProviderClientProps) {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted || !cacheURL) {
+export function ZeroProviderClient({
+  cacheURL,
+  children,
+  userID,
+  zeroContext,
+}: ZeroProviderClientProps) {
+  if (!cacheURL || !zeroContext) {
     return <>{children}</>;
   }
 
   return (
     <ZeroProvider
       cacheURL={cacheURL}
+      context={zeroContext}
       mutators={mutators}
       schema={schema}
       storageKey="furrow-dev"

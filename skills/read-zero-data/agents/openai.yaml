@@ -1,0 +1,4 @@
+interface:
+  display_name: "Read Zero Data"
+  short_description: "Help read and sync data with Zero"
+  default_prompt: "Use $read-zero-data to define Zero queries and wire query endpoints."

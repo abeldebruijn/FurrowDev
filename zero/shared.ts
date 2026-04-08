@@ -6,13 +6,17 @@ import { zql } from "@/zero/schema";
 
 const zqlAny = zql as any;
 
-export function visibleConceptProjectsQuery(ctx: ZeroContext) {
-  return zqlAny.conceptProjects.where(({ cmp, exists, or }: any) =>
+export function scopeConceptProjectsToViewer(query: any, ctx: ZeroContext) {
+  return query.where(({ cmp, exists, or }: any) =>
     or(
       cmp("userOwner", ctx.viewerId),
       exists("ownerOrganisation", (query: any) => query.where("ownerId", ctx.viewerId)),
     ),
   );
+}
+
+export function visibleConceptProjectsQuery(ctx: ZeroContext) {
+  return scopeConceptProjectsToViewer(zqlAny.conceptProjects, ctx);
 }
 
 export async function assertCanAccessConceptProjectServer(

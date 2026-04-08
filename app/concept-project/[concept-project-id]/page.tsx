@@ -1,28 +1,18 @@
-import { and, asc, eq, or } from "drizzle-orm";
 import { withAuth } from "@workos-inc/authkit-nextjs";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { ConceptProjectDiscovery } from "@/components/concept-project/concept-project-discovery";
+import { SiteHeader } from "@/components/ui/site-header";
 import {
-  conceptProjectChatMessages,
-  conceptProjectChats,
-  conceptProjects,
-  organisations,
-  projects,
-  roadmapItems,
-} from "@/drizzle/schema";
+  ensureConceptProjectOpeningMessage,
+  getAccessibleConceptProject,
+  getConceptProjectRoadmapItems,
+  getConceptProjectTranscript,
+} from "@/lib/concept-project/server";
 import { getDb } from "@/lib/db";
 import { upsertViewerFromWorkOSSession } from "@/lib/zero/context";
 import { getWorkOSSession } from "@/lib/workos-session";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { SiteHeader } from "@/components/ui/site-header";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 
 type ConceptProjectPageProps = {
   params: Promise<{
@@ -30,12 +20,13 @@ type ConceptProjectPageProps = {
   }>;
 };
 
+export const metadata: Metadata = {
+  title: "Concept Project | FurrowDev",
+  description: "Discover a new concept project with staged agent handoffs.",
+};
+
 function getName(name: string | null) {
   return name?.trim() || "Untitled concept project";
-}
-
-function getDescription(description: string | null) {
-  return description?.trim() || "No description yet.";
 }
 
 export default async function ConceptProjectPage({ params }: ConceptProjectPageProps) {
@@ -48,187 +39,39 @@ export default async function ConceptProjectPage({ params }: ConceptProjectPageP
   }
 
   const viewer = await upsertViewerFromWorkOSSession(session);
-  const { ["concept-project-id"]: conceptProjectId } = await params;
+  const routeParams = await params;
+  const conceptProjectId = routeParams["concept-project-id"];
   const db = getDb();
 
-  const [conceptProject] = await db
-    .select({
-      description: conceptProjects.description,
-      id: conceptProjects.id,
-      name: conceptProjects.name,
-      roadmapId: conceptProjects.roadmapId,
-    })
-    .from(conceptProjects)
-    .leftJoin(organisations, eq(conceptProjects.orgOwner, organisations.id))
-    .where(
-      and(
-        eq(conceptProjects.id, conceptProjectId),
-        or(eq(conceptProjects.userOwner, viewer.id), eq(organisations.ownerId, viewer.id)),
-      ),
-    )
-    .limit(1);
+  const conceptProject = await getAccessibleConceptProject(viewer.id, conceptProjectId, db);
 
   if (!conceptProject) {
     notFound();
   }
 
-  const [chat, graduatedProject] = await Promise.all([
-    db
-      .select({
-        id: conceptProjectChats.id,
-      })
-      .from(conceptProjectChats)
-      .where(eq(conceptProjectChats.conceptProjectId, conceptProject.id))
-      .limit(1)
-      .then((rows) => rows[0] ?? null),
-    db
-      .select({
-        id: projects.id,
-      })
-      .from(projects)
-      .where(eq(projects.conceptProjectId, conceptProject.id))
-      .limit(1)
-      .then((rows) => rows[0] ?? null),
-  ]);
+  await ensureConceptProjectOpeningMessage(conceptProject, db);
 
   const [messages, roadmap] = await Promise.all([
-    chat
-      ? db
-          .select({
-            id: conceptProjectChatMessages.id,
-            message: conceptProjectChatMessages.message,
-            order: conceptProjectChatMessages.order,
-            type: conceptProjectChatMessages.type,
-          })
-          .from(conceptProjectChatMessages)
-          .where(eq(conceptProjectChatMessages.conceptProjectChatId, chat.id))
-          .orderBy(asc(conceptProjectChatMessages.order))
-      : [],
-    conceptProject.roadmapId
-      ? db
-          .select({
-            description: roadmapItems.description,
-            id: roadmapItems.id,
-            majorVersion: roadmapItems.majorVersion,
-            minorVersion: roadmapItems.minorVersion,
-            name: roadmapItems.name,
-          })
-          .from(roadmapItems)
-          .where(eq(roadmapItems.roadmapId, conceptProject.roadmapId))
-          .orderBy(
-            asc(roadmapItems.majorVersion),
-            asc(roadmapItems.minorVersion),
-            asc(roadmapItems.name),
-          )
-      : [],
+    getConceptProjectTranscript(conceptProject.id, db),
+    getConceptProjectRoadmapItems(conceptProject.roadmapId, db),
   ]);
 
   return (
     <>
       <SiteHeader title={getName(conceptProject.name)} />
-      <main className="mx-auto flex min-h-[calc(100vh-61px)] w-full max-w-6xl flex-col gap-6 px-4 py-8 sm:px-6">
-        <section className="space-y-2">
-          <p className="max-w-3xl text-sm text-muted-foreground">
-            {getDescription(conceptProject.description)}
-          </p>
-        </section>
-
-        <Card className="shadow-none">
-          <CardHeader>
-            <CardTitle>Overview</CardTitle>
-            <CardDescription>Minimal concept project shell.</CardDescription>
-          </CardHeader>
-          <CardContent className="px-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Field</TableHead>
-                  <TableHead>Value</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow>
-                  <TableCell className="font-medium">Project ID</TableCell>
-                  <TableCell>{conceptProject.id}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell className="font-medium">Stage</TableCell>
-                  <TableCell>{graduatedProject ? "Graduated" : "Concept"}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell className="font-medium">Chat</TableCell>
-                  <TableCell>{chat ? `${messages.length} messages` : "Not started"}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell className="font-medium">Roadmap</TableCell>
-                  <TableCell>
-                    {conceptProject.roadmapId ? `${roadmap.length} items` : "Not created"}
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-none">
-          <CardHeader>
-            <CardTitle>Chat</CardTitle>
-            <CardDescription>Conversation history will live here.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            {messages.length > 0 ? (
-              messages.map((message) => (
-                <div key={message.id} className="rounded-lg border px-4 py-3">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    {message.type}
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-foreground">{message.message}</p>
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No messages yet. The discovery conversation will appear here.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-none">
-          <CardHeader>
-            <CardTitle>Roadmap</CardTitle>
-            <CardDescription>Initial roadmap data will appear here.</CardDescription>
-          </CardHeader>
-          <CardContent className="px-0">
-            {roadmap.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Version</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Description</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {roadmap.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>{`${item.majorVersion}.${item.minorVersion}`}</TableCell>
-                      <TableCell className="font-medium">{item.name}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {item.description?.trim() || "No description yet."}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            ) : (
-              <div className="px-4">
-                <p className="text-sm text-muted-foreground">
-                  No roadmap items yet. This page is intentionally only a simple data shell.
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      <main className="mx-auto flex min-h-[calc(100vh-61px)] w-full max-w-350 flex-col gap-6 px-4 py-8 sm:px-6">
+        <ConceptProjectDiscovery
+          conceptProjectId={conceptProject.id}
+          initialConceptProject={{
+            ...conceptProject,
+            understoodForWhomAt: conceptProject.understoodForWhomAt?.toISOString() ?? null,
+            understoodHowAt: conceptProject.understoodHowAt?.toISOString() ?? null,
+            understoodWhatAt: conceptProject.understoodWhatAt?.toISOString() ?? null,
+          }}
+          initialMessages={messages}
+          initialRoadmap={roadmap}
+          zeroEnabled={Boolean(process.env.NEXT_PUBLIC_ZERO_CACHE_URL)}
+        />
       </main>
     </>
   );

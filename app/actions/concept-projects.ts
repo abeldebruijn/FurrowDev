@@ -5,7 +5,12 @@ import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 
 import { conceptProjectChats, conceptProjects } from "@/drizzle/schema";
+import {
+  CONCEPT_PROJECT_OPENING_MESSAGE,
+  type ConceptProjectStage,
+} from "@/lib/concept-project/shared";
 import { getDb } from "@/lib/db";
+import { appendConceptProjectChatMessage } from "@/lib/concept-project/server";
 import { upsertViewerFromWorkOSSession } from "@/lib/zero/context";
 import { getWorkOSSession } from "@/lib/workos-session";
 
@@ -23,6 +28,7 @@ export async function createConceptProject() {
 
   await db.transaction(async (tx) => {
     await tx.insert(conceptProjects).values({
+      currentStage: "what" satisfies ConceptProjectStage,
       id: conceptProjectId,
       userOwner: viewer.id,
     });
@@ -30,6 +36,14 @@ export async function createConceptProject() {
     await tx.insert(conceptProjectChats).values({
       conceptProjectId,
       id: chatId,
+    });
+
+    await appendConceptProjectChatMessage(tx, {
+      chatId,
+      id: randomUUID(),
+      message: CONCEPT_PROJECT_OPENING_MESSAGE,
+      stage: "what",
+      type: "agent",
     });
   });
 
