@@ -22,6 +22,13 @@
       "when": 1775734838421,
       "tag": "0002_moaning_sunfire",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1775746977795,
+      "tag": "0003_simple_warstar",
+      "breakpoints": true
     }
   ]
 }

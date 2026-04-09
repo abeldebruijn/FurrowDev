@@ -132,6 +132,7 @@ export const projects = pgTable(
     name: text("name").notNull(),
     description: text("description"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    roadmapId: uuid("roadmap_id").references(() => roadmaps.id, { onDelete: "set null" }),
     conceptProjectId: uuid("concept_project_id").references(() => conceptProjects.id, {
       onDelete: "set null",
     }),
@@ -270,6 +271,10 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   conceptProject: one(conceptProjects, {
     fields: [projects.conceptProjectId],
     references: [conceptProjects.id],
+  }),
+  roadmap: one(roadmaps, {
+    fields: [projects.roadmapId],
+    references: [roadmaps.id],
   }),
   ownerUser: one(users, {
     fields: [projects.userOwner],

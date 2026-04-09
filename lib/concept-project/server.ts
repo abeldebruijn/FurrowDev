@@ -1,12 +1,13 @@
 import { randomUUID } from "node:crypto";
 
-import { and, eq, inArray, max, or } from "drizzle-orm";
+import { and, eq, inArray, isNull, max, or } from "drizzle-orm";
 
 import {
   conceptProjectChatMessages,
   conceptProjectChats,
   conceptProjects,
   organisations,
+  projects,
   roadmapItems,
   roadmaps,
   users,
@@ -34,11 +35,14 @@ export type AccessibleConceptProject = {
   howSummary: string | null;
   id: string;
   name: string | null;
+  orgOwner: string | null;
+  projectId: string | null;
   roadmapId: string | null;
   understoodForWhomAt: Date | null;
   understoodHowAt: Date | null;
   understoodSetupAt: Date | null;
   understoodWhatAt: Date | null;
+  userOwner: string | null;
   setupSummary: string | null;
   whatSummary: string | null;
 };
@@ -112,17 +116,21 @@ export async function getAccessibleConceptProject(
       howSummary: conceptProjects.howSummary,
       id: conceptProjects.id,
       name: conceptProjects.name,
+      orgOwner: conceptProjects.orgOwner,
+      projectId: projects.id,
       roadmapId: conceptProjects.roadmapId,
       understoodForWhomAt: conceptProjects.understoodForWhomAt,
       understoodHowAt: conceptProjects.understoodHowAt,
       understoodSetupAt: conceptProjects.understoodSetupAt,
       understoodWhatAt: conceptProjects.understoodWhatAt,
+      userOwner: conceptProjects.userOwner,
       setupSummary: conceptProjects.setupSummary,
       whatSummary: conceptProjects.whatSummary,
     })
     .from(conceptProjects)
     .innerJoin(conceptProjectChats, eq(conceptProjectChats.conceptProjectId, conceptProjects.id))
     .leftJoin(organisations, eq(conceptProjects.orgOwner, organisations.id))
+    .leftJoin(projects, eq(projects.conceptProjectId, conceptProjects.id))
     .where(
       and(
         eq(conceptProjects.id, conceptProjectId),
@@ -132,6 +140,28 @@ export async function getAccessibleConceptProject(
     .limit(1);
 
   return (rows[0] ?? null) as AccessibleConceptProject | null;
+}
+
+export async function listAccessibleActiveConceptProjects(
+  viewerId: string,
+  db: Database = getDb(),
+) {
+  return db
+    .select({
+      description: conceptProjects.description,
+      id: conceptProjects.id,
+      name: conceptProjects.name,
+    })
+    .from(conceptProjects)
+    .leftJoin(organisations, eq(conceptProjects.orgOwner, organisations.id))
+    .leftJoin(projects, eq(projects.conceptProjectId, conceptProjects.id))
+    .where(
+      and(
+        or(eq(conceptProjects.userOwner, viewerId), eq(organisations.ownerId, viewerId)),
+        isNull(projects.id),
+      ),
+    )
+    .orderBy(conceptProjects.id);
 }
 
 export async function getConceptProjectViewerName(viewerId: string, db: Database = getDb()) {

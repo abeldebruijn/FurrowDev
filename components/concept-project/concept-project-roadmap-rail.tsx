@@ -61,6 +61,7 @@ export function ConceptProjectRoadmapRail({
   onInsertVersion,
   onUpdateRoadmapVersionNodes,
   roadmap,
+  className,
 }: {
   canEditVersions: boolean;
   canInsertVersions: boolean;
@@ -69,6 +70,7 @@ export function ConceptProjectRoadmapRail({
   onInsertVersion?: (args: InsertRoadmapVersionArgs) => Promise<void>;
   onUpdateRoadmapVersionNodes?: (drafts: EditRoadmapNodeDraft[]) => Promise<void>;
   roadmap: ConceptProjectRoadmapVisualItem[];
+  className?: string;
 }) {
   const prefersReducedMotion = useReducedMotion();
   const previousScrollYRef = useRef(0);
@@ -308,7 +310,10 @@ export function ConceptProjectRoadmapRail({
           paddingBottom: effectiveIsCollapsed ? 8 : 12,
           paddingTop: effectiveIsCollapsed ? 4 : 10,
         }}
-        className="fixed inset-x-0 top-15 z-10 min-w-0 overflow-hidden px-4 sm:px-6"
+        className={cn(
+          "fixed inset-x-0 top-15 z-10 min-w-0 overflow-hidden px-4 sm:px-6",
+          className,
+        )}
         transition={transition}
       >
         <div className="mx-auto w-full max-w-350">

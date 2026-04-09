@@ -105,6 +105,13 @@ export async function POST(request: NextRequest, { params }: ConceptProjectChatR
     return Response.json({ error: "Concept project not found" }, { status: 404 });
   }
 
+  if (conceptProject.projectId) {
+    return Response.json(
+      { error: "This concept project has already graduated and is now read-only." },
+      { status: 400 },
+    );
+  }
+
   await ensureConceptProjectOpeningMessage(conceptProject, db);
 
   const transcriptBeforePersist = await getConceptProjectTranscript(conceptProject.id, db);

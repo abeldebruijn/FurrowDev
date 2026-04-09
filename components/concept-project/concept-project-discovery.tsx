@@ -6,8 +6,10 @@ import { useQuery, useZero } from "@rocicorp/zero/react";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
+import { ConceptProjectGraduate } from "@/components/concept-project/concept-project-graduate";
 import { ConceptProjectRoadmapRail } from "@/components/concept-project/concept-project-roadmap-rail";
 import type { ConceptProjectAgentUIMessage } from "@/lib/agents/concept-project";
 import type {
@@ -25,8 +27,9 @@ import {
 import { cn } from "@/lib/utils";
 import { mutators } from "@/zero/mutators";
 import { queries } from "@/zero/queries";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { ArrowDownIcon, CommandIcon, CornerDownLeftIcon } from "lucide-react";
+import { ArrowDownIcon, CheckIcon, CommandIcon, CornerDownLeftIcon } from "lucide-react";
 
 const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 24;
 const AUTO_SCROLL_COMPOSER_GAP_PX = 16;
@@ -62,9 +65,11 @@ type ConceptProjectSnapshot = {
 type ConceptProjectDiscoveryProps = {
   conceptProjectId: string;
   initialConceptProject: ConceptProjectSnapshot;
+  isArchived?: boolean;
   initialMessages: PersistedMessage[];
   initialRoadmapCurrentVersion: ConceptProjectRoadmapCurrentVersion;
   initialRoadmap: RoadmapItem[];
+  projectId?: string | null;
   zeroEnabled: boolean;
 };
 
@@ -191,6 +196,7 @@ type ConceptProjectDiscoveryViewProps = {
   canSwitchStages: boolean;
   conceptProject: ConceptProjectSnapshot;
   conceptProjectId: string;
+  isArchived?: boolean;
   isSwitchingStage: boolean;
   messages: PersistedMessage[];
   onDeleteRoadmapNode?: (nodeId: string) => Promise<void>;
@@ -209,6 +215,7 @@ type ConceptProjectDiscoveryViewProps = {
     }>,
   ) => Promise<void>;
   onStageSelect?: (stage: ConceptProjectStage, options?: { appendIntroMessage?: boolean }) => void;
+  projectId?: string | null;
   roadmapCurrentVersion: ConceptProjectRoadmapCurrentVersion;
   roadmap: RoadmapItem[];
 };
@@ -219,6 +226,7 @@ function ConceptProjectDiscoveryView({
   canSwitchStages,
   conceptProject,
   conceptProjectId,
+  isArchived = false,
   isSwitchingStage,
   messages,
   onDeleteRoadmapNode,
@@ -226,6 +234,7 @@ function ConceptProjectDiscoveryView({
   onInsertRoadmapVersion,
   onUpdateRoadmapVersionNodes,
   onStageSelect,
+  projectId,
   roadmapCurrentVersion,
   roadmap,
 }: ConceptProjectDiscoveryViewProps) {
@@ -319,7 +328,7 @@ function ConceptProjectDiscoveryView({
   }, [currentStage, messages, persistedMessageIds, status, transientMessages]);
 
   const isSetupStage = currentStage === "setup";
-  const isSubmitting = status === "submitted" || status === "streaming";
+  const isSubmitting = !isArchived && (status === "submitted" || status === "streaming");
   const latestFinishedAgentMessage = [...renderedMessages]
     .reverse()
     .find((message) => message.type === "agent" && !message.isTransient);
@@ -334,6 +343,8 @@ function ConceptProjectDiscoveryView({
   const nextStage = currentStage === "setup" ? null : getNextConceptProjectStage(currentStage);
   const progressCard = canProgressToNextStage ? getStageProgressCard(currentStage) : null;
   const hasRoadmap = roadmap.length > 0;
+  const showGraduateAction =
+    currentStage === "setup" && Boolean(conceptProject.understoodSetupAt);
 
   function getComposerOffset() {
     const composerHeight = composerShellRef.current?.offsetHeight ?? 0;
@@ -432,7 +443,7 @@ function ConceptProjectDiscoveryView({
   }, [searchParams]);
 
   async function submitUserMessage(nextInput: string) {
-    if (!nextInput.trim() || isSubmitting) {
+    if (!nextInput.trim() || isSubmitting || isArchived) {
       return;
     }
 
@@ -490,6 +501,21 @@ function ConceptProjectDiscoveryView({
   return (
     <>
       <div className="grid gap-6" ref={contentShellRef}>
+        {isArchived && projectId ? (
+          <Alert>
+            <AlertTitle>Concept archived</AlertTitle>
+            <AlertDescription>
+              This concept project has graduated into a real project. Discovery stays here as a
+              read-only record.
+            </AlertDescription>
+            <div className="mt-4">
+              <Link href={`/project/${projectId}`}>
+                <Button type="button">Open Project</Button>
+              </Link>
+            </div>
+          </Alert>
+        ) : null}
+
         <ConceptProjectRoadmapRail
           canEditVersions={canEditRoadmapVersions}
           canInsertVersions={canInsertRoadmapVersions}
@@ -592,7 +618,8 @@ function ConceptProjectDiscoveryView({
         </div>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-20" ref={composerShellRef}>
+      {!isArchived ? (
+        <div className="fixed inset-x-0 bottom-0 z-20" ref={composerShellRef}>
         <div className="mx-auto w-full max-w-240 px-4 pb-6 sm:px-6">
           <div className="mb-3 flex h-14 justify-center">
             {!isAtBottom ? (
@@ -609,33 +636,49 @@ function ConceptProjectDiscoveryView({
           </div>
           <div className="rounded-2xl border bg-background/95 px-6 py-5 shadow-lg backdrop-blur supports-backdrop-filter:bg-background/95">
             <form className="space-y-3" onSubmit={handleSubmit} ref={composerFormRef}>
-              <div className="flex flex-wrap gap-2">
-                {conceptProjectStages.map((stage, index) => {
-                  const isActive = stage === currentStage;
-                  const isCompleted = isStageComplete(conceptProject, stage);
-                  const isUnlocked = index <= maxUnlockedStageIndex;
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex flex-wrap gap-2">
+                  {conceptProjectStages.map((stage, index) => {
+                    const isActive = stage === currentStage;
+                    const isCompleted = isStageComplete(conceptProject, stage);
+                    const isUnlocked = index <= maxUnlockedStageIndex;
 
-                  return (
-                    <button
-                      aria-current={isActive ? "step" : undefined}
-                      className={`rounded-full border px-3 py-1.5 text-sm font-medium transition ${
-                        isActive
-                          ? "border-foreground bg-foreground text-background"
-                          : isCompleted
-                            ? "border-emerald-600 bg-background text-foreground hover:border-emerald-500"
-                            : isUnlocked
-                              ? "border-border bg-background text-foreground hover:border-foreground/40"
-                              : "cursor-not-allowed border-border/60 bg-muted/40 text-muted-foreground"
-                      }`}
-                      disabled={!canSwitchStages || !isUnlocked || isSubmitting || isSwitchingStage}
-                      key={stage}
-                      onClick={() => handleStageSelect(stage)}
-                      type="button"
-                    >
-                      {CONCEPT_PROJECT_STAGE_LABELS[stage]}
-                    </button>
-                  );
-                })}
+                    return (
+                      <button
+                        aria-current={isActive ? "step" : undefined}
+                        className={`rounded-full border px-3 py-1.5 text-sm font-medium transition ${
+                          isActive
+                            ? "border-foreground bg-foreground text-background"
+                            : isCompleted
+                              ? "border-emerald-600 bg-background text-foreground hover:border-emerald-500"
+                              : isUnlocked
+                                ? "border-border bg-background text-foreground hover:border-foreground/40"
+                                : "cursor-not-allowed border-border/60 bg-muted/40 text-muted-foreground"
+                        }`}
+                        disabled={
+                          !canSwitchStages || !isUnlocked || isSubmitting || isSwitchingStage
+                        }
+                        key={stage}
+                        onClick={() => handleStageSelect(stage)}
+                        type="button"
+                      >
+                        <span className="inline-flex items-center gap-1.5">
+                          {isCompleted ? <CheckIcon className="size-3.5" /> : null}
+                          {CONCEPT_PROJECT_STAGE_LABELS[stage]}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {showGraduateAction ? (
+                  <div className="shrink-0">
+                    <ConceptProjectGraduate
+                      conceptProjectId={conceptProjectId}
+                      projectId={projectId ?? null}
+                    />
+                  </div>
+                ) : null}
               </div>
 
               <div className="relative">
@@ -691,7 +734,8 @@ function ConceptProjectDiscoveryView({
             </form>
           </div>
         </div>
-      </div>
+        </div>
+      ) : null}
     </>
   );
 }
@@ -699,9 +743,11 @@ function ConceptProjectDiscoveryView({
 function ZeroBackedConceptProjectDiscovery({
   conceptProjectId,
   initialConceptProject,
+  isArchived,
   initialMessages,
   initialRoadmapCurrentVersion,
   initialRoadmap,
+  projectId,
 }: Omit<ConceptProjectDiscoveryProps, "zeroEnabled">) {
   const zero = useZero() as any;
   const router = useRouter();
@@ -817,19 +863,23 @@ function ZeroBackedConceptProjectDiscovery({
 
   return (
     <ConceptProjectDiscoveryView
-      canEditRoadmapVersions={Boolean(conceptProject.roadmapId && conceptProject.understoodSetupAt)}
-      canInsertRoadmapVersions={Boolean(
-        conceptProject.roadmapId && conceptProject.understoodSetupAt,
+      canEditRoadmapVersions={Boolean(
+        !isArchived && conceptProject.roadmapId && conceptProject.understoodSetupAt,
       )}
-      canSwitchStages={true}
+      canInsertRoadmapVersions={Boolean(
+        !isArchived && conceptProject.roadmapId && conceptProject.understoodSetupAt,
+      )}
+      canSwitchStages={!isArchived}
       conceptProject={conceptProject}
       conceptProjectId={conceptProjectId}
+      isArchived={isArchived}
       isSwitchingStage={isSwitchingStage}
       messages={messages}
       onDeleteRoadmapNode={handleDeleteRoadmapNode}
       onStageSelect={handleStageSelect}
       onInsertRoadmapVersion={handleInsertRoadmapVersion}
       onUpdateRoadmapVersionNodes={handleUpdateRoadmapVersionNodes}
+      projectId={projectId}
       roadmapCurrentVersion={roadmapCurrentVersion}
       roadmap={roadmap}
     />
@@ -839,9 +889,11 @@ function ZeroBackedConceptProjectDiscovery({
 function FallbackConceptProjectDiscovery({
   conceptProjectId,
   initialConceptProject,
+  isArchived,
   initialMessages,
   initialRoadmapCurrentVersion,
   initialRoadmap,
+  projectId,
 }: Omit<ConceptProjectDiscoveryProps, "zeroEnabled">) {
   const router = useRouter();
 
@@ -923,14 +975,15 @@ function FallbackConceptProjectDiscovery({
   return (
     <ConceptProjectDiscoveryView
       canEditRoadmapVersions={Boolean(
-        initialConceptProject.roadmapId && initialConceptProject.understoodSetupAt,
+        !isArchived && initialConceptProject.roadmapId && initialConceptProject.understoodSetupAt,
       )}
       canInsertRoadmapVersions={Boolean(
-        initialConceptProject.roadmapId && initialConceptProject.understoodSetupAt,
+        !isArchived && initialConceptProject.roadmapId && initialConceptProject.understoodSetupAt,
       )}
-      canSwitchStages={false}
+      canSwitchStages={!isArchived}
       conceptProject={initialConceptProject}
       conceptProjectId={conceptProjectId}
+      isArchived={isArchived}
       isSwitchingStage={false}
       messages={initialMessages}
       onDeleteRoadmapNode={handleDeleteRoadmapNode}
@@ -953,6 +1006,7 @@ function FallbackConceptProjectDiscovery({
       }}
       onInsertRoadmapVersion={handleInsertRoadmapVersion}
       onUpdateRoadmapVersionNodes={handleUpdateRoadmapVersionNodes}
+      projectId={projectId}
       roadmapCurrentVersion={initialRoadmapCurrentVersion}
       roadmap={initialRoadmap}
     />
@@ -965,9 +1019,11 @@ export function ConceptProjectDiscovery(props: ConceptProjectDiscoveryProps) {
       <FallbackConceptProjectDiscovery
         conceptProjectId={props.conceptProjectId}
         initialConceptProject={props.initialConceptProject}
+        isArchived={props.isArchived}
         initialMessages={props.initialMessages}
         initialRoadmapCurrentVersion={props.initialRoadmapCurrentVersion}
         initialRoadmap={props.initialRoadmap}
+        projectId={props.projectId}
       />
     );
   }
@@ -976,9 +1032,11 @@ export function ConceptProjectDiscovery(props: ConceptProjectDiscoveryProps) {
     <ZeroBackedConceptProjectDiscovery
       conceptProjectId={props.conceptProjectId}
       initialConceptProject={props.initialConceptProject}
+      isArchived={props.isArchived}
       initialMessages={props.initialMessages}
       initialRoadmapCurrentVersion={props.initialRoadmapCurrentVersion}
       initialRoadmap={props.initialRoadmap}
+      projectId={props.projectId}
     />
   );
 }

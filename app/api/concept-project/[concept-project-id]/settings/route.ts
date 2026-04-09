@@ -77,6 +77,13 @@ export async function PATCH(request: NextRequest, { params }: ConceptProjectSett
   }
 
   if (body.success) {
+    if (conceptProject.projectId) {
+      return Response.json(
+        { error: "Archived concept projects are read-only." },
+        { status: 400 },
+      );
+    }
+
     await db
       .update(conceptProjects)
       .set({
@@ -87,6 +94,13 @@ export async function PATCH(request: NextRequest, { params }: ConceptProjectSett
   }
 
   if (roadmapNodeBody.success) {
+    if (conceptProject.projectId) {
+      return Response.json(
+        { error: "Archived concept projects are read-only." },
+        { status: 400 },
+      );
+    }
+
     if (!conceptProject.understoodSetupAt) {
       return Response.json(
         { error: "Setup must be complete before editing the roadmap." },
@@ -167,6 +181,13 @@ export async function DELETE(request: NextRequest, { params }: ConceptProjectSet
       );
     }
 
+    if (conceptProject.projectId) {
+      return Response.json(
+        { error: "Archived concept projects are read-only." },
+        { status: 400 },
+      );
+    }
+
     try {
       await db.transaction((tx) =>
         deleteConceptProjectRoadmapNode(tx, {
@@ -223,6 +244,10 @@ export async function POST(request: NextRequest, { params }: ConceptProjectSetti
       { error: "Setup must be complete before editing the roadmap." },
       { status: 400 },
     );
+  }
+
+  if (conceptProject.projectId) {
+    return Response.json({ error: "Archived concept projects are read-only." }, { status: 400 });
   }
 
   try {

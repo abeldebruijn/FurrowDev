@@ -1,11 +1,10 @@
 import { withAuth } from "@workos-inc/authkit-nextjs";
-import { asc, eq, or } from "drizzle-orm";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { createConceptProject } from "@/app/actions/concept-projects";
-import { conceptProjects, organisations } from "@/drizzle/schema";
-import { getDb } from "@/lib/db";
+import { listAccessibleActiveConceptProjects } from "@/lib/concept-project/server";
+import { listAccessibleProjects } from "@/lib/project/server";
 import { upsertViewerFromWorkOSSession } from "@/lib/zero/context";
 import { getWorkOSSession } from "@/lib/workos-session";
 import { Button } from "@/components/ui/button";
@@ -28,6 +27,10 @@ function getProjectDescription(description: string | null) {
   return description?.trim() || "No description yet.";
 }
 
+function getRealProjectName(name: string) {
+  return name.trim() || "Untitled project";
+}
+
 export default async function Home() {
   await withAuth({ ensureSignedIn: true });
 
@@ -38,20 +41,12 @@ export default async function Home() {
   }
 
   const viewer = await upsertViewerFromWorkOSSession(session);
-  const db = getDb();
+  const [activeConceptRows, projectRows] = await Promise.all([
+    listAccessibleActiveConceptProjects(viewer.id),
+    listAccessibleProjects(viewer.id),
+  ]);
 
-  const rows = await db
-    .select({
-      description: conceptProjects.description,
-      id: conceptProjects.id,
-      name: conceptProjects.name,
-    })
-    .from(conceptProjects)
-    .leftJoin(organisations, eq(conceptProjects.orgOwner, organisations.id))
-    .where(or(eq(conceptProjects.userOwner, viewer.id), eq(organisations.ownerId, viewer.id)))
-    .orderBy(asc(conceptProjects.id));
-
-  const isEmpty = rows.length === 0;
+  const isEmpty = activeConceptRows.length === 0 && projectRows.length === 0;
 
   return (
     <>
@@ -87,7 +82,7 @@ export default async function Home() {
                 </div>
               </CardContent>
             </Card>
-          ) : (
+          ) : activeConceptRows.length > 0 ? (
             <Card className="p-0!">
               <CardContent className="px-0">
                 <Table>
@@ -100,7 +95,7 @@ export default async function Home() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {rows.map((project) => (
+                    {activeConceptRows.map((project) => (
                       <TableRow key={project.id}>
                         <TableCell className="font-medium">
                           {getProjectName(project.name)}
@@ -124,7 +119,50 @@ export default async function Home() {
                 </Table>
               </CardContent>
             </Card>
-          )}
+          ) : null}
+
+          {projectRows.length > 0 ? (
+            <Card className="p-0!">
+              <CardHeader>
+                <CardTitle>Projects</CardTitle>
+                <CardDescription>Graduated projects live here.</CardDescription>
+              </CardHeader>
+              <CardContent className="px-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {projectRows.map((project) => (
+                      <TableRow key={project.id}>
+                        <TableCell className="font-medium">
+                          {getRealProjectName(project.name)}
+                        </TableCell>
+                        <TableCell className="max-w-xl text-muted-foreground">
+                          <p className="line-clamp-3">
+                            {getProjectDescription(project.description)}
+                          </p>
+                        </TableCell>
+                        <TableCell>Project</TableCell>
+                        <TableCell className="text-right">
+                          <Link href={`/project/${project.id}`}>
+                            <Button size="sm" variant="outline">
+                              Open
+                            </Button>
+                          </Link>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          ) : null}
         </section>
       </main>
     </>

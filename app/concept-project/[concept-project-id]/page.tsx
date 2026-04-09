@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { ConceptProjectDiscovery } from "@/components/concept-project/concept-project-discovery";
+import { ConceptProjectGraduate } from "@/components/concept-project/concept-project-graduate";
 import { ConceptProjectSettings } from "@/components/concept-project/concept-project-settings";
 import { SiteHeader } from "@/components/ui/site-header";
 import {
@@ -66,11 +67,22 @@ export default async function ConceptProjectPage({ params }: ConceptProjectPageP
         <ConceptProjectSettings
           conceptProjectId={conceptProject.id}
           description={conceptProject.description}
+          isArchived={Boolean(conceptProject.projectId)}
           name={conceptProject.name}
+          projectId={conceptProject.projectId}
         />
       </SiteHeader>
 
       <main className="mx-auto flex min-h-[calc(100vh-61px)] w-full max-w-350 flex-col gap-6 px-4 py-8 sm:px-6">
+        {conceptProject.currentStage === "setup" && conceptProject.understoodSetupAt ? (
+          <div className="flex justify-end">
+            <ConceptProjectGraduate
+              conceptProjectId={conceptProject.id}
+              projectId={conceptProject.projectId}
+            />
+          </div>
+        ) : null}
+
         <ConceptProjectDiscovery
           conceptProjectId={conceptProject.id}
           initialConceptProject={{
@@ -91,6 +103,8 @@ export default async function ConceptProjectPage({ params }: ConceptProjectPageP
               : null
           }
           initialRoadmap={roadmap}
+          isArchived={Boolean(conceptProject.projectId)}
+          projectId={conceptProject.projectId}
           zeroEnabled={Boolean(process.env.NEXT_PUBLIC_ZERO_CACHE_URL)}
         />
       </main>

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Settings, Sparkles, Trash2 } from "lucide-react";
@@ -19,7 +20,9 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 type ConceptProjectSettingsProps = {
   conceptProjectId: string;
   description: string | null;
+  isArchived?: boolean;
   name: string | null;
+  projectId?: string | null;
 };
 
 type SettingsInnerProps = ConceptProjectSettingsProps & {
@@ -33,8 +36,10 @@ function getDisplayName(name: string | null | undefined) {
 function SettingsDialogContent({
   conceptProjectId,
   description,
+  isArchived = false,
   name,
   onSaveName,
+  projectId,
 }: SettingsInnerProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -64,6 +69,10 @@ function SettingsDialogContent({
   }, [currentName, open]);
 
   async function handleSave() {
+    if (isArchived) {
+      return;
+    }
+
     const trimmedName = draftName.trim();
 
     if (!trimmedName) {
@@ -87,6 +96,10 @@ function SettingsDialogContent({
   }
 
   async function handleGenerateIdeas() {
+    if (isArchived) {
+      return;
+    }
+
     setError(null);
     setIsGenerating(true);
 
@@ -137,7 +150,11 @@ function SettingsDialogContent({
       <DialogContent className="max-w-3xl!">
         <DialogHeader>
           <DialogTitle>Concept Project Settings</DialogTitle>
-          <DialogDescription>Adjust the concept-project metadata.</DialogDescription>
+          <DialogDescription>
+            {isArchived
+              ? "This concept project is archived. Metadata is locked, but deletion is still available."
+              : "Adjust the concept-project metadata."}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5">
@@ -147,7 +164,7 @@ function SettingsDialogContent({
                 Name
               </label>
               <Button
-                disabled={isGenerating || isSaving || isDeleting}
+                disabled={isArchived || isGenerating || isSaving || isDeleting}
                 onClick={handleGenerateIdeas}
                 type="button"
                 variant="outline"
@@ -157,6 +174,7 @@ function SettingsDialogContent({
               </Button>
             </div>
             <input
+              disabled={isArchived}
               className="w-full rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:border-foreground"
               id="concept-project-name"
               onChange={(event) => setDraftName(event.target.value)}
@@ -189,6 +207,21 @@ function SettingsDialogContent({
             </div>
           </div>
 
+          {isArchived && projectId ? (
+            <Alert>
+              <AlertTitle>Project created</AlertTitle>
+              <AlertDescription>
+                This concept is preserved as a read-only archive. Continue work in the real
+                project.
+              </AlertDescription>
+              <div className="mt-4">
+                <Link href={`/project/${projectId}`}>
+                  <Button type="button">Open Project</Button>
+                </Link>
+              </div>
+            </Alert>
+          ) : null}
+
           {error ? (
             <Alert variant="destructive">
               <AlertTitle>Action failed</AlertTitle>
@@ -200,8 +233,9 @@ function SettingsDialogContent({
             <Alert variant="destructive">
               <AlertTitle>Delete concept project</AlertTitle>
               <AlertDescription>
-                This will permanently delete the concept project, its transcript, and generated
-                roadmap. This cannot be reverted.
+                {isArchived
+                  ? "This will permanently delete the archived concept project, its transcript, and its concept roadmap. The real project stays intact but loses its source concept link."
+                  : "This will permanently delete the concept project, its transcript, and generated roadmap. This cannot be reverted."}
               </AlertDescription>
               <div className="mt-4 flex gap-2">
                 <Button
@@ -238,7 +272,11 @@ function SettingsDialogContent({
         </div>
 
         <DialogFooter>
-          <Button disabled={isSaving || isDeleting} onClick={handleSave} type="button">
+          <Button
+            disabled={isArchived || isSaving || isDeleting}
+            onClick={handleSave}
+            type="button"
+          >
             {isSaving ? "Saving..." : "Save"}
           </Button>
         </DialogFooter>

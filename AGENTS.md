@@ -6,46 +6,27 @@ This project is using Vite+, a unified toolchain built on top of Vite, Rolldown,
 
 `vp` is a global binary that handles the full development lifecycle. Run `vp help` to print a list of commands and `vp <command> --help` for information about a specific command.
 
-### Start
-
-- create - Create a new project from a template
-- migrate - Migrate an existing project to Vite+
-- config - Configure hooks and agent integration
-- staged - Run linters on staged files
-- install (`i`) - Install dependencies
-- env - Manage Node.js versions
-
 ### Develop
 
-- dev - Run the development server
+- install (`i`) - Install dependencies
+- env - Manage Node.js versions
 - check - Run format, lint, and TypeScript type checks
 - lint - Lint code
 - fmt - Format code
 - test - Run tests
-
-### Execute
-
 - run - Run monorepo tasks
-- exec - Execute a command from local `node_modules/.bin`
-- dlx - Execute a package binary without installing it as a dependency
-- cache - Manage the task cache
-
-### Build
-
 - build - Build for production
-- pack - Build libraries
-- preview - Preview production build
+
+do not run `vp build` instead run `vp run build`. Assume `vp run dev` is already running.
 
 ### Manage Dependencies
 
-Vite+ automatically detects and wraps the underlying package manager such as pnpm, npm, or Yarn through the `packageManager` field in `package.json` or package manager-specific lockfiles.
+Vite+ automatically detects and wraps the underlying package manager such as pnpm through the `packageManager` field in `package.json` or package manager-specific lockfiles.
 
 - add - Add packages to dependencies
 - remove (`rm`, `un`, `uninstall`) - Remove packages from dependencies
 - update (`up`) - Update packages to latest versions
-- dedupe - Deduplicate dependencies
 - outdated - Check for outdated packages
-- list (`ls`) - List installed packages
 - why (`explain`) - Show why a package is installed
 - info (`view`, `show`) - View package information from the registry
 - link (`ln`) / unlink - Manage local package links
@@ -53,11 +34,7 @@ Vite+ automatically detects and wraps the underlying package manager such as pnp
 
 ## Common Pitfalls
 
-- **Using the package manager directly:** Do not use pnpm, npm, or Yarn directly. Vite+ can handle all package manager operations.
-- **Always use Vite commands to run tools:** Don't attempt to run `vp vitest` or `vp oxlint`. They do not exist. Use `vp test` and `vp lint` instead.
-- **Running scripts:** Vite+ built-in commands (`vp dev`, `vp build`, `vp test`, etc.) always run the Vite+ built-in tool, not any `package.json` script of the same name. To run a custom script that shares a name with a built-in command, use `vp run <script>`. For example, if you have a custom `dev` script that runs multiple services concurrently, run it with `vp run dev`, not `vp dev` (which always starts Vite's dev server).
-- **Do not install Vitest, Oxlint, Oxfmt, or tsdown directly:** Vite+ wraps these tools. They must not be installed directly. You cannot upgrade these tools by installing their latest versions. Always use Vite+ commands.
-- **Use Vite+ wrappers for one-off binaries:** Use `vp dlx` instead of package-manager-specific `dlx`/`npx` commands.
+- **Using the package manager directly:** Do not use pnpm directly. Vite+ can handle all package manager operations.
 - **Import JavaScript modules from `vite-plus`:** Instead of importing from `vite` or `vitest`, all modules should be imported from the project's `vite-plus` dependency. For example, `import { defineConfig } from 'vite-plus';` or `import { expect, test, vi } from 'vite-plus/test';`. You must not install `vitest` to import test utilities.
 - **Type-Aware Linting:** There is no need to install `oxlint-tsgolint`, `vp lint --type-aware` works out of the box.
 
@@ -96,32 +73,20 @@ Recommended reading order for wiring a Zero app: Install -> Schema -> Queries ->
 - When auth errors occur, the client must reconnect manually using the Connection Status API.
 - When developing locally, prefer creating migrations and executing them against the local database. Resetting the database during local development requires also deleting the SQLite replica and restarting `zero-cache`.
 
-## Get Started
-
-- [Installation](https://zero.rocicorp.dev/docs/install)
-- [Samples](https://zero.rocicorp.dev/docs/samples)
-
 ## Learning Zero
 
 - [What is Sync?](https://zero.rocicorp.dev/docs/sync): A Slightly Opinionated Tour of the Space
 - [When to Use](https://zero.rocicorp.dev/docs/when-to-use): And When Not To – A Quick Guide
-- [Status](https://zero.rocicorp.dev/docs/status)
 
 ## Using Zero
 
 - [Schema](https://zero.rocicorp.dev/docs/schema)
-- [Authentication](https://zero.rocicorp.dev/docs/auth)
 - [Reading Data](https://zero.rocicorp.dev/docs/queries): Reading and Syncing Data
 - [Writing Data](https://zero.rocicorp.dev/docs/mutators): Writing Data
 - [ZQL Reference](https://zero.rocicorp.dev/docs/zql): Zero Query Language
 - [ZQL on the Server](https://zero.rocicorp.dev/docs/server-zql)
 - [Connection Status](https://zero.rocicorp.dev/docs/connection)
 - [REST APIs](https://zero.rocicorp.dev/docs/rest): Creating REST APIs for Zero Applications
-
-## Postgres
-
-- [Provider Support](https://zero.rocicorp.dev/docs/connecting-to-postgres)
-- [Feature Compatibility](https://zero.rocicorp.dev/docs/postgres-support)
 
 ## Integrations
 
@@ -135,3 +100,7 @@ Recommended reading order for wiring a Zero app: Install -> Schema -> Queries ->
 - [Query ASTs](https://zero.rocicorp.dev/docs/debug/query-asts)
 - [OpenTelemetry](https://zero.rocicorp.dev/docs/debug/otel)
 - [zero-out](https://zero.rocicorp.dev/docs/debug/zero-out)
+
+# Updating files
+
+- When creating new `**/+page.tsx` files update the `proxy.ts` with route configurations

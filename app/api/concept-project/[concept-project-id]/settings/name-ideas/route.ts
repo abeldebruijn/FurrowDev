@@ -37,6 +37,13 @@ export async function POST(request: NextRequest, { params }: ConceptProjectNameI
     return Response.json({ error: "Concept project not found" }, { status: 404 });
   }
 
+  if (conceptProject.projectId) {
+    return Response.json(
+      { error: "Archived concept projects cannot generate new name ideas." },
+      { status: 400 },
+    );
+  }
+
   const [roadmapItems, viewerName] = await Promise.all([
     getConceptProjectRoadmapItems(conceptProject.roadmapId, db),
     getConceptProjectViewerName(viewer.id, db),
