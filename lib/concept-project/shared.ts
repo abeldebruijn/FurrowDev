@@ -33,7 +33,8 @@ export const CONCEPT_PROJECT_STAGE_INTRO_MESSAGES: Record<ConceptProjectStage, s
   for_whom:
     "Now that I understand what you want to build, let’s define who this is for. Tell me about the users, audience, and expected scale. Do you expect this project to be a **small prototype** or a **full-scale application**?",
   how: "We now know what the project is and who it serves. Next, let’s shape how it should work at a high level: constraints, technical needs, and product qualities. Does the project need to be mobile-friendly?",
-  setup: "Discovery is complete. Setup comes next, but the setup agent is not implemented yet.",
+  setup:
+    "We have enough product context. Now let’s define the setup: should this be a monorepo, what primary language should it use, what framework fits best, and which libraries or skills are needed to bootstrap it well?",
 };
 
 export function getConceptProjectStageIndex(stage: ConceptProjectStage) {

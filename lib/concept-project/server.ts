@@ -18,6 +18,7 @@ import {
   type ConceptProjectStage,
   CONCEPT_PROJECT_OPENING_MESSAGE,
 } from "@/lib/concept-project/shared";
+import { getSetupRoadmapCurrentVersion } from "@/lib/concept-project/setup";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
@@ -32,7 +33,9 @@ export type AccessibleConceptProject = {
   roadmapId: string | null;
   understoodForWhomAt: Date | null;
   understoodHowAt: Date | null;
+  understoodSetupAt: Date | null;
   understoodWhatAt: Date | null;
+  setupSummary: string | null;
   whatSummary: string | null;
 };
 
@@ -59,6 +62,12 @@ type ApplyConceptProjectStageUnderstandingArgs = {
   name: string;
   roadmapItems: ConceptProjectRoadmapDraftItem[];
   stage: Exclude<ConceptProjectStage, "setup">;
+  summary: string;
+};
+
+type ApplyConceptProjectSetupUnderstandingArgs = {
+  conceptProjectId: string;
+  roadmapItems: ConceptProjectRoadmapDraftItem[];
   summary: string;
 };
 
@@ -101,7 +110,9 @@ export async function getAccessibleConceptProject(
       roadmapId: conceptProjects.roadmapId,
       understoodForWhomAt: conceptProjects.understoodForWhomAt,
       understoodHowAt: conceptProjects.understoodHowAt,
+      understoodSetupAt: conceptProjects.understoodSetupAt,
       understoodWhatAt: conceptProjects.understoodWhatAt,
+      setupSummary: conceptProjects.setupSummary,
       whatSummary: conceptProjects.whatSummary,
     })
     .from(conceptProjects)
@@ -316,6 +327,68 @@ export async function replaceConceptProjectRoadmapItems(
   return nextRoadmapId;
 }
 
+async function getCurrentRoadmapVersion(
+  tx: Transaction,
+  roadmapId: string,
+): Promise<{ currentMajor: number; currentMinor: number } | null> {
+  const rows = await tx
+    .select({
+      currentMajor: roadmaps.currentMajor,
+      currentMinor: roadmaps.currentMinor,
+    })
+    .from(roadmaps)
+    .where(eq(roadmaps.id, roadmapId))
+    .limit(1);
+
+  return rows[0] ?? null;
+}
+
+export async function replaceConceptProjectSetupRoadmapItems(
+  tx: Transaction,
+  {
+    conceptProjectId,
+    items,
+    roadmapId,
+  }: {
+    conceptProjectId: string;
+    items: ConceptProjectRoadmapDraftItem[];
+    roadmapId: string | null;
+  },
+) {
+  const nextRoadmapId = await ensureConceptProjectRoadmap(tx, conceptProjectId, roadmapId);
+  const currentVersion = await getCurrentRoadmapVersion(tx, nextRoadmapId);
+
+  await tx
+    .delete(roadmapItems)
+    .where(and(eq(roadmapItems.roadmapId, nextRoadmapId), eq(roadmapItems.majorVersion, 0)));
+
+  if (items.length > 0) {
+    await tx.insert(roadmapItems).values(
+      items.map((item, index) => ({
+        description: item.description?.trim() || null,
+        id: randomUUID(),
+        majorVersion: 0,
+        minorVersion: index,
+        name: item.name.trim(),
+        parentId: null,
+        roadmapId: nextRoadmapId,
+      })),
+    );
+  }
+
+  const nextCurrentVersion = getSetupRoadmapCurrentVersion(currentVersion, items.length);
+
+  await tx
+    .update(roadmaps)
+    .set({
+      currentMajor: nextCurrentVersion.currentMajor,
+      currentMinor: nextCurrentVersion.currentMinor,
+    })
+    .where(eq(roadmaps.id, nextRoadmapId));
+
+  return nextRoadmapId;
+}
+
 export async function applyConceptProjectStageUnderstanding(
   tx: Transaction,
   {
@@ -345,6 +418,31 @@ export async function applyConceptProjectStageUnderstanding(
       roadmapId: nextRoadmapId,
       [summaryColumn]: summary.trim(),
       [timestampColumn]: new Date(),
+    })
+    .where(eq(conceptProjects.id, conceptProjectId));
+}
+
+export async function applyConceptProjectSetupUnderstanding(
+  tx: Transaction,
+  {
+    conceptProjectId,
+    roadmapItems: nextRoadmapItems,
+    summary,
+  }: ApplyConceptProjectSetupUnderstandingArgs,
+  currentRoadmapId: string | null,
+) {
+  const nextRoadmapId = await replaceConceptProjectSetupRoadmapItems(tx, {
+    conceptProjectId,
+    items: nextRoadmapItems,
+    roadmapId: currentRoadmapId,
+  });
+
+  await tx
+    .update(conceptProjects)
+    .set({
+      roadmapId: nextRoadmapId,
+      setupSummary: summary.trim(),
+      understoodSetupAt: new Date(),
     })
     .where(eq(conceptProjects.id, conceptProjectId));
 }

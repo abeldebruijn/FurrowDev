@@ -53,7 +53,9 @@ type ConceptProjectSnapshot = {
   roadmapId: string | null;
   understoodForWhomAt: string | Date | null;
   understoodHowAt: string | Date | null;
+  understoodSetupAt: string | Date | null;
   understoodWhatAt: string | Date | null;
+  setupSummary: string | null;
   whatSummary: string | null;
 };
 
@@ -105,7 +107,20 @@ function getStageSummaryLabel(stage: ConceptProjectStage) {
     case "how":
       return "How Summary";
     case "setup":
-      return "Setup";
+      return "Setup Summary";
+  }
+}
+
+function isStageComplete(conceptProject: ConceptProjectSnapshot, stage: ConceptProjectStage) {
+  switch (stage) {
+    case "what":
+      return Boolean(conceptProject.understoodWhatAt);
+    case "for_whom":
+      return Boolean(conceptProject.understoodForWhomAt);
+    case "how":
+      return Boolean(conceptProject.understoodHowAt);
+    case "setup":
+      return Boolean(conceptProject.understoodSetupAt);
   }
 }
 
@@ -308,6 +323,11 @@ function ConceptProjectDiscoveryView({
       label: getStageSummaryLabel("how"),
       value: conceptProject.howSummary,
     },
+    {
+      key: "setup",
+      label: getStageSummaryLabel("setup"),
+      value: conceptProject.setupSummary,
+    },
   ].filter((summary) => summary.value?.trim());
 
   const isSetupStage = currentStage === "setup";
@@ -423,7 +443,7 @@ function ConceptProjectDiscoveryView({
   }, [searchParams]);
 
   async function submitUserMessage(nextInput: string) {
-    if (!nextInput.trim() || isSubmitting || isSetupStage) {
+    if (!nextInput.trim() || isSubmitting) {
       return;
     }
 
@@ -485,7 +505,6 @@ function ConceptProjectDiscoveryView({
           {renderedMessages.map((message) => {
             const isAgent = message.type === "agent";
             const showSuggestOptionsAction =
-              !isSetupStage &&
               !isSubmitting &&
               latestFinishedAgentMessage?.id === message.id &&
               isAgent &&
@@ -585,92 +604,87 @@ function ConceptProjectDiscoveryView({
             ) : null}
           </div>
           <div className="rounded-2xl border bg-background/95 px-6 py-5 shadow-lg backdrop-blur supports-backdrop-filter:bg-background/95">
-            {isSetupStage ? (
-              <div className="rounded-xl border border-dashed px-4 py-4 text-sm text-muted-foreground">
-                Setup comes next. The setup agent is not implemented yet.
+            <form className="space-y-3" onSubmit={handleSubmit} ref={composerFormRef}>
+              <div className="flex flex-wrap gap-2">
+                {conceptProjectStages.map((stage, index) => {
+                  const isActive = stage === currentStage;
+                  const isCompleted = isStageComplete(conceptProject, stage);
+                  const isUnlocked = index <= maxUnlockedStageIndex;
+
+                  return (
+                    <button
+                      aria-current={isActive ? "step" : undefined}
+                      className={`rounded-full border px-3 py-1.5 text-sm font-medium transition ${
+                        isActive
+                          ? "border-foreground bg-foreground text-background"
+                          : isCompleted
+                            ? "border-emerald-600 bg-background text-foreground hover:border-emerald-500"
+                          : isUnlocked
+                            ? "border-border bg-background text-foreground hover:border-foreground/40"
+                            : "cursor-not-allowed border-border/60 bg-muted/40 text-muted-foreground"
+                      }`}
+                      disabled={!canSwitchStages || !isUnlocked || isSubmitting || isSwitchingStage}
+                      key={stage}
+                      onClick={() => handleStageSelect(stage)}
+                      type="button"
+                    >
+                      {CONCEPT_PROJECT_STAGE_LABELS[stage]}
+                    </button>
+                  );
+                })}
               </div>
-            ) : (
-              <form className="space-y-3" onSubmit={handleSubmit} ref={composerFormRef}>
-                <div className="flex flex-wrap gap-2">
-                  {conceptProjectStages.map((stage, index) => {
-                    const isActive = stage === currentStage;
-                    const isUnlocked = index <= maxUnlockedStageIndex;
 
-                    return (
-                      <button
-                        aria-current={isActive ? "step" : undefined}
-                        className={`rounded-full border px-3 py-1.5 text-sm font-medium transition ${
-                          isActive
-                            ? "border-foreground bg-foreground text-background"
-                            : isUnlocked
-                              ? "border-border bg-background text-foreground hover:border-foreground/40"
-                              : "cursor-not-allowed border-border/60 bg-muted/40 text-muted-foreground"
-                        }`}
-                        disabled={
-                          !canSwitchStages || !isUnlocked || isSubmitting || isSwitchingStage
-                        }
-                        key={stage}
-                        onClick={() => handleStageSelect(stage)}
-                        type="button"
-                      >
-                        {CONCEPT_PROJECT_STAGE_LABELS[stage]}
-                      </button>
-                    );
-                  })}
+              <div className="relative">
+                <textarea
+                  className="min-h-32 w-full rounded-2xl border bg-background px-4 py-3 text-sm outline-none transition focus:border-foreground"
+                  onChange={(event) => setInput(event.target.value)}
+                  onKeyDown={handleComposerKeyDown}
+                  placeholder={
+                    hasAnsweredOpeningPrompt
+                      ? "Answer the current question or add more detail."
+                      : "Keep the first answer concise."
+                  }
+                  value={input}
+                />
+
+                <Button
+                  disabled={!input.trim() || isSubmitting}
+                  type="submit"
+                  className="absolute right-2 bottom-4"
+                >
+                  {isSubmitting ? (
+                    "Thinking..."
+                  ) : (
+                    <>
+                      Send
+                      <div className="flex">
+                        <CommandIcon className="size-2.5" />{" "}
+                        <CornerDownLeftIcon className="size-2.5" />
+                      </div>
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              <div className="flex items-center justify-between gap-3">
+                <div className="space-y-1">
+                  {!hasAnsweredOpeningPrompt ? (
+                    <p
+                      className={`text-xs ${
+                        openingWordCount > 128 ? "text-destructive" : "text-muted-foreground"
+                      }`}
+                    >
+                      {openingWordCount}/128 words
+                    </p>
+                  ) : null}
+                  {composerError ? (
+                    <p className="text-xs text-destructive">{composerError}</p>
+                  ) : error ? (
+                    <p className="text-xs text-destructive">{error.message}</p>
+                  ) : null}
                 </div>
-
-                <div className="relative">
-                  <textarea
-                    className="min-h-32 w-full rounded-2xl border bg-background px-4 py-3 text-sm outline-none transition focus:border-foreground"
-                    onChange={(event) => setInput(event.target.value)}
-                    onKeyDown={handleComposerKeyDown}
-                    placeholder={
-                      hasAnsweredOpeningPrompt
-                        ? "Answer the current question or add more detail."
-                        : "Keep the first answer concise."
-                    }
-                    value={input}
-                  />
-
-                  <Button
-                    disabled={!input.trim() || isSubmitting}
-                    type="submit"
-                    className="absolute right-2 bottom-4"
-                  >
-                    {isSubmitting ? (
-                      "Thinking..."
-                    ) : (
-                      <>
-                        Send
-                        <div className="flex">
-                          <CommandIcon className="size-2.5" />{" "}
-                          <CornerDownLeftIcon className="size-2.5" />
-                        </div>
-                      </>
-                    )}
-                  </Button>
-                </div>
-
-                <div className="flex items-center justify-between gap-3">
-                  <div className="space-y-1">
-                    {!hasAnsweredOpeningPrompt ? (
-                      <p
-                        className={`text-xs ${
-                          openingWordCount > 128 ? "text-destructive" : "text-muted-foreground"
-                        }`}
-                      >
-                        {openingWordCount}/128 words
-                      </p>
-                    ) : null}
-                    {composerError ? (
-                      <p className="text-xs text-destructive">{composerError}</p>
-                    ) : error ? (
-                      <p className="text-xs text-destructive">{error.message}</p>
-                    ) : null}
-                  </div>
-                </div>
-              </form>
-            )}
+              </div>
+            </form>
           </div>
         </div>
       </div>

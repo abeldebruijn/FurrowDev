@@ -1,7 +1,12 @@
 import { createAgentUIStreamResponse, type UIMessage } from "ai";
 import type { NextRequest } from "next/server";
 
-import { createForWhomAgent, createHowAgent, createWhatAgent } from "@/lib/agents/concept-project";
+import {
+  createForWhomAgent,
+  createHowAgent,
+  createSetupAgent,
+  createWhatAgent,
+} from "@/lib/agents/concept-project";
 import {
   appendConceptProjectChatMessage,
   ensureConceptProjectOpeningMessage,
@@ -100,10 +105,6 @@ export async function POST(request: NextRequest, { params }: ConceptProjectChatR
     return Response.json({ error: "Concept project not found" }, { status: 404 });
   }
 
-  if (conceptProject.currentStage === "setup") {
-    return Response.json({ error: "Setup agent is not implemented yet" }, { status: 409 });
-  }
-
   await ensureConceptProjectOpeningMessage(conceptProject, db);
 
   const transcriptBeforePersist = await getConceptProjectTranscript(conceptProject.id, db);
@@ -155,7 +156,9 @@ export async function POST(request: NextRequest, { params }: ConceptProjectChatR
       ? createWhatAgent(agentContext)
       : freshConceptProject.currentStage === "for_whom"
         ? createForWhomAgent(agentContext)
-        : createHowAgent(agentContext);
+        : freshConceptProject.currentStage === "how"
+          ? createHowAgent(agentContext)
+          : createSetupAgent(agentContext);
 
   return createAgentUIStreamResponse({
     abortSignal: request.signal,

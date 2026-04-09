@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import {
   type AccessibleConceptProject,
+  applyConceptProjectSetupUnderstanding,
   applyConceptProjectStageUnderstanding,
   appendConceptProjectChatMessage,
   getAccessibleConceptProject,
@@ -14,6 +15,7 @@ import {
   CONCEPT_PROJECT_OPENING_MESSAGE,
   getNextConceptProjectStage,
 } from "@/lib/concept-project/shared";
+import { buildConceptProjectSetupSummary } from "@/lib/concept-project/setup";
 import { getDb } from "@/lib/db";
 
 const CONCEPT_PROJECT_MODEL = "anthropic/claude-sonnet-4.6";
@@ -30,6 +32,24 @@ const stageCompletionSchema = z.object({
     )
     .min(1)
     .max(8),
+  summary: z.string().trim().min(1).max(600),
+});
+
+const setupCompletionSchema = z.object({
+  framework: z.string().trim().min(1).max(120),
+  libraries: z.array(z.string().trim().min(1).max(120)).min(1).max(8),
+  monorepoRecommendation: z.string().trim().min(1).max(160),
+  primaryLanguage: z.string().trim().min(1).max(80),
+  roadmapItems: z
+    .array(
+      z.object({
+        description: z.string().trim().max(280).optional(),
+        name: z.string().trim().min(1).max(120),
+      }),
+    )
+    .min(4)
+    .max(8),
+  skills: z.array(z.string().trim().min(1).max(120)).min(1).max(8),
   summary: z.string().trim().min(1).max(600),
 });
 
@@ -70,16 +90,19 @@ function buildProjectSnapshot({
     `What summary: ${conceptProject.whatSummary?.trim() || "Unknown"}`,
     `For whom summary: ${conceptProject.forWhomSummary?.trim() || "Unknown"}`,
     `How summary: ${conceptProject.howSummary?.trim() || "Unknown"}`,
+    `Setup summary: ${conceptProject.setupSummary?.trim() || "Unknown"}`,
     "Current roadmap draft:",
     roadmapText,
   ].join("\n");
 }
 
-function buildPersistingOnFinish(
-  context: ConceptProjectAgentContext,
-  stage: Exclude<ConceptProjectStage, "setup">,
-) {
-  const stageCompletionTools = new Set(["understandsWhat", "understandsForWhom", "understandsHow"]);
+function buildPersistingOnFinish(context: ConceptProjectAgentContext, stage: ConceptProjectStage) {
+  const stageCompletionTools = new Set([
+    "understandsWhat",
+    "understandsForWhom",
+    "understandsHow",
+    "understandsSetup",
+  ]);
 
   return async (event: {
     steps: Array<{
@@ -185,6 +208,46 @@ function createStageTools(context: ConceptProjectAgentContext) {
       inputSchema: stageCompletionSchema,
       execute: async (input) => executeStageUnderstanding("what", input),
     }),
+    understandsSetup: tool({
+      description:
+        "Use this only once you understand the setup direction well enough to persist the setup summary and append a v0.0 setup roadmap without changing the product name or description.",
+      inputSchema: setupCompletionSchema,
+      execute: async (input) => {
+        const db = getDb();
+        const latestConceptProject = await getAccessibleConceptProject(
+          context.viewerId,
+          context.conceptProject.id,
+          db,
+        );
+
+        if (!latestConceptProject) {
+          throw new Error("Concept project not found");
+        }
+
+        if (latestConceptProject.currentStage !== "setup") {
+          throw new Error("Concept project is not in the setup stage");
+        }
+
+        const setupSummary = buildConceptProjectSetupSummary(input);
+
+        await db.transaction(async (tx) => {
+          await applyConceptProjectSetupUnderstanding(
+            tx,
+            {
+              conceptProjectId: latestConceptProject.id,
+              roadmapItems: sanitizeRoadmapItems(input.roadmapItems),
+              summary: setupSummary,
+            },
+            latestConceptProject.roadmapId,
+          );
+        });
+
+        return {
+          nextStage: "setup" as const,
+          ok: true,
+        };
+      },
+    }),
   };
 }
 
@@ -243,6 +306,28 @@ function createHowInstructions(context: ConceptProjectAgentContext) {
   ].join("\n");
 }
 
+function createSetupInstructions(context: ConceptProjectAgentContext) {
+  return [
+    "You are the Setup agent for a Concept Project discovery flow.",
+    "Your job is to define how this project should be bootstrapped and structured.",
+    "You already know the product, audience, and high-level technical shape.",
+    "Ask compact questions one at a time.",
+    "Prioritize these topics in order unless already settled: monorepo or single repo, primary language, framework, core libraries or infrastructure, then relevant skills or tooling.",
+    "Only ask libraries and skills questions if they are still unresolved.",
+    "If the user asks for suggestions or says they do not know, provide 3 to 5 concrete directions.",
+    "For each suggested direction include: a short recommendation line, pros, cons, and when it fits.",
+    "Lead with an opinionated default when appropriate.",
+    "Keep setup focused on implementation bootstrap, not product brainstorming.",
+    "When you clearly understand the setup direction, call understandsSetup.",
+    "The roadmap items must be setup tasks, not product features.",
+    "Make sure the setup roadmap covers project bootstrap, repo layout, framework initialization, core libraries, skills/tooling setup, and the initial folder structure or app shell.",
+    "Do not change the project name or description in this stage.",
+    "After you call the tool, do not add extra text.",
+    "Project context:",
+    buildProjectSnapshot(context),
+  ].join("\n");
+}
+
 export const createWhatAgent: StageAgentFactory = (context) =>
   new ToolLoopAgent({
     activeTools: ["understandsWhat"],
@@ -270,6 +355,16 @@ export const createHowAgent: StageAgentFactory = (context) =>
     model: CONCEPT_PROJECT_MODEL,
     onFinish: buildPersistingOnFinish(context, "how"),
     stopWhen: stepCountIs(10),
+    tools: createStageTools(context),
+  });
+
+export const createSetupAgent: StageAgentFactory = (context) =>
+  new ToolLoopAgent({
+    activeTools: ["understandsSetup"],
+    instructions: createSetupInstructions(context),
+    model: CONCEPT_PROJECT_MODEL,
+    onFinish: buildPersistingOnFinish(context, "setup"),
+    stopWhen: stepCountIs(12),
     tools: createStageTools(context),
   });
 

@@ -75,7 +75,9 @@ export default async function ConceptProjectPage({ params }: ConceptProjectPageP
             ...conceptProject,
             understoodForWhomAt: conceptProject.understoodForWhomAt?.toISOString() ?? null,
             understoodHowAt: conceptProject.understoodHowAt?.toISOString() ?? null,
+            understoodSetupAt: conceptProject.understoodSetupAt?.toISOString() ?? null,
             understoodWhatAt: conceptProject.understoodWhatAt?.toISOString() ?? null,
+            setupSummary: conceptProject.setupSummary,
           }}
           initialMessages={messages}
           initialRoadmap={roadmap}

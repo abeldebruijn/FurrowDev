@@ -15,6 +15,13 @@
       "when": 1775667241050,
       "tag": "0001_spooky_nextwave",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1775734838421,
+      "tag": "0002_moaning_sunfire",
+      "breakpoints": true
     }
   ]
 }
