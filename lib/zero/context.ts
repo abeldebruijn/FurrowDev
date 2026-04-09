@@ -25,15 +25,44 @@ type TokenClaims = {
   permissions?: unknown;
 };
 
+type PostgresErrorLike = {
+  code?: string;
+};
+
 function getStringArray(value: unknown) {
   return Array.isArray(value)
     ? value.filter((entry): entry is string => typeof entry === "string")
     : [];
 }
 
+function isUniqueViolation(error: unknown): error is PostgresErrorLike {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "23505";
+}
+
 export async function upsertViewerFromWorkOSSession(session: WorkOSSession) {
   const db = getDb();
   const name = getWorkOSUserDisplayName(session.user);
+  const [existingViewer] = await db
+    .select({
+      id: users.id,
+      workosUserId: users.workosUserId,
+      name: users.name,
+    })
+    .from(users)
+    .where(eq(users.workosUserId, session.user.id))
+    .limit(1);
+
+  if (existingViewer) {
+    if (existingViewer.name !== name) {
+      await db.update(users).set({ name }).where(eq(users.id, existingViewer.id));
+    }
+
+    return {
+      id: existingViewer.id,
+      workosUserId: existingViewer.workosUserId,
+    };
+  }
+
   const [viewer] = await db
     .insert(users)
     .values({
@@ -41,15 +70,39 @@ export async function upsertViewerFromWorkOSSession(session: WorkOSSession) {
       workosUserId: session.user.id,
       name,
     })
-    .onConflictDoUpdate({
-      target: users.workosUserId,
-      set: {
-        name,
-      },
-    })
     .returning({
       id: users.id,
       workosUserId: users.workosUserId,
+    })
+    .catch(async (error: unknown) => {
+      if (!isUniqueViolation(error)) {
+        throw error;
+      }
+
+      const [concurrentViewer] = await db
+        .select({
+          id: users.id,
+          workosUserId: users.workosUserId,
+          name: users.name,
+        })
+        .from(users)
+        .where(eq(users.workosUserId, session.user.id))
+        .limit(1);
+
+      if (!concurrentViewer) {
+        throw error;
+      }
+
+      if (concurrentViewer.name !== name) {
+        await db.update(users).set({ name }).where(eq(users.id, concurrentViewer.id));
+      }
+
+      return [
+        {
+          id: concurrentViewer.id,
+          workosUserId: concurrentViewer.workosUserId,
+        },
+      ];
     });
 
   return viewer;

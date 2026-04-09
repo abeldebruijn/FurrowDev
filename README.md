@@ -56,7 +56,7 @@ Terminal 3: start zero-cache:
 vp run zero:cache-dev
 ```
 
-Terminal 4: open Drizzle Studio:
+Terminal 4: (optional) open Drizzle Studio:
 
 ```bash
 vp exec db:studio
