@@ -8,9 +8,13 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useRouter, useSearchParams } from "next/navigation";
 
+import { ConceptProjectRoadmapRail } from "@/components/concept-project/concept-project-roadmap-rail";
 import type { ConceptProjectAgentUIMessage } from "@/lib/agents/concept-project";
+import type {
+  ConceptProjectRoadmapCurrentVersion,
+  ConceptProjectRoadmapVisualItem,
+} from "@/lib/concept-project/roadmap";
 import {
-  CONCEPT_PROJECT_STAGE_INTRO_MESSAGES,
   CONCEPT_PROJECT_STAGE_LABELS,
   conceptProjectStages,
   getNextConceptProjectStage,
@@ -18,6 +22,8 @@ import {
   getConceptProjectWordCount,
   type ConceptProjectStage,
 } from "@/lib/concept-project/shared";
+import { cn } from "@/lib/utils";
+import { mutators } from "@/zero/mutators";
 import { queries } from "@/zero/queries";
 import { Button } from "@/components/ui/button";
 import { ArrowDownIcon, CommandIcon, CornerDownLeftIcon } from "lucide-react";
@@ -34,13 +40,7 @@ type PersistedMessage = {
   type: "agent" | "person";
 };
 
-type RoadmapItem = {
-  description: string | null;
-  id: string;
-  majorVersion: number;
-  minorVersion: number;
-  name: string;
-};
+type RoadmapItem = ConceptProjectRoadmapVisualItem;
 
 type ConceptProjectSnapshot = {
   chatId: string;
@@ -63,6 +63,7 @@ type ConceptProjectDiscoveryProps = {
   conceptProjectId: string;
   initialConceptProject: ConceptProjectSnapshot;
   initialMessages: PersistedMessage[];
+  initialRoadmapCurrentVersion: ConceptProjectRoadmapCurrentVersion;
   initialRoadmap: RoadmapItem[];
   zeroEnabled: boolean;
 };
@@ -95,19 +96,6 @@ function getStageProgressCard(stage: Exclude<ConceptProjectStage, "setup">) {
         buttonLabel: "Continue to setup",
         title: "How Agent",
       };
-  }
-}
-
-function getStageSummaryLabel(stage: ConceptProjectStage) {
-  switch (stage) {
-    case "what":
-      return "What Summary";
-    case "for_whom":
-      return "For Whom Summary";
-    case "how":
-      return "How Summary";
-    case "setup":
-      return "Setup Summary";
   }
 }
 
@@ -198,24 +186,35 @@ function MessageMarkdown({ isAgent, text }: { isAgent: boolean; text: string }) 
 }
 
 type ConceptProjectDiscoveryViewProps = {
+  canInsertRoadmapVersions: boolean;
   canSwitchStages: boolean;
   conceptProject: ConceptProjectSnapshot;
   conceptProjectId: string;
   isSwitchingStage: boolean;
   messages: PersistedMessage[];
   onChatFinish?: () => void;
+  onInsertRoadmapVersion?: (args: {
+    description?: string;
+    majorVersion: number;
+    minorVersion: number;
+    name: string;
+  }) => Promise<void>;
   onStageSelect?: (stage: ConceptProjectStage, options?: { appendIntroMessage?: boolean }) => void;
+  roadmapCurrentVersion: ConceptProjectRoadmapCurrentVersion;
   roadmap: RoadmapItem[];
 };
 
 function ConceptProjectDiscoveryView({
+  canInsertRoadmapVersions,
   canSwitchStages,
   conceptProject,
   conceptProjectId,
   isSwitchingStage,
   messages,
   onChatFinish,
+  onInsertRoadmapVersion,
   onStageSelect,
+  roadmapCurrentVersion,
   roadmap,
 }: ConceptProjectDiscoveryViewProps) {
   const searchParams = useSearchParams();
@@ -307,29 +306,6 @@ function ConceptProjectDiscoveryView({
     return [...persisted, ...pending];
   }, [currentStage, messages, persistedMessageIds, status, transientMessages]);
 
-  const summaries = [
-    {
-      key: "what",
-      label: getStageSummaryLabel("what"),
-      value: conceptProject.whatSummary,
-    },
-    {
-      key: "for_whom",
-      label: getStageSummaryLabel("for_whom"),
-      value: conceptProject.forWhomSummary,
-    },
-    {
-      key: "how",
-      label: getStageSummaryLabel("how"),
-      value: conceptProject.howSummary,
-    },
-    {
-      key: "setup",
-      label: getStageSummaryLabel("setup"),
-      value: conceptProject.setupSummary,
-    },
-  ].filter((summary) => summary.value?.trim());
-
   const isSetupStage = currentStage === "setup";
   const isSubmitting = status === "submitted" || status === "streaming";
   const latestFinishedAgentMessage = [...renderedMessages]
@@ -345,6 +321,7 @@ function ConceptProjectDiscoveryView({
       (currentStage === "how" && Boolean(conceptProject.understoodHowAt)));
   const nextStage = currentStage === "setup" ? null : getNextConceptProjectStage(currentStage);
   const progressCard = canProgressToNextStage ? getStageProgressCard(currentStage) : null;
+  const hasRoadmap = roadmap.length > 0;
 
   function getComposerOffset() {
     const composerHeight = composerShellRef.current?.offsetHeight ?? 0;
@@ -501,7 +478,19 @@ function ConceptProjectDiscoveryView({
   return (
     <>
       <div className="grid gap-6" ref={contentShellRef}>
-        <div className="flex-1 space-y-3 overflow-y-auto px-6 py-5">
+        <ConceptProjectRoadmapRail
+          canInsertVersions={canInsertRoadmapVersions}
+          currentVersion={roadmapCurrentVersion}
+          onInsertVersion={onInsertRoadmapVersion}
+          roadmap={roadmap}
+        />
+
+        <div
+          className={cn(
+            "flex-1 space-y-3 overflow-y-auto px-6 py-5",
+            hasRoadmap && "pt-44 sm:pt-48",
+          )}
+        >
           {renderedMessages.map((message) => {
             const isAgent = message.type === "agent";
             const showSuggestOptionsAction =
@@ -619,9 +608,9 @@ function ConceptProjectDiscoveryView({
                           ? "border-foreground bg-foreground text-background"
                           : isCompleted
                             ? "border-emerald-600 bg-background text-foreground hover:border-emerald-500"
-                          : isUnlocked
-                            ? "border-border bg-background text-foreground hover:border-foreground/40"
-                            : "cursor-not-allowed border-border/60 bg-muted/40 text-muted-foreground"
+                            : isUnlocked
+                              ? "border-border bg-background text-foreground hover:border-foreground/40"
+                              : "cursor-not-allowed border-border/60 bg-muted/40 text-muted-foreground"
                       }`}
                       disabled={!canSwitchStages || !isUnlocked || isSubmitting || isSwitchingStage}
                       key={stage}
@@ -696,24 +685,31 @@ function ZeroBackedConceptProjectDiscovery({
   conceptProjectId,
   initialConceptProject,
   initialMessages,
+  initialRoadmapCurrentVersion,
   initialRoadmap,
 }: Omit<ConceptProjectDiscoveryProps, "zeroEnabled">) {
-  useZero();
+  const zero = useZero() as any;
   const router = useRouter();
   const [isSwitchingStage, startStageTransition] = useTransition();
   const [conceptProjectResult] = useQuery(queries.conceptProjects.byId({ id: conceptProjectId }));
   const [messagesResult] = useQuery(
     queries.conceptProjectChats.messagesByConceptProjectId({ conceptProjectId }),
   );
+  const [roadmapStateResult] = useQuery(queries.roadmaps.byConceptProjectId({ conceptProjectId }));
   const [roadmapResult] = useQuery(queries.roadmaps.itemsByConceptProjectId({ conceptProjectId }));
 
   const conceptProject = (conceptProjectResult ?? initialConceptProject) as ConceptProjectSnapshot;
   const zeroMessages = messagesResult as PersistedMessage[] | undefined;
+  const zeroRoadmapState = roadmapStateResult as
+    | { currentMajor: number; currentMinor: number }
+    | null
+    | undefined;
   const zeroRoadmap = roadmapResult as RoadmapItem[] | undefined;
   const messages =
     zeroMessages && (zeroMessages.length > 0 || initialMessages.length === 0)
       ? zeroMessages
       : initialMessages;
+  const roadmapCurrentVersion = zeroRoadmapState ?? initialRoadmapCurrentVersion;
   const roadmap =
     zeroRoadmap && (zeroRoadmap.length > 0 || initialRoadmap.length === 0)
       ? zeroRoadmap
@@ -739,14 +735,44 @@ function ZeroBackedConceptProjectDiscovery({
     });
   }
 
+  async function handleInsertRoadmapVersion(args: {
+    description?: string;
+    majorVersion: number;
+    minorVersion: number;
+    name: string;
+  }) {
+    if (!conceptProject.roadmapId) {
+      throw new Error("Roadmap not found.");
+    }
+
+    await zero.mutate(
+      mutators.roadmapItems.insertVersionAt({
+        conceptProjectId,
+        description: args.description,
+        id: crypto.randomUUID(),
+        majorVersion: args.majorVersion,
+        minorVersion: args.minorVersion,
+        name: args.name,
+        roadmapId: conceptProject.roadmapId,
+      }),
+    ).client;
+
+    router.refresh();
+  }
+
   return (
     <ConceptProjectDiscoveryView
+      canInsertRoadmapVersions={Boolean(
+        conceptProject.roadmapId && conceptProject.understoodSetupAt,
+      )}
       canSwitchStages={true}
       conceptProject={conceptProject}
       conceptProjectId={conceptProjectId}
       isSwitchingStage={isSwitchingStage}
       messages={messages}
       onStageSelect={handleStageSelect}
+      onInsertRoadmapVersion={handleInsertRoadmapVersion}
+      roadmapCurrentVersion={roadmapCurrentVersion}
       roadmap={roadmap}
     />
   );
@@ -756,12 +782,39 @@ function FallbackConceptProjectDiscovery({
   conceptProjectId,
   initialConceptProject,
   initialMessages,
+  initialRoadmapCurrentVersion,
   initialRoadmap,
 }: Omit<ConceptProjectDiscoveryProps, "zeroEnabled">) {
   const router = useRouter();
 
+  async function handleInsertRoadmapVersion(args: {
+    description?: string;
+    majorVersion: number;
+    minorVersion: number;
+    name: string;
+  }) {
+    const response = await fetch(`/api/concept-project/${conceptProjectId}/settings`, {
+      body: JSON.stringify(args),
+      headers: {
+        "content-type": "application/json",
+      },
+      method: "POST",
+    });
+
+    if (!response.ok) {
+      const errorBody = (await response.json().catch(() => null)) as { error?: string } | null;
+
+      throw new Error(errorBody?.error || "Failed to insert roadmap node.");
+    }
+
+    router.refresh();
+  }
+
   return (
     <ConceptProjectDiscoveryView
+      canInsertRoadmapVersions={Boolean(
+        initialConceptProject.roadmapId && initialConceptProject.understoodSetupAt,
+      )}
       canSwitchStages={false}
       conceptProject={initialConceptProject}
       conceptProjectId={conceptProjectId}
@@ -784,6 +837,8 @@ function FallbackConceptProjectDiscovery({
 
         router.refresh();
       }}
+      onInsertRoadmapVersion={handleInsertRoadmapVersion}
+      roadmapCurrentVersion={initialRoadmapCurrentVersion}
       roadmap={initialRoadmap}
     />
   );
@@ -796,6 +851,7 @@ export function ConceptProjectDiscovery(props: ConceptProjectDiscoveryProps) {
         conceptProjectId={props.conceptProjectId}
         initialConceptProject={props.initialConceptProject}
         initialMessages={props.initialMessages}
+        initialRoadmapCurrentVersion={props.initialRoadmapCurrentVersion}
         initialRoadmap={props.initialRoadmap}
       />
     );
@@ -806,6 +862,7 @@ export function ConceptProjectDiscovery(props: ConceptProjectDiscoveryProps) {
       conceptProjectId={props.conceptProjectId}
       initialConceptProject={props.initialConceptProject}
       initialMessages={props.initialMessages}
+      initialRoadmapCurrentVersion={props.initialRoadmapCurrentVersion}
       initialRoadmap={props.initialRoadmap}
     />
   );

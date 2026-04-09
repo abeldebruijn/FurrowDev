@@ -59,7 +59,7 @@ vp run zero:cache-dev
 Terminal 4: (optional) open Drizzle Studio:
 
 ```bash
-vp exec db:studio
+vp run db:studio
 ```
 
 Verify:

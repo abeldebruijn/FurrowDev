@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { and, eq, max, or } from "drizzle-orm";
+import { and, eq, inArray, max, or } from "drizzle-orm";
 
 import {
   conceptProjectChatMessages,
@@ -18,6 +18,7 @@ import {
   type ConceptProjectStage,
   CONCEPT_PROJECT_OPENING_MESSAGE,
 } from "@/lib/concept-project/shared";
+import { getConceptProjectRoadmapInsertPlan } from "@/lib/concept-project/roadmap";
 import { getSetupRoadmapCurrentVersion } from "@/lib/concept-project/setup";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
@@ -46,6 +47,7 @@ export type ConceptProjectTranscriptMessage = Awaited<
 export type ConceptProjectRoadmapItem = Awaited<
   ReturnType<typeof getConceptProjectRoadmapItems>
 >[number];
+export type ConceptProjectRoadmap = Awaited<ReturnType<typeof getConceptProjectRoadmap>>;
 
 type AppendConceptProjectChatMessageArgs = {
   chatId: string;
@@ -229,6 +231,24 @@ export async function getConceptProjectRoadmapItems(
     .orderBy(roadmapItems.majorVersion, roadmapItems.minorVersion, roadmapItems.name);
 }
 
+export async function getConceptProjectRoadmap(roadmapId: string | null, db: Database = getDb()) {
+  if (!roadmapId) {
+    return null;
+  }
+
+  const rows = await db
+    .select({
+      currentMajor: roadmaps.currentMajor,
+      currentMinor: roadmaps.currentMinor,
+      id: roadmaps.id,
+    })
+    .from(roadmaps)
+    .where(eq(roadmaps.id, roadmapId))
+    .limit(1);
+
+  return rows[0] ?? null;
+}
+
 async function getNextConceptProjectChatOrder(tx: Transaction, chatId: string) {
   const rows = await tx
     .select({
@@ -341,6 +361,114 @@ async function getCurrentRoadmapVersion(
     .limit(1);
 
   return rows[0] ?? null;
+}
+
+export async function insertConceptProjectRoadmapVersion(
+  tx: Transaction,
+  {
+    conceptProjectId,
+    description,
+    id = randomUUID(),
+    majorVersion,
+    minorVersion,
+    name,
+    roadmapId,
+  }: {
+    conceptProjectId: string;
+    description?: string | null;
+    id?: string;
+    majorVersion: number;
+    minorVersion: number;
+    name: string;
+    roadmapId: string | null;
+  },
+) {
+  if (!roadmapId) {
+    throw new Error("Roadmap not found.");
+  }
+
+  const [currentVersion, existingItems] = await Promise.all([
+    getCurrentRoadmapVersion(tx, roadmapId),
+    tx
+      .select({
+        description: roadmapItems.description,
+        id: roadmapItems.id,
+        majorVersion: roadmapItems.majorVersion,
+        minorVersion: roadmapItems.minorVersion,
+        name: roadmapItems.name,
+      })
+      .from(roadmapItems)
+      .where(eq(roadmapItems.roadmapId, roadmapId))
+      .orderBy(roadmapItems.majorVersion, roadmapItems.minorVersion, roadmapItems.name),
+  ]);
+
+  const plan = getConceptProjectRoadmapInsertPlan(existingItems, currentVersion, {
+    majorVersion,
+    minorVersion,
+  });
+
+  const shiftedIds = plan.shiftedItems.map((item) => item.id);
+
+  if (shiftedIds.length > 0) {
+    const shiftedMinorVersionById = new Map(
+      plan.shiftedItems.map((item) => [item.id, item.nextMinorVersion]),
+    );
+    const shiftedRecords = await tx
+      .select({
+        id: roadmapItems.id,
+      })
+      .from(roadmapItems)
+      .where(inArray(roadmapItems.id, shiftedIds));
+
+    const shiftQueue = shiftedRecords
+      .map((record) => ({
+        id: record.id,
+        nextMinorVersion: shiftedMinorVersionById.get(record.id),
+      }))
+      .filter((item): item is { id: string; nextMinorVersion: number } => {
+        return item.nextMinorVersion !== undefined;
+      })
+      .sort((left, right) => right.nextMinorVersion - left.nextMinorVersion);
+
+    for (const item of shiftQueue) {
+      await tx
+        .update(roadmapItems)
+        .set({
+          minorVersion: item.nextMinorVersion,
+        })
+        .where(eq(roadmapItems.id, item.id));
+    }
+  }
+
+  await tx.insert(roadmapItems).values({
+    description: description?.trim() || null,
+    id,
+    majorVersion,
+    minorVersion,
+    name: name.trim(),
+    parentId: null,
+    roadmapId,
+  });
+
+  if (
+    plan.nextCurrentVersion &&
+    currentVersion &&
+    (plan.nextCurrentVersion.currentMajor !== currentVersion.currentMajor ||
+      plan.nextCurrentVersion.currentMinor !== currentVersion.currentMinor)
+  ) {
+    await tx
+      .update(roadmaps)
+      .set({
+        currentMajor: plan.nextCurrentVersion.currentMajor,
+        currentMinor: plan.nextCurrentVersion.currentMinor,
+      })
+      .where(eq(roadmaps.id, roadmapId));
+  }
+
+  return {
+    conceptProjectId,
+    id,
+  };
 }
 
 export async function replaceConceptProjectSetupRoadmapItems(

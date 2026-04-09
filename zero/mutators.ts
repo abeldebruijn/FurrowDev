@@ -2,6 +2,7 @@ import { ApplicationError, defineMutatorWithType, defineMutators } from "@rocico
 import { z } from "zod";
 
 import type { ZeroContext } from "@/lib/zero/context";
+import { getConceptProjectRoadmapInsertPlan } from "@/lib/concept-project/roadmap";
 import { conceptProjectStages } from "@/lib/concept-project/shared";
 import {
   assertCanAccessConceptProjectServer,
@@ -202,6 +203,104 @@ export const mutators = defineMutators({
         } as any);
 
         await bumpRoadmapVersionIfNeeded(tx, args.roadmapId, args.majorVersion, args.minorVersion);
+      },
+    ),
+    insertVersionAt: defineMutator(
+      z.object({
+        conceptProjectId: z.uuid(),
+        description: z.string().optional(),
+        id: z.uuid(),
+        majorVersion: z.int(),
+        minorVersion: z.int(),
+        name: z.string().trim().min(1),
+        roadmapId: z.uuid(),
+      }),
+      async ({ args, ctx, tx }) => {
+        if (tx.location !== "server") {
+          return;
+        }
+
+        await assertCanAccessConceptProjectServer(tx, ctx, args.conceptProjectId);
+
+        const [conceptProjectResult, currentRoadmapResult, existingItemsResult] = await Promise.all(
+          [
+            tx.run(zqlAny.conceptProjects.where("id", args.conceptProjectId).one()),
+            tx.run(zqlAny.roadmaps.where("id", args.roadmapId).one()),
+            tx.run(
+              zqlAny.roadmapItems
+                .where("roadmapId", args.roadmapId)
+                .orderBy("majorVersion", "asc")
+                .orderBy("minorVersion", "asc")
+                .orderBy("name", "asc"),
+            ),
+          ],
+        );
+        const conceptProject = conceptProjectResult as { understoodSetupAt: string | null } | null;
+        const currentRoadmap = currentRoadmapResult as {
+          currentMajor: number;
+          currentMinor: number;
+        } | null;
+        const existingItems = existingItemsResult as Array<{
+          description: string | null;
+          id: string;
+          majorVersion: number;
+          minorVersion: number;
+          name: string;
+        }>;
+
+        if (!conceptProject?.understoodSetupAt) {
+          throw new ApplicationError("Setup must be complete before editing the roadmap.", {
+            details: {
+              conceptProjectId: args.conceptProjectId,
+            },
+          });
+        }
+
+        if (!currentRoadmap) {
+          throw new ApplicationError("Roadmap not found", {
+            details: {
+              roadmapId: args.roadmapId,
+            },
+          });
+        }
+
+        const plan = getConceptProjectRoadmapInsertPlan(existingItems, currentRoadmap, {
+          majorVersion: args.majorVersion,
+          minorVersion: args.minorVersion,
+        });
+
+        const shiftQueue = [...plan.shiftedItems].sort(
+          (left, right) => right.nextMinorVersion - left.nextMinorVersion,
+        );
+
+        for (const item of shiftQueue) {
+          await tx.mutate.roadmapItems.update({
+            id: item.id,
+            minorVersion: item.nextMinorVersion,
+          } as any);
+        }
+
+        await tx.mutate.roadmapItems.insert({
+          description: args.description?.trim() || undefined,
+          id: args.id,
+          majorVersion: args.majorVersion,
+          minorVersion: args.minorVersion,
+          name: args.name.trim(),
+          parentId: undefined,
+          roadmapId: args.roadmapId,
+        } as any);
+
+        if (
+          plan.nextCurrentVersion &&
+          (plan.nextCurrentVersion.currentMajor !== currentRoadmap.currentMajor ||
+            plan.nextCurrentVersion.currentMinor !== currentRoadmap.currentMinor)
+        ) {
+          await tx.mutate.roadmaps.update({
+            currentMajor: plan.nextCurrentVersion.currentMajor,
+            currentMinor: plan.nextCurrentVersion.currentMinor,
+            id: args.roadmapId,
+          } as any);
+        }
       },
     ),
     update: defineMutator(
