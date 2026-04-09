@@ -186,12 +186,14 @@ function MessageMarkdown({ isAgent, text }: { isAgent: boolean; text: string }) 
 }
 
 type ConceptProjectDiscoveryViewProps = {
+  canEditRoadmapVersions: boolean;
   canInsertRoadmapVersions: boolean;
   canSwitchStages: boolean;
   conceptProject: ConceptProjectSnapshot;
   conceptProjectId: string;
   isSwitchingStage: boolean;
   messages: PersistedMessage[];
+  onDeleteRoadmapNode?: (nodeId: string) => Promise<void>;
   onChatFinish?: () => void;
   onInsertRoadmapVersion?: (args: {
     description?: string;
@@ -199,20 +201,30 @@ type ConceptProjectDiscoveryViewProps = {
     minorVersion: number;
     name: string;
   }) => Promise<void>;
+  onUpdateRoadmapVersionNodes?: (
+    drafts: Array<{
+      description?: string;
+      id: string;
+      name: string;
+    }>,
+  ) => Promise<void>;
   onStageSelect?: (stage: ConceptProjectStage, options?: { appendIntroMessage?: boolean }) => void;
   roadmapCurrentVersion: ConceptProjectRoadmapCurrentVersion;
   roadmap: RoadmapItem[];
 };
 
 function ConceptProjectDiscoveryView({
+  canEditRoadmapVersions,
   canInsertRoadmapVersions,
   canSwitchStages,
   conceptProject,
   conceptProjectId,
   isSwitchingStage,
   messages,
+  onDeleteRoadmapNode,
   onChatFinish,
   onInsertRoadmapVersion,
+  onUpdateRoadmapVersionNodes,
   onStageSelect,
   roadmapCurrentVersion,
   roadmap,
@@ -479,9 +491,12 @@ function ConceptProjectDiscoveryView({
     <>
       <div className="grid gap-6" ref={contentShellRef}>
         <ConceptProjectRoadmapRail
+          canEditVersions={canEditRoadmapVersions}
           canInsertVersions={canInsertRoadmapVersions}
           currentVersion={roadmapCurrentVersion}
+          onDeleteRoadmapNode={onDeleteRoadmapNode}
           onInsertVersion={onInsertRoadmapVersion}
+          onUpdateRoadmapVersionNodes={onUpdateRoadmapVersionNodes}
           roadmap={roadmap}
         />
 
@@ -760,8 +775,49 @@ function ZeroBackedConceptProjectDiscovery({
     router.refresh();
   }
 
+  async function handleUpdateRoadmapVersionNodes(
+    drafts: Array<{
+      description?: string;
+      id: string;
+      name: string;
+    }>,
+  ) {
+    await Promise.all(
+      drafts.map(
+        (draft) =>
+          zero.mutate(
+            mutators.roadmapItems.update({
+              conceptProjectId,
+              description: draft.description,
+              id: draft.id,
+              name: draft.name,
+            }),
+          ).client,
+      ),
+    );
+
+    router.refresh();
+  }
+
+  async function handleDeleteRoadmapNode(nodeId: string) {
+    if (!conceptProject.roadmapId) {
+      throw new Error("Roadmap not found.");
+    }
+
+    await zero.mutate(
+      mutators.roadmapItems.deleteAndRepairVersion({
+        conceptProjectId,
+        id: nodeId,
+        roadmapId: conceptProject.roadmapId,
+      }),
+    ).client;
+
+    router.refresh();
+  }
+
   return (
     <ConceptProjectDiscoveryView
+      canEditRoadmapVersions={Boolean(conceptProject.roadmapId && conceptProject.understoodSetupAt)}
       canInsertRoadmapVersions={Boolean(
         conceptProject.roadmapId && conceptProject.understoodSetupAt,
       )}
@@ -770,8 +826,10 @@ function ZeroBackedConceptProjectDiscovery({
       conceptProjectId={conceptProjectId}
       isSwitchingStage={isSwitchingStage}
       messages={messages}
+      onDeleteRoadmapNode={handleDeleteRoadmapNode}
       onStageSelect={handleStageSelect}
       onInsertRoadmapVersion={handleInsertRoadmapVersion}
+      onUpdateRoadmapVersionNodes={handleUpdateRoadmapVersionNodes}
       roadmapCurrentVersion={roadmapCurrentVersion}
       roadmap={roadmap}
     />
@@ -810,8 +868,63 @@ function FallbackConceptProjectDiscovery({
     router.refresh();
   }
 
+  async function handleUpdateRoadmapVersionNodes(
+    drafts: Array<{
+      description?: string;
+      id: string;
+      name: string;
+    }>,
+  ) {
+    await Promise.all(
+      drafts.map(async (draft) => {
+        const response = await fetch(`/api/concept-project/${conceptProjectId}/settings`, {
+          body: JSON.stringify({
+            description: draft.description,
+            nodeId: draft.id,
+            nodeName: draft.name,
+          }),
+          headers: {
+            "content-type": "application/json",
+          },
+          method: "PATCH",
+        });
+
+        if (!response.ok) {
+          const errorBody = (await response.json().catch(() => null)) as { error?: string } | null;
+
+          throw new Error(errorBody?.error || "Failed to update roadmap node.");
+        }
+      }),
+    );
+
+    router.refresh();
+  }
+
+  async function handleDeleteRoadmapNode(nodeId: string) {
+    const response = await fetch(`/api/concept-project/${conceptProjectId}/settings`, {
+      body: JSON.stringify({
+        nodeId,
+      }),
+      headers: {
+        "content-type": "application/json",
+      },
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      const errorBody = (await response.json().catch(() => null)) as { error?: string } | null;
+
+      throw new Error(errorBody?.error || "Failed to delete roadmap node.");
+    }
+
+    router.refresh();
+  }
+
   return (
     <ConceptProjectDiscoveryView
+      canEditRoadmapVersions={Boolean(
+        initialConceptProject.roadmapId && initialConceptProject.understoodSetupAt,
+      )}
       canInsertRoadmapVersions={Boolean(
         initialConceptProject.roadmapId && initialConceptProject.understoodSetupAt,
       )}
@@ -820,6 +933,7 @@ function FallbackConceptProjectDiscovery({
       conceptProjectId={conceptProjectId}
       isSwitchingStage={false}
       messages={initialMessages}
+      onDeleteRoadmapNode={handleDeleteRoadmapNode}
       onChatFinish={() => {
         router.refresh();
       }}
@@ -838,6 +952,7 @@ function FallbackConceptProjectDiscovery({
         router.refresh();
       }}
       onInsertRoadmapVersion={handleInsertRoadmapVersion}
+      onUpdateRoadmapVersionNodes={handleUpdateRoadmapVersionNodes}
       roadmapCurrentVersion={initialRoadmapCurrentVersion}
       roadmap={initialRoadmap}
     />

@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import {
   appendConceptProjectChatMessage,
   deleteAccessibleConceptProject,
+  deleteConceptProjectRoadmapNode,
   getAccessibleConceptProject,
   getConceptProjectTranscript,
   insertConceptProjectRoadmapVersion,
@@ -11,8 +12,8 @@ import {
 import { getDb } from "@/lib/db";
 import { upsertViewerFromWorkOSSession } from "@/lib/zero/context";
 import { getWorkOSSession } from "@/lib/workos-session";
-import { conceptProjects } from "@/drizzle/schema";
-import { eq } from "drizzle-orm";
+import { conceptProjects, roadmapItems } from "@/drizzle/schema";
+import { and, eq } from "drizzle-orm";
 import {
   CONCEPT_PROJECT_STAGE_INTRO_MESSAGES,
   conceptProjectStages,
@@ -41,6 +42,16 @@ const insertRoadmapVersionSchema = z.object({
   name: z.string().trim().min(1).max(120),
 });
 
+const updateRoadmapNodeSchema = z.object({
+  description: z.string().optional(),
+  nodeId: z.uuid(),
+  nodeName: z.string().trim().min(1).max(120),
+});
+
+const deleteRoadmapNodeSchema = z.object({
+  nodeId: z.uuid(),
+});
+
 export async function PATCH(request: NextRequest, { params }: ConceptProjectSettingsRouteProps) {
   const session = await getWorkOSSession(request);
 
@@ -50,9 +61,11 @@ export async function PATCH(request: NextRequest, { params }: ConceptProjectSett
 
   const viewer = await upsertViewerFromWorkOSSession(session);
   const { ["concept-project-id"]: conceptProjectId } = await params;
-  const body = updateSchema.safeParse(await request.json());
+  const rawBody = await request.json();
+  const body = updateSchema.safeParse(rawBody);
+  const roadmapNodeBody = updateRoadmapNodeSchema.safeParse(rawBody);
 
-  if (!body.success) {
+  if (!body.success && !roadmapNodeBody.success) {
     return Response.json({ error: "Invalid name" }, { status: 400 });
   }
 
@@ -63,15 +76,51 @@ export async function PATCH(request: NextRequest, { params }: ConceptProjectSett
     return Response.json({ error: "Concept project not found" }, { status: 404 });
   }
 
-  await db
-    .update(conceptProjects)
-    .set({
-      ...(body.data.name ? { name: body.data.name.trim() } : {}),
-      ...(body.data.currentStage ? { currentStage: body.data.currentStage } : {}),
-    })
-    .where(eq(conceptProjects.id, conceptProject.id));
+  if (body.success) {
+    await db
+      .update(conceptProjects)
+      .set({
+        ...(body.data.name ? { name: body.data.name.trim() } : {}),
+        ...(body.data.currentStage ? { currentStage: body.data.currentStage } : {}),
+      })
+      .where(eq(conceptProjects.id, conceptProject.id));
+  }
 
-  if (body.data.currentStage && body.data.appendIntroMessage && body.data.currentStage !== "what") {
+  if (roadmapNodeBody.success) {
+    if (!conceptProject.understoodSetupAt) {
+      return Response.json(
+        { error: "Setup must be complete before editing the roadmap." },
+        { status: 400 },
+      );
+    }
+
+    const updatedRows = await db
+      .update(roadmapItems)
+      .set({
+        description: roadmapNodeBody.data.description?.trim() || null,
+        name: roadmapNodeBody.data.nodeName.trim(),
+      })
+      .where(
+        and(
+          eq(roadmapItems.id, roadmapNodeBody.data.nodeId),
+          eq(roadmapItems.roadmapId, conceptProject.roadmapId ?? ""),
+        ),
+      )
+      .returning({
+        id: roadmapItems.id,
+      });
+
+    if (updatedRows.length === 0) {
+      return Response.json({ error: "Roadmap node not found" }, { status: 404 });
+    }
+  }
+
+  if (
+    body.success &&
+    body.data.currentStage &&
+    body.data.appendIntroMessage &&
+    body.data.currentStage !== "what"
+  ) {
     const nextStage = body.data.currentStage;
     const transcript = await getConceptProjectTranscript(conceptProject.id, db);
     const latestMessage = transcript.at(-1);
@@ -101,6 +150,43 @@ export async function DELETE(request: NextRequest, { params }: ConceptProjectSet
   const viewer = await upsertViewerFromWorkOSSession(session);
   const { ["concept-project-id"]: conceptProjectId } = await params;
   const db = getDb();
+  const rawBody = await request.json().catch(() => null);
+  const roadmapNodeBody = deleteRoadmapNodeSchema.safeParse(rawBody);
+
+  if (roadmapNodeBody.success) {
+    const conceptProject = await getAccessibleConceptProject(viewer.id, conceptProjectId, db);
+
+    if (!conceptProject) {
+      return Response.json({ error: "Concept project not found" }, { status: 404 });
+    }
+
+    if (!conceptProject.understoodSetupAt) {
+      return Response.json(
+        { error: "Setup must be complete before editing the roadmap." },
+        { status: 400 },
+      );
+    }
+
+    try {
+      await db.transaction((tx) =>
+        deleteConceptProjectRoadmapNode(tx, {
+          conceptProjectId: conceptProject.id,
+          id: roadmapNodeBody.data.nodeId,
+          roadmapId: conceptProject.roadmapId,
+        }),
+      );
+
+      return Response.json({ ok: true });
+    } catch (error) {
+      return Response.json(
+        {
+          error: error instanceof Error ? error.message : "Failed to delete roadmap node.",
+        },
+        { status: 400 },
+      );
+    }
+  }
+
   const deleted = await deleteAccessibleConceptProject(viewer.id, conceptProjectId, db);
 
   if (!deleted) {

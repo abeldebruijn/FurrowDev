@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  getConceptProjectRoadmapDeletePlan,
   getConceptProjectRoadmapInsertPlan,
   getNextRoadmapRailCollapsed,
   groupConceptProjectRoadmapVersions,
@@ -343,6 +344,134 @@ describe("getConceptProjectRoadmapInsertPlan", () => {
         },
       ),
     ).toThrow("Cannot insert across roadmap major-version boundaries.");
+  });
+});
+
+describe("getConceptProjectRoadmapDeletePlan", () => {
+  it("keeps the current version when deleting one node from a grouped version", () => {
+    expect(
+      getConceptProjectRoadmapDeletePlan(
+        [
+          {
+            description: null,
+            id: "v0-2a",
+            majorVersion: 0,
+            minorVersion: 2,
+            name: "Two A",
+          },
+          {
+            description: null,
+            id: "v0-2b",
+            majorVersion: 0,
+            minorVersion: 2,
+            name: "Two B",
+          },
+          {
+            description: null,
+            id: "v0-3",
+            majorVersion: 0,
+            minorVersion: 3,
+            name: "Three",
+          },
+        ],
+        {
+          currentMajor: 0,
+          currentMinor: 2,
+        },
+        "v0-2a",
+      ),
+    ).toEqual({
+      nextCurrentVersion: {
+        currentMajor: 0,
+        currentMinor: 2,
+      },
+      shiftedItems: [],
+      shouldCollapseVersionGroup: false,
+    });
+  });
+
+  it("closes the gap and shifts current back when deleting the only node in a version", () => {
+    expect(
+      getConceptProjectRoadmapDeletePlan(
+        [
+          {
+            description: null,
+            id: "v0-1",
+            majorVersion: 0,
+            minorVersion: 1,
+            name: "One",
+          },
+          {
+            description: null,
+            id: "v0-2",
+            majorVersion: 0,
+            minorVersion: 2,
+            name: "Two",
+          },
+          {
+            description: null,
+            id: "v0-3",
+            majorVersion: 0,
+            minorVersion: 3,
+            name: "Three",
+          },
+        ],
+        {
+          currentMajor: 0,
+          currentMinor: 3,
+        },
+        "v0-2",
+      ),
+    ).toEqual({
+      nextCurrentVersion: {
+        currentMajor: 0,
+        currentMinor: 2,
+      },
+      shiftedItems: [
+        {
+          id: "v0-3",
+          majorVersion: 0,
+          minorVersion: 3,
+          nextMinorVersion: 2,
+        },
+      ],
+      shouldCollapseVersionGroup: true,
+    });
+  });
+
+  it("moves current to the nearest previous version when deleting the only current node", () => {
+    expect(
+      getConceptProjectRoadmapDeletePlan(
+        [
+          {
+            description: null,
+            id: "v0-1",
+            majorVersion: 0,
+            minorVersion: 1,
+            name: "One",
+          },
+          {
+            description: null,
+            id: "v0-2",
+            majorVersion: 0,
+            minorVersion: 2,
+            name: "Two",
+          },
+        ],
+        {
+          currentMajor: 0,
+          currentMinor: 2,
+        },
+        "v0-2",
+      ),
+    ).toEqual({
+      nextCurrentVersion: {
+        currentMajor: 0,
+        currentMinor: 1,
+      },
+      shiftedItems: [],
+      shouldCollapseVersionGroup: true,
+    });
   });
 });
 

@@ -36,6 +36,17 @@ export type ConceptProjectRoadmapInsertPlan = {
   }>;
 };
 
+export type ConceptProjectRoadmapDeletePlan = {
+  nextCurrentVersion: ConceptProjectRoadmapCurrentVersion;
+  shiftedItems: Array<{
+    id: string;
+    majorVersion: number;
+    minorVersion: number;
+    nextMinorVersion: number;
+  }>;
+  shouldCollapseVersionGroup: boolean;
+};
+
 type RoadmapRailCollapseArgs = {
   collapseThreshold?: number;
   deltaThreshold?: number;
@@ -158,6 +169,90 @@ export function getConceptProjectRoadmapInsertPlan(
   return {
     nextCurrentVersion,
     shiftedItems,
+  };
+}
+
+export function getConceptProjectRoadmapDeletePlan(
+  items: ConceptProjectRoadmapVisualItem[],
+  currentVersion: ConceptProjectRoadmapCurrentVersion,
+  itemId: string,
+): ConceptProjectRoadmapDeletePlan {
+  const targetItem = items.find((item) => item.id === itemId);
+
+  if (!targetItem) {
+    throw new Error("Roadmap node not found.");
+  }
+
+  const versionPeers = items.filter(
+    (item) =>
+      item.majorVersion === targetItem.majorVersion &&
+      item.minorVersion === targetItem.minorVersion,
+  );
+  const remainingItems = items.filter((item) => item.id !== itemId);
+  const shouldCollapseVersionGroup = versionPeers.length === 1;
+  const shiftedItems = shouldCollapseVersionGroup
+    ? remainingItems
+        .filter(
+          (item) =>
+            item.majorVersion === targetItem.majorVersion &&
+            item.minorVersion > targetItem.minorVersion,
+        )
+        .map((item) => ({
+          id: item.id,
+          majorVersion: item.majorVersion,
+          minorVersion: item.minorVersion,
+          nextMinorVersion: item.minorVersion - 1,
+        }))
+    : [];
+
+  let nextCurrentVersion = currentVersion;
+
+  if (
+    currentVersion?.currentMajor === targetItem.majorVersion &&
+    currentVersion.currentMinor === targetItem.minorVersion
+  ) {
+    if (!shouldCollapseVersionGroup) {
+      nextCurrentVersion = currentVersion;
+    } else {
+      const sameMajorRemainingItems = remainingItems.filter(
+        (item) => item.majorVersion === targetItem.majorVersion,
+      );
+      const previousItem = [...sameMajorRemainingItems]
+        .filter((item) => item.minorVersion < targetItem.minorVersion)
+        .sort((left, right) => right.minorVersion - left.minorVersion)[0];
+      const nextItem = [...sameMajorRemainingItems]
+        .filter((item) => item.minorVersion > targetItem.minorVersion)
+        .sort((left, right) => left.minorVersion - right.minorVersion)[0];
+      const fallbackItem = previousItem ?? nextItem ?? null;
+
+      nextCurrentVersion = fallbackItem
+        ? {
+            currentMajor: fallbackItem.majorVersion,
+            currentMinor: shouldCollapseVersionGroup
+              ? fallbackItem.minorVersion -
+                Number(
+                  fallbackItem.majorVersion === targetItem.majorVersion &&
+                    fallbackItem.minorVersion > targetItem.minorVersion,
+                )
+              : fallbackItem.minorVersion,
+          }
+        : null;
+    }
+  } else if (
+    shouldCollapseVersionGroup &&
+    currentVersion?.currentMajor === targetItem.majorVersion &&
+    currentVersion.currentMinor > targetItem.minorVersion
+  ) {
+    nextCurrentVersion = {
+      currentMajor: currentVersion.currentMajor,
+      currentMinor: currentVersion.currentMinor - 1,
+    };
+  }
+
+  return {
+    nextCurrentVersion,
+    shiftedItems,
+    shouldCollapseVersionGroup,
   };
 }
 

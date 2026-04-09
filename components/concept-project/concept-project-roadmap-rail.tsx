@@ -22,7 +22,7 @@ import {
   type GroupedConceptProjectRoadmapVersion,
 } from "@/lib/concept-project/roadmap";
 import { cn } from "@/lib/utils";
-import { PlusIcon } from "lucide-react";
+import { ChevronDownIcon, PlusIcon, Trash2Icon } from "lucide-react";
 
 const ROADMAP_RAIL_COLLAPSE_THRESHOLD_PX = 160;
 
@@ -33,6 +33,18 @@ type InsertRoadmapVersionArgs = {
   name: string;
 };
 
+type EditRoadmapNodeDraft = {
+  description: string;
+  id: string;
+  name: string;
+};
+
+type DeleteRoadmapNodeTarget = {
+  id: string;
+  name: string;
+  versionLabel: string;
+} | null;
+
 function getInsertionDescription(target: GroupedConceptProjectRoadmapVersion) {
   if (target.nextVersionInTrack) {
     return `Insert a Roadmap Node after ${target.insertAfterVersion} before ${target.nextVersionInTrack}.`;
@@ -42,26 +54,41 @@ function getInsertionDescription(target: GroupedConceptProjectRoadmapVersion) {
 }
 
 export function ConceptProjectRoadmapRail({
+  canEditVersions,
   canInsertVersions,
   currentVersion,
+  onDeleteRoadmapNode,
   onInsertVersion,
+  onUpdateRoadmapVersionNodes,
   roadmap,
 }: {
+  canEditVersions: boolean;
   canInsertVersions: boolean;
   currentVersion: ConceptProjectRoadmapCurrentVersion;
+  onDeleteRoadmapNode?: (nodeId: string) => Promise<void>;
   onInsertVersion?: (args: InsertRoadmapVersionArgs) => Promise<void>;
+  onUpdateRoadmapVersionNodes?: (drafts: EditRoadmapNodeDraft[]) => Promise<void>;
   roadmap: ConceptProjectRoadmapVisualItem[];
 }) {
   const prefersReducedMotion = useReducedMotion();
   const previousScrollYRef = useRef(0);
   const [activeInsertTarget, setActiveInsertTarget] =
     useState<GroupedConceptProjectRoadmapVersion | null>(null);
+  const [activeVersion, setActiveVersion] = useState<GroupedConceptProjectRoadmapVersion | null>(
+    null,
+  );
+  const [deleteTarget, setDeleteTarget] = useState<DeleteRoadmapNodeTarget>(null);
+  const [expandedNodeId, setExpandedNodeId] = useState<string | null>(null);
   const [insertDescription, setInsertDescription] = useState("");
   const [insertError, setInsertError] = useState<string | null>(null);
   const [insertName, setInsertName] = useState("");
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [isSavingDelete, setIsSavingDelete] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [isSavingInsert, setIsSavingInsert] = useState(false);
+  const [editDrafts, setEditDrafts] = useState<EditRoadmapNodeDraft[]>([]);
+  const [editError, setEditError] = useState<string | null>(null);
   const groupedVersions = useMemo(
     () => groupConceptProjectRoadmapVersions(roadmap, currentVersion),
     [currentVersion, roadmap],
@@ -136,6 +163,46 @@ export function ConceptProjectRoadmapRail({
     setInsertName("");
   }
 
+  function handleOpenEdit(version: GroupedConceptProjectRoadmapVersion) {
+    if (!canEditVersions) {
+      return;
+    }
+
+    setActiveVersion(version);
+    setDeleteTarget(null);
+    setEditError(null);
+    setEditDrafts(
+      version.items.map((item) => ({
+        description: item.description ?? "",
+        id: item.id,
+        name: item.name,
+      })),
+    );
+    setExpandedNodeId(version.items[0]?.id ?? null);
+  }
+
+  function handleCloseEdit(open: boolean) {
+    if (open || isSavingEdit || isSavingDelete) {
+      return;
+    }
+
+    setActiveVersion(null);
+    setDeleteTarget(null);
+    setEditDrafts([]);
+    setEditError(null);
+    setExpandedNodeId(null);
+  }
+
+  function updateDraft(
+    nodeId: string,
+    key: keyof Pick<EditRoadmapNodeDraft, "description" | "name">,
+    value: string,
+  ) {
+    setEditDrafts((drafts) =>
+      drafts.map((draft) => (draft.id === nodeId ? { ...draft, [key]: value } : draft)),
+    );
+  }
+
   async function handleInsertSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -168,6 +235,69 @@ export function ConceptProjectRoadmapRail({
       setInsertError(error instanceof Error ? error.message : "Failed to insert the roadmap node.");
     } finally {
       setIsSavingInsert(false);
+    }
+  }
+
+  async function handleEditSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!onUpdateRoadmapVersionNodes) {
+      return;
+    }
+
+    if (editDrafts.some((draft) => !draft.name.trim())) {
+      setEditError("Every roadmap node needs a title.");
+      return;
+    }
+
+    setEditError(null);
+    setIsSavingEdit(true);
+
+    try {
+      await onUpdateRoadmapVersionNodes(
+        editDrafts.map((draft) => ({
+          description: draft.description.trim(),
+          id: draft.id,
+          name: draft.name.trim(),
+        })),
+      );
+      setActiveVersion(null);
+      setEditDrafts([]);
+      setExpandedNodeId(null);
+    } catch (error) {
+      setEditError(error instanceof Error ? error.message : "Failed to save roadmap node changes.");
+    } finally {
+      setIsSavingEdit(false);
+    }
+  }
+
+  async function handleDeleteConfirm() {
+    if (!deleteTarget || !onDeleteRoadmapNode) {
+      return;
+    }
+
+    setIsSavingDelete(true);
+
+    try {
+      await onDeleteRoadmapNode(deleteTarget.id);
+      setDeleteTarget(null);
+
+      if (activeVersion) {
+        const nextDrafts = editDrafts.filter((draft) => draft.id !== deleteTarget.id);
+        setEditDrafts(nextDrafts);
+
+        if (nextDrafts.length === 0) {
+          setActiveVersion(null);
+          setExpandedNodeId(null);
+        } else {
+          setExpandedNodeId(nextDrafts[0]?.id ?? null);
+        }
+      }
+    } catch (error) {
+      setEditError(error instanceof Error ? error.message : "Failed to delete roadmap node.");
+      setDeleteTarget(null);
+    } finally {
+      setIsSavingDelete(false);
     }
   }
 
@@ -215,19 +345,22 @@ export function ConceptProjectRoadmapRail({
 
                   return (
                     <div className="contents" key={version.version}>
-                      <motion.div
+                      <motion.button
                         animate={{
                           width: effectiveIsCollapsed ? "5rem" : 152,
                           paddingBottom: effectiveIsCollapsed ? 8 : 14,
                           paddingTop: effectiveIsCollapsed ? 8 : 14,
                         }}
                         className={cn(
-                          "relative shrink-0 snap-center overflow-hidden rounded-2xl border px-3 transition-colors sm:px-4",
+                          "relative shrink-0 snap-center overflow-hidden rounded-2xl border px-3 text-left transition-colors sm:px-4",
+                          canEditVersions && "cursor-pointer hover:border-foreground/50",
                           version.isCurrent
                             ? "border-foreground bg-foreground text-background"
                             : "border-border/70 bg-background/88 text-foreground",
                         )}
+                        onClick={() => handleOpenEdit(version)}
                         transition={transition}
+                        type="button"
                       >
                         <div className="flex items-center gap-2">
                           <span
@@ -271,7 +404,7 @@ export function ConceptProjectRoadmapRail({
                             {version.label}
                           </p>
                         </motion.div>
-                      </motion.div>
+                      </motion.button>
 
                       {isLastVersion ? (
                         showInsertAfter ? (
@@ -371,6 +504,144 @@ export function ConceptProjectRoadmapRail({
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog onOpenChange={handleCloseEdit} open={Boolean(activeVersion)}>
+        <DialogContent className="max-w-2xl!">
+          <form className="space-y-4" onSubmit={handleEditSubmit}>
+            <DialogHeader>
+              <DialogTitle>Edit Roadmap Version</DialogTitle>
+              <DialogDescription>
+                {activeVersion
+                  ? `Edit the Roadmap Nodes in ${activeVersion.version}.`
+                  : "Edit the Roadmap Nodes in this version."}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3">
+              {editDrafts.map((draft) => {
+                const isExpanded = expandedNodeId === draft.id || editDrafts.length === 1;
+
+                return (
+                  <div className="overflow-hidden rounded-xl border" key={draft.id}>
+                    {editDrafts.length > 1 ? (
+                      <button
+                        className="flex w-full items-center justify-between gap-3 bg-muted/40 px-4 py-3 text-left"
+                        onClick={() => setExpandedNodeId(isExpanded ? null : draft.id)}
+                        type="button"
+                      >
+                        <div>
+                          <p className="text-sm font-medium text-foreground">
+                            {draft.name.trim() || "Untitled roadmap node"}
+                          </p>
+                          <p className="line-clamp-1 text-xs text-muted-foreground">
+                            {draft.description.trim() || "No description"}
+                          </p>
+                        </div>
+                        <ChevronDownIcon
+                          className={cn("size-4 transition-transform", isExpanded && "rotate-180")}
+                        />
+                      </button>
+                    ) : null}
+
+                    {isExpanded ? (
+                      <div className="space-y-4 px-4 py-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-foreground">Title</label>
+                          <input
+                            className="w-full rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:border-foreground"
+                            onChange={(event) => updateDraft(draft.id, "name", event.target.value)}
+                            value={draft.name}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-foreground">Description</label>
+                          <textarea
+                            className="min-h-24 w-full rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:border-foreground"
+                            onChange={(event) =>
+                              updateDraft(draft.id, "description", event.target.value)
+                            }
+                            value={draft.description}
+                          />
+                        </div>
+
+                        <div className="flex justify-end">
+                          <Button
+                            onClick={() =>
+                              setDeleteTarget({
+                                id: draft.id,
+                                name: draft.name.trim() || "Untitled roadmap node",
+                                versionLabel: activeVersion?.version || "",
+                              })
+                            }
+                            type="button"
+                            variant="destructive"
+                          >
+                            <Trash2Icon />
+                            Delete node
+                          </Button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+
+            {editError ? (
+              <Alert variant="destructive">
+                <AlertTitle>Save failed</AlertTitle>
+                <AlertDescription>{editError}</AlertDescription>
+              </Alert>
+            ) : null}
+
+            <DialogFooter>
+              <Button disabled={isSavingEdit || editDrafts.length === 0} type="submit">
+                {isSavingEdit ? "Saving..." : "Save changes"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        onOpenChange={(open) => {
+          if (!open && !isSavingDelete) {
+            setDeleteTarget(null);
+          }
+        }}
+        open={Boolean(deleteTarget)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Roadmap Node</DialogTitle>
+            <DialogDescription>
+              {deleteTarget
+                ? `Delete ${deleteTarget.name} from ${deleteTarget.versionLabel}? This repairs the roadmap version sequence and cannot be undone.`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter>
+            <Button
+              disabled={isSavingDelete}
+              onClick={() => setDeleteTarget(null)}
+              type="button"
+              variant="outline"
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={isSavingDelete}
+              onClick={handleDeleteConfirm}
+              type="button"
+              variant="destructive"
+            >
+              {isSavingDelete ? "Deleting..." : "Delete node"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
