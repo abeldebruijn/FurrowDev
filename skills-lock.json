@@ -1,6 +1,11 @@
 {
   "version": 1,
   "skills": {
+    "motion": {
+      "source": "secondsky/claude-skills",
+      "sourceType": "github",
+      "computedHash": "7a873e2ef2571b0d05427208aeb456072652186d8dc96e5483f76a06f6707b3d"
+    },
     "shadcn": {
       "source": "shadcn/ui",
       "sourceType": "github",
