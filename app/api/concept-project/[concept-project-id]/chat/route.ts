@@ -16,7 +16,10 @@ import {
   getConceptProjectTranscript,
   getConceptProjectViewerName,
 } from "@/lib/concept-project/server";
-import { getConceptProjectWordCount } from "@/lib/concept-project/shared";
+import {
+  CONCEPT_PROJECT_GRILL_ME_AUTO_KICKOFF_MESSAGE,
+  getConceptProjectWordCount,
+} from "@/lib/concept-project/shared";
 import { getDb } from "@/lib/db";
 import { upsertViewerFromWorkOSSession } from "@/lib/zero/context";
 import { getWorkOSSession } from "@/lib/workos-session";
@@ -26,6 +29,10 @@ type ConceptProjectChatRouteProps = {
     "concept-project-id": string;
   }>;
 };
+
+function isHiddenKickoffMessage(message: string) {
+  return message.trim() === CONCEPT_PROJECT_GRILL_ME_AUTO_KICKOFF_MESSAGE;
+}
 
 function getLastUserText(messages: unknown[]) {
   const lastMessage = messages.at(-1);
@@ -124,8 +131,13 @@ export async function POST(request: NextRequest, { params }: ConceptProjectChatR
 
   const transcriptBeforePersist = await getConceptProjectTranscript(conceptProject.id, db);
   const isFirstUserTurn = !transcriptBeforePersist.some((message) => message.type === "person");
+  const isAutoKickoffMessage = isHiddenKickoffMessage(submittedMessage.text);
 
-  if (isFirstUserTurn && getConceptProjectWordCount(submittedMessage.text) > 128) {
+  if (
+    !isAutoKickoffMessage &&
+    isFirstUserTurn &&
+    getConceptProjectWordCount(submittedMessage.text) > 128
+  ) {
     return Response.json({ error: "The first answer must be 128 words or fewer" }, { status: 400 });
   }
 
@@ -133,7 +145,7 @@ export async function POST(request: NextRequest, { params }: ConceptProjectChatR
     (message) => message.id === submittedMessage.id,
   );
 
-  if (!existingMessage) {
+  if (!existingMessage && !isAutoKickoffMessage) {
     await db.transaction(async (tx) => {
       await appendConceptProjectChatMessage(tx, {
         chatId: conceptProject.chatId,
@@ -177,9 +189,24 @@ export async function POST(request: NextRequest, { params }: ConceptProjectChatR
             ? createSetupAgent(agentContext)
             : createGrillMeAgent(agentContext);
 
+  const uiMessages = toUIMessages(freshTranscript);
+
+  if (isAutoKickoffMessage) {
+    uiMessages.push({
+      id: submittedMessage.id,
+      parts: [
+        {
+          text: submittedMessage.text,
+          type: "text",
+        },
+      ],
+      role: "user",
+    });
+  }
+
   return createAgentUIStreamResponse({
     abortSignal: request.signal,
     agent,
-    uiMessages: toUIMessages(freshTranscript),
+    uiMessages,
   });
 }

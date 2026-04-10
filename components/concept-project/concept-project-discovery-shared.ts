@@ -6,6 +6,7 @@ import type {
   ConceptProjectRoadmapVisualItem,
 } from "@/lib/concept-project/roadmap";
 import {
+  CONCEPT_PROJECT_GRILL_ME_AUTO_KICKOFF_MESSAGE,
   getConceptProjectStageIndex,
   type ConceptProjectStage,
 } from "@/lib/concept-project/shared";
@@ -142,6 +143,9 @@ export function buildRenderedMessages(args: {
   status: string;
   transientMessages: ConceptProjectAgentUIMessage[];
 }): RenderMessage[] {
+  const isHiddenKickoffMessage = (message: string) =>
+    message.trim() === CONCEPT_PROJECT_GRILL_ME_AUTO_KICKOFF_MESSAGE;
+
   const persisted: RenderMessage[] = args.messages.map((message) => ({
     id: message.id,
     isTransient: false,
@@ -156,6 +160,13 @@ export function buildRenderedMessages(args: {
         return false;
       }
 
+      if (
+        message.role === "user" &&
+        isHiddenKickoffMessage(getTextFromUIMessage(message))
+      ) {
+        return false;
+      }
+
       return !args.persistedMessageIds.has(message.id);
     })
     .map(
@@ -167,7 +178,13 @@ export function buildRenderedMessages(args: {
         type: message.role === "user" ? "person" : "agent",
       }),
     )
-    .filter((message) => message.text.length > 0 || message.type === "agent");
+    .filter((message) => {
+      if (message.type === "person" && isHiddenKickoffMessage(message.text)) {
+        return false;
+      }
+
+      return message.text.length > 0 || message.type === "agent";
+    });
 
   return [...persisted, ...pending];
 }

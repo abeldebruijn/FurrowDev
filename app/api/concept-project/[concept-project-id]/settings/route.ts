@@ -53,6 +53,19 @@ const deleteRoadmapNodeSchema = z.object({
   nodeId: z.uuid(),
 });
 
+function getFriendlySettingsError(error: unknown, requestedStage?: string) {
+  const message = error instanceof Error ? error.message : "";
+
+  if (
+    requestedStage === "grill_me" &&
+    message.includes('invalid input value for enum concept_project_stage: "grill_me"')
+  ) {
+    return "Database schema is missing the grill me stage. Run the latest DB migration, then try again.";
+  }
+
+  return null;
+}
+
 export async function PATCH(request: NextRequest, { params }: ConceptProjectSettingsRouteProps) {
   const session = await getWorkOSSession(request);
 
@@ -92,13 +105,23 @@ export async function PATCH(request: NextRequest, { params }: ConceptProjectSett
       );
     }
 
-    await db
-      .update(conceptProjects)
-      .set({
-        ...(body.data.name ? { name: body.data.name.trim() } : {}),
-        ...(body.data.currentStage ? { currentStage: body.data.currentStage } : {}),
-      })
-      .where(eq(conceptProjects.id, conceptProject.id));
+    try {
+      await db
+        .update(conceptProjects)
+        .set({
+          ...(body.data.name ? { name: body.data.name.trim() } : {}),
+          ...(body.data.currentStage ? { currentStage: body.data.currentStage } : {}),
+        })
+        .where(eq(conceptProjects.id, conceptProject.id));
+    } catch (error) {
+      const friendlyError = getFriendlySettingsError(error, body.data.currentStage);
+
+      if (friendlyError) {
+        return Response.json({ error: friendlyError }, { status: 400 });
+      }
+
+      throw error;
+    }
   }
 
   if (roadmapNodeBody.success) {

@@ -24,6 +24,8 @@ import {
 } from "@/components/concept-project/concept-project-discovery-shared";
 import type { ConceptProjectAgentUIMessage } from "@/lib/agents/concept-project";
 import {
+  CONCEPT_PROJECT_GRILL_ME_AUTO_KICKOFF_MESSAGE,
+  CONCEPT_PROJECT_STAGE_INTRO_MESSAGES,
   CONCEPT_PROJECT_STAGE_LABELS,
   getNextConceptProjectStage,
   getConceptProjectStageIndex,
@@ -121,6 +123,7 @@ function ConceptProjectDiscoveryView({
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [composerError, setComposerError] = useState<string | null>(null);
   const clearLocalMessagesTimeoutRef = useRef<number | null>(null);
+  const autoKickoffMessageIdRef = useRef<string | null>(null);
   const contentShellRef = useRef<HTMLDivElement | null>(null);
   const composerFormRef = useRef<HTMLFormElement | null>(null);
   const composerShellRef = useRef<HTMLDivElement | null>(null);
@@ -203,6 +206,38 @@ function ConceptProjectDiscoveryView({
   const latestUserMessage = [...renderedMessages]
     .reverse()
     .find((message) => message.type === "person");
+
+  useEffect(() => {
+    const latestPersistedMessage = messages.at(-1);
+
+    if (
+      isArchived ||
+      isSubmitting ||
+      currentStage !== "grill_me" ||
+      !latestPersistedMessage ||
+      latestPersistedMessage.id === autoKickoffMessageIdRef.current ||
+      latestPersistedMessage.stage !== "grill_me" ||
+      latestPersistedMessage.type !== "agent" ||
+      latestPersistedMessage.message !== CONCEPT_PROJECT_STAGE_INTRO_MESSAGES.grill_me
+    ) {
+      return;
+    }
+
+    autoKickoffMessageIdRef.current = latestPersistedMessage.id;
+    setComposerError(null);
+    clearError();
+
+    void sendMessage({
+      id: crypto.randomUUID(),
+      parts: [
+        {
+          text: CONCEPT_PROJECT_GRILL_ME_AUTO_KICKOFF_MESSAGE,
+          type: "text",
+        },
+      ],
+      role: "user",
+    });
+  }, [clearError, currentStage, isArchived, isSubmitting, messages, sendMessage]);
   const canProgressToNextStage =
     currentStage !== "setup" &&
     currentStage !== "grill_me" &&

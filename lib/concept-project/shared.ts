@@ -27,6 +27,9 @@ Here's what I'll do:
 Please tell me *what* your project is about in a few sentences (less than 128 words). We will later go into detail about for whom, how and why you need this project.
 `;
 
+export const CONCEPT_PROJECT_GRILL_ME_AUTO_KICKOFF_MESSAGE =
+  "[auto] Start the grill me stage by asking the first focused question now.";
+
 export const CONCEPT_PROJECT_STAGE_LABELS: Record<ConceptProjectStage, string> = {
   what: "What",
   for_whom: "For Whom",
@@ -64,4 +67,8 @@ export function getNextConceptProjectStage(
 
 export function getConceptProjectWordCount(value: string) {
   return value.trim().split(/\s+/).filter(Boolean).length;
+}
+
+export function isConceptProjectHiddenUserMessage(message: string) {
+  return message.trim() === CONCEPT_PROJECT_GRILL_ME_AUTO_KICKOFF_MESSAGE;
 }
