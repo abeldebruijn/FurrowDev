@@ -12,10 +12,12 @@ import {
 import {
   type ConceptProjectRoadmapDraftItem,
   type ConceptProjectStage,
+  type ConceptProjectVersionedRoadmapDraftItem,
   CONCEPT_PROJECT_OPENING_MESSAGE,
   getNextConceptProjectStage,
 } from "@/lib/concept-project/shared";
 import { buildConceptProjectSetupSummary } from "@/lib/concept-project/setup";
+import { normalizeRoadmapItemName } from "@/lib/concept-project/roadmap";
 import { getDb } from "@/lib/db";
 
 const CONCEPT_PROJECT_MODEL = "anthropic/claude-sonnet-4.6";
@@ -27,6 +29,8 @@ const stageCompletionSchema = z.object({
     .array(
       z.object({
         description: z.string().trim().max(280).optional(),
+        majorVersion: z.int().min(1),
+        minorVersion: z.int().min(0),
         name: z.string().trim().min(1).max(120),
       }),
     )
@@ -64,7 +68,16 @@ type ConceptProjectAgentContext = {
 function sanitizeRoadmapItems(items: ConceptProjectRoadmapDraftItem[]) {
   return items.map((item) => ({
     description: item.description?.trim() || null,
-    name: item.name.trim(),
+    name: normalizeRoadmapItemName(item.name),
+  }));
+}
+
+function sanitizeVersionedRoadmapItems(items: ConceptProjectVersionedRoadmapDraftItem[]) {
+  return items.map((item) => ({
+    description: item.description?.trim() || null,
+    majorVersion: item.majorVersion,
+    minorVersion: item.minorVersion,
+    name: normalizeRoadmapItemName(item.name),
   }));
 }
 
@@ -78,7 +91,7 @@ function buildProjectSnapshot({
       ? roadmapItems
           .map(
             (item) =>
-              `- ${item.majorVersion}.${item.minorVersion} ${item.name}: ${item.description?.trim() || "No description yet."}`,
+              `- v${item.majorVersion}.${item.minorVersion} | ${item.name}: ${item.description?.trim() || "No description yet."}`,
           )
           .join("\n")
       : "- No roadmap drafted yet.";
@@ -175,7 +188,7 @@ function createStageTools(context: ConceptProjectAgentContext) {
           conceptProjectId: latestConceptProject.id,
           description: input.description,
           name: input.name,
-          roadmapItems: sanitizeRoadmapItems(input.roadmapItems),
+          roadmapItems: sanitizeVersionedRoadmapItems(input.roadmapItems),
           stage,
           summary: input.summary,
         },
@@ -268,7 +281,9 @@ function createWhatInstructions(context: ConceptProjectAgentContext) {
     "The summary must capture the essence of the project in plain language.",
     "The name should feel specific and product-ready.",
     "The description should be short and concrete.",
-    "Draft 3 to 6 roadmap items.",
+    "Draft 3 to 6 roadmap items with explicit majorVersion and minorVersion values.",
+    "Roadmap titles must not include version text because versions are stored separately.",
+    "You may assign future versions such as v2.0 when the user makes the sequencing explicit.",
     "After you call the tool, do not add extra text.",
     "Project context:",
     buildProjectSnapshot(context),
@@ -284,7 +299,8 @@ function createForWhomInstructions(context: ConceptProjectAgentContext) {
     "Ask one compact question at a time.",
     "Do not repeat what is already settled unless the user changes it.",
     "When you clearly understand the audience and scale, call understandsForWhom.",
-    "You may refine the draft name, description, and roadmap if the new audience context changes them.",
+    "You may refine the draft name, description, roadmap titles, roadmap descriptions, and roadmap versions if the new audience context changes them.",
+    "Roadmap titles must not include version text because versions are stored separately.",
     "After you call the tool, do not add extra text.",
     "Project context:",
     buildProjectSnapshot(context),
@@ -299,7 +315,9 @@ function createHowInstructions(context: ConceptProjectAgentContext) {
     "Ask one compact question at a time.",
     "Do not revisit already settled audience or product-concept topics unless the user changes them.",
     "When you clearly understand the technical shape, call understandsHow.",
-    "You may refine the draft name, description, and roadmap if the how constraints change them.",
+    "You may refine the draft name, description, roadmap titles, roadmap descriptions, and roadmap versions if the how constraints change them.",
+    "Roadmap titles must not include version text because versions are stored separately.",
+    "Use explicit roadmap versions and keep future major jumps like v2.0 when the user asks for them.",
     "After you call the tool, do not add extra text.",
     "Project context:",
     buildProjectSnapshot(context),
@@ -320,7 +338,9 @@ function createSetupInstructions(context: ConceptProjectAgentContext) {
     "Keep setup focused on implementation bootstrap, not product brainstorming.",
     "When you clearly understand the setup direction, call understandsSetup.",
     "The roadmap items must be setup tasks, not product features.",
+    "All setup roadmap items belong to the v0.0 setup group.",
     "Make sure the setup roadmap covers project bootstrap, repo layout, framework initialization, core libraries, skills/tooling setup, and the initial folder structure or app shell.",
+    "Roadmap titles must not include version text because versions are stored separately.",
     "Do not change the project name or description in this stage.",
     "After you call the tool, do not add extra text.",
     "Project context:",

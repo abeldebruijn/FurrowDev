@@ -4,7 +4,9 @@ import {
   getConceptProjectRoadmapDeletePlan,
   getConceptProjectRoadmapInsertPlan,
   getNextRoadmapRailCollapsed,
+  getPinnedConceptRoadmapCurrentVersion,
   groupConceptProjectRoadmapVersions,
+  normalizeRoadmapItemName,
 } from "../lib/concept-project/roadmap";
 
 describe("groupConceptProjectRoadmapVersions", () => {
@@ -179,6 +181,86 @@ describe("groupConceptProjectRoadmapVersions", () => {
         version: "v1.0",
       },
     ]);
+  });
+
+  it("preserves explicit later versions and keeps all nodes non-current when current is omitted", () => {
+    expect(
+      groupConceptProjectRoadmapVersions(
+        [
+          {
+            description: null,
+            id: "setup",
+            majorVersion: 0,
+            minorVersion: 0,
+            name: "Bootstrap repo",
+          },
+          {
+            description: null,
+            id: "v1-4",
+            majorVersion: 1,
+            minorVersion: 4,
+            name: "Real-Time collaborative UI",
+          },
+          {
+            description: null,
+            id: "v2-0",
+            majorVersion: 2,
+            minorVersion: 0,
+            name: "Enterprise scale",
+          },
+        ],
+        null,
+      ).map((version) => ({
+        isCurrent: version.isCurrent,
+        label: version.label,
+        version: version.version,
+      })),
+    ).toEqual([
+      {
+        isCurrent: false,
+        label: "Bootstrap repo",
+        version: "v0.0",
+      },
+      {
+        isCurrent: false,
+        label: "Real-Time collaborative UI",
+        version: "v1.4",
+      },
+      {
+        isCurrent: false,
+        label: "Enterprise scale",
+        version: "v2.0",
+      },
+    ]);
+  });
+});
+
+describe("normalizeRoadmapItemName", () => {
+  it("strips numeric version prefixes from roadmap titles", () => {
+    expect(normalizeRoadmapItemName("1.4 Real-Time collaborative UI")).toBe(
+      "Real-Time collaborative UI",
+    );
+  });
+
+  it("strips textual version prefixes from roadmap titles", () => {
+    expect(normalizeRoadmapItemName("version 2.0 - Enterprise scale")).toBe(
+      "Enterprise scale",
+    );
+  });
+
+  it("keeps normal titles unchanged", () => {
+    expect(normalizeRoadmapItemName("Git Hosting infrastructure")).toBe(
+      "Git Hosting infrastructure",
+    );
+  });
+});
+
+describe("getPinnedConceptRoadmapCurrentVersion", () => {
+  it("pins concept roadmaps to v0.0", () => {
+    expect(getPinnedConceptRoadmapCurrentVersion()).toEqual({
+      currentMajor: 0,
+      currentMinor: 0,
+    });
   });
 });
 

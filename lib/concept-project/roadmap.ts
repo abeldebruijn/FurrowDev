@@ -6,6 +6,9 @@ export type ConceptProjectRoadmapVisualItem = {
   name: string;
 };
 
+const ROADMAP_TITLE_VERSION_PREFIX_PATTERN =
+  /^\s*(?:version\s*)?v?\s*\d+(?:\.\d+)+(?:(?:\s*[-:)\].,]\s*)|\s+)/i;
+
 export type ConceptProjectRoadmapCurrentVersion = {
   currentMajor: number;
   currentMinor: number;
@@ -57,6 +60,25 @@ type RoadmapRailCollapseArgs = {
 
 export function getRoadmapVersionLabel(majorVersion: number, minorVersion: number) {
   return `v${majorVersion}.${minorVersion}`;
+}
+
+export function getPinnedConceptRoadmapCurrentVersion() {
+  return {
+    currentMajor: 0,
+    currentMinor: 0,
+  };
+}
+
+export function normalizeRoadmapItemName(name: string) {
+  const trimmedName = name.trim();
+
+  if (!trimmedName) {
+    return trimmedName;
+  }
+
+  const normalizedName = trimmedName.replace(ROADMAP_TITLE_VERSION_PREFIX_PATTERN, "").trim();
+
+  return normalizedName || trimmedName;
 }
 
 export function groupConceptProjectRoadmapVersions(

@@ -23,17 +23,17 @@ describe("buildConceptProjectSetupSummary", () => {
 });
 
 describe("getSetupRoadmapCurrentVersion", () => {
-  it("keeps the current discovery version when v1 roadmap items already exist", () => {
+  it("pins concept setup current to v0.0 even when later roadmap items exist", () => {
     expect(getSetupRoadmapCurrentVersion({ currentMajor: 1, currentMinor: 3 }, 6)).toEqual({
-      currentMajor: 1,
-      currentMinor: 3,
+      currentMajor: 0,
+      currentMinor: 0,
     });
   });
 
-  it("uses v0 as current when only setup items exist", () => {
+  it("stays pinned to v0.0 when only setup items exist", () => {
     expect(getSetupRoadmapCurrentVersion({ currentMajor: 0, currentMinor: 0 }, 4)).toEqual({
       currentMajor: 0,
-      currentMinor: 3,
+      currentMinor: 0,
     });
   });
 

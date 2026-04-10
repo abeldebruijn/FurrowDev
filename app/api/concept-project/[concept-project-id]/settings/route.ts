@@ -9,6 +9,7 @@ import {
   getConceptProjectTranscript,
   insertConceptProjectRoadmapVersion,
 } from "@/lib/concept-project/server";
+import { normalizeRoadmapItemName } from "@/lib/concept-project/roadmap";
 import { getDb } from "@/lib/db";
 import { upsertViewerFromWorkOSSession } from "@/lib/zero/context";
 import { getWorkOSSession } from "@/lib/workos-session";
@@ -112,7 +113,7 @@ export async function PATCH(request: NextRequest, { params }: ConceptProjectSett
       .update(roadmapItems)
       .set({
         description: roadmapNodeBody.data.description?.trim() || null,
-        name: roadmapNodeBody.data.nodeName.trim(),
+        name: normalizeRoadmapItemName(roadmapNodeBody.data.nodeName),
       })
       .where(
         and(
@@ -257,7 +258,7 @@ export async function POST(request: NextRequest, { params }: ConceptProjectSetti
         description: body.data.description,
         majorVersion: body.data.majorVersion,
         minorVersion: body.data.minorVersion,
-        name: body.data.name,
+        name: normalizeRoadmapItemName(body.data.name),
         roadmapId: conceptProject.roadmapId,
       }),
     );

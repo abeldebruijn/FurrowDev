@@ -9,6 +9,11 @@ export type ConceptProjectRoadmapDraftItem = {
   description?: string | null;
 };
 
+export type ConceptProjectVersionedRoadmapDraftItem = ConceptProjectRoadmapDraftItem & {
+  majorVersion: number;
+  minorVersion: number;
+};
+
 export const CONCEPT_PROJECT_OPENING_MESSAGE = `I'm here to help you create the perfect foundation for your coding project!
 By understanding what you're building, I'll generate a project name, detailed description, and an initial roadmap tailored specifically to your needs.
 Here's what I'll do:

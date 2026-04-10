@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { and, eq, inArray, isNull, max, or } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, max, or } from "drizzle-orm";
 
 import {
   conceptProjectChatMessages,
@@ -17,11 +17,14 @@ import {
   type ConceptProjectChatAuthor,
   type ConceptProjectRoadmapDraftItem,
   type ConceptProjectStage,
+  type ConceptProjectVersionedRoadmapDraftItem,
   CONCEPT_PROJECT_OPENING_MESSAGE,
 } from "@/lib/concept-project/shared";
 import {
+  getPinnedConceptRoadmapCurrentVersion,
   getConceptProjectRoadmapDeletePlan,
   getConceptProjectRoadmapInsertPlan,
+  normalizeRoadmapItemName,
 } from "@/lib/concept-project/roadmap";
 import { getSetupRoadmapCurrentVersion } from "@/lib/concept-project/setup";
 
@@ -69,7 +72,7 @@ type ApplyConceptProjectStageUnderstandingArgs = {
   conceptProjectId: string;
   description: string;
   name: string;
-  roadmapItems: ConceptProjectRoadmapDraftItem[];
+  roadmapItems: ConceptProjectVersionedRoadmapDraftItem[];
   stage: Exclude<ConceptProjectStage, "setup">;
   summary: string;
 };
@@ -347,22 +350,24 @@ export async function replaceConceptProjectRoadmapItems(
     roadmapId,
   }: {
     conceptProjectId: string;
-    items: ConceptProjectRoadmapDraftItem[];
+    items: ConceptProjectVersionedRoadmapDraftItem[];
     roadmapId: string | null;
   },
 ) {
   const nextRoadmapId = await ensureConceptProjectRoadmap(tx, conceptProjectId, roadmapId);
 
-  await tx.delete(roadmapItems).where(eq(roadmapItems.roadmapId, nextRoadmapId));
+  await tx
+    .delete(roadmapItems)
+    .where(and(eq(roadmapItems.roadmapId, nextRoadmapId), gt(roadmapItems.majorVersion, 0)));
 
   if (items.length > 0) {
     await tx.insert(roadmapItems).values(
-      items.map((item, index) => ({
+      items.map((item) => ({
         description: item.description?.trim() || null,
         id: randomUUID(),
-        majorVersion: 1,
-        minorVersion: index,
-        name: item.name.trim(),
+        majorVersion: item.majorVersion,
+        minorVersion: item.minorVersion,
+        name: normalizeRoadmapItemName(item.name),
         parentId: null,
         roadmapId: nextRoadmapId,
       })),
@@ -371,10 +376,7 @@ export async function replaceConceptProjectRoadmapItems(
 
   await tx
     .update(roadmaps)
-    .set({
-      currentMajor: items.length > 0 ? 1 : 0,
-      currentMinor: items.length > 0 ? items.length - 1 : 0,
-    })
+    .set(getPinnedConceptRoadmapCurrentVersion())
     .where(eq(roadmaps.id, nextRoadmapId));
 
   return nextRoadmapId;
@@ -478,25 +480,15 @@ export async function insertConceptProjectRoadmapVersion(
     id,
     majorVersion,
     minorVersion,
-    name: name.trim(),
+    name: normalizeRoadmapItemName(name),
     parentId: null,
     roadmapId,
   });
 
-  if (
-    plan.nextCurrentVersion &&
-    currentVersion &&
-    (plan.nextCurrentVersion.currentMajor !== currentVersion.currentMajor ||
-      plan.nextCurrentVersion.currentMinor !== currentVersion.currentMinor)
-  ) {
-    await tx
-      .update(roadmaps)
-      .set({
-        currentMajor: plan.nextCurrentVersion.currentMajor,
-        currentMinor: plan.nextCurrentVersion.currentMinor,
-      })
-      .where(eq(roadmaps.id, roadmapId));
-  }
+  await tx
+    .update(roadmaps)
+    .set(getPinnedConceptRoadmapCurrentVersion())
+    .where(eq(roadmaps.id, roadmapId));
 
   return {
     conceptProjectId,
@@ -571,18 +563,10 @@ export async function deleteConceptProjectRoadmapNode(
     }
   }
 
-  if (
-    (plan.nextCurrentVersion?.currentMajor ?? null) !== (currentVersion?.currentMajor ?? null) ||
-    (plan.nextCurrentVersion?.currentMinor ?? null) !== (currentVersion?.currentMinor ?? null)
-  ) {
-    await tx
-      .update(roadmaps)
-      .set({
-        currentMajor: plan.nextCurrentVersion?.currentMajor ?? 0,
-        currentMinor: plan.nextCurrentVersion?.currentMinor ?? 0,
-      })
-      .where(eq(roadmaps.id, roadmapId));
-  }
+  await tx
+    .update(roadmaps)
+    .set(getPinnedConceptRoadmapCurrentVersion())
+    .where(eq(roadmaps.id, roadmapId));
 
   return {
     conceptProjectId,
@@ -616,7 +600,7 @@ export async function replaceConceptProjectSetupRoadmapItems(
         id: randomUUID(),
         majorVersion: 0,
         minorVersion: index,
-        name: item.name.trim(),
+        name: normalizeRoadmapItemName(item.name),
         parentId: null,
         roadmapId: nextRoadmapId,
       })),

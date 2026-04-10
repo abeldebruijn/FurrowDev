@@ -5,6 +5,8 @@ import type { ZeroContext } from "@/lib/zero/context";
 import {
   getConceptProjectRoadmapDeletePlan,
   getConceptProjectRoadmapInsertPlan,
+  getPinnedConceptRoadmapCurrentVersion,
+  normalizeRoadmapItemName,
 } from "@/lib/concept-project/roadmap";
 import { conceptProjectStages } from "@/lib/concept-project/shared";
 import {
@@ -18,12 +20,7 @@ import { schema, zql } from "@/zero/schema";
 const defineMutator = defineMutatorWithType<typeof schema, ZeroContext>();
 const zqlAny = zql as any;
 
-async function bumpRoadmapVersionIfNeeded(
-  tx: any,
-  roadmapId: string,
-  majorVersion: number,
-  minorVersion: number,
-) {
+async function pinConceptRoadmapVersion(tx: any, roadmapId: string) {
   const roadmap = await tx.run(zqlAny.roadmaps.where("id", roadmapId).one());
 
   if (!roadmap) {
@@ -34,18 +31,13 @@ async function bumpRoadmapVersionIfNeeded(
     });
   }
 
-  const shouldBump =
-    majorVersion > roadmap.currentMajor ||
-    (majorVersion === roadmap.currentMajor && minorVersion > roadmap.currentMinor);
-
-  if (!shouldBump) {
+  if (roadmap.currentMajor === 0 && roadmap.currentMinor === 0) {
     return;
   }
 
   await tx.mutate.roadmaps.update({
     id: roadmapId,
-    currentMajor: majorVersion,
-    currentMinor: minorVersion,
+    ...getPinnedConceptRoadmapCurrentVersion(),
   } as any);
 }
 
@@ -199,13 +191,13 @@ export const mutators = defineMutators({
           id: args.id,
           roadmapId: args.roadmapId,
           parentId: args.parentId,
-          name: args.name,
+          name: normalizeRoadmapItemName(args.name),
           description: args.description,
           majorVersion: args.majorVersion,
           minorVersion: args.minorVersion,
         } as any);
 
-        await bumpRoadmapVersionIfNeeded(tx, args.roadmapId, args.majorVersion, args.minorVersion);
+        await pinConceptRoadmapVersion(tx, args.roadmapId);
       },
     ),
     insertVersionAt: defineMutator(
@@ -288,22 +280,12 @@ export const mutators = defineMutators({
           id: args.id,
           majorVersion: args.majorVersion,
           minorVersion: args.minorVersion,
-          name: args.name.trim(),
+          name: normalizeRoadmapItemName(args.name),
           parentId: undefined,
           roadmapId: args.roadmapId,
         } as any);
 
-        if (
-          plan.nextCurrentVersion &&
-          (plan.nextCurrentVersion.currentMajor !== currentRoadmap.currentMajor ||
-            plan.nextCurrentVersion.currentMinor !== currentRoadmap.currentMinor)
-        ) {
-          await tx.mutate.roadmaps.update({
-            currentMajor: plan.nextCurrentVersion.currentMajor,
-            currentMinor: plan.nextCurrentVersion.currentMinor,
-            id: args.roadmapId,
-          } as any);
-        }
+        await pinConceptRoadmapVersion(tx, args.roadmapId);
       },
     ),
     deleteAndRepairVersion: defineMutator(
@@ -378,16 +360,7 @@ export const mutators = defineMutators({
           } as any);
         }
 
-        if (
-          (plan.nextCurrentVersion?.currentMajor ?? null) !== currentRoadmap.currentMajor ||
-          (plan.nextCurrentVersion?.currentMinor ?? null) !== currentRoadmap.currentMinor
-        ) {
-          await tx.mutate.roadmaps.update({
-            currentMajor: plan.nextCurrentVersion?.currentMajor ?? 0,
-            currentMinor: plan.nextCurrentVersion?.currentMinor ?? 0,
-            id: args.roadmapId,
-          } as any);
-        }
+        await pinConceptRoadmapVersion(tx, args.roadmapId);
       },
     ),
     update: defineMutator(
@@ -444,7 +417,7 @@ export const mutators = defineMutators({
         }
 
         if (args.name !== undefined) {
-          next.name = args.name;
+          next.name = normalizeRoadmapItemName(args.name);
         }
 
         if (args.description !== undefined) {
@@ -472,7 +445,7 @@ export const mutators = defineMutators({
         await tx.mutate.roadmapItems.update(next as any);
 
         if (roadmapId && majorVersion !== undefined && minorVersion !== undefined) {
-          await bumpRoadmapVersionIfNeeded(tx, roadmapId, majorVersion, minorVersion);
+          await pinConceptRoadmapVersion(tx, roadmapId);
         }
       },
     ),

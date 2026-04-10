@@ -9,7 +9,6 @@ import { SiteHeader } from "@/components/ui/site-header";
 import {
   ensureConceptProjectOpeningMessage,
   getAccessibleConceptProject,
-  getConceptProjectRoadmap,
   getConceptProjectRoadmapItems,
   getConceptProjectTranscript,
 } from "@/lib/concept-project/server";
@@ -54,10 +53,9 @@ export default async function ConceptProjectPage({ params }: ConceptProjectPageP
 
   await ensureConceptProjectOpeningMessage(conceptProject, db);
 
-  const [messages, roadmap, roadmapState] = await Promise.all([
+  const [messages, roadmap] = await Promise.all([
     getConceptProjectTranscript(conceptProject.id, db),
     getConceptProjectRoadmapItems(conceptProject.roadmapId, db),
-    getConceptProjectRoadmap(conceptProject.roadmapId, db),
   ]);
 
   return (
@@ -94,14 +92,7 @@ export default async function ConceptProjectPage({ params }: ConceptProjectPageP
             setupSummary: conceptProject.setupSummary,
           }}
           initialMessages={messages}
-          initialRoadmapCurrentVersion={
-            roadmapState
-              ? {
-                  currentMajor: roadmapState.currentMajor,
-                  currentMinor: roadmapState.currentMinor,
-                }
-              : null
-          }
+          initialRoadmapCurrentVersion={null}
           initialRoadmap={roadmap}
           isArchived={Boolean(conceptProject.projectId)}
           projectId={conceptProject.projectId}

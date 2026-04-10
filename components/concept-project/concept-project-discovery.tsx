@@ -22,7 +22,6 @@ import {
   type RoadmapVersionInsertArgs,
 } from "@/components/concept-project/concept-project-discovery-shared";
 import type { ConceptProjectAgentUIMessage } from "@/lib/agents/concept-project";
-import type { ConceptProjectRoadmapCurrentVersion } from "@/lib/concept-project/roadmap";
 import {
   getNextConceptProjectStage,
   getConceptProjectStageIndex,
@@ -65,7 +64,6 @@ type ConceptProjectDiscoveryViewProps = {
   ) => Promise<void>;
   onStageSelect?: (stage: ConceptProjectStage, options?: { appendIntroMessage?: boolean }) => void;
   projectId?: string | null;
-  roadmapCurrentVersion: ConceptProjectRoadmapCurrentVersion;
   roadmap: RoadmapItem[];
 };
 
@@ -84,7 +82,6 @@ function ConceptProjectDiscoveryView({
   onUpdateRoadmapVersionNodes,
   onStageSelect,
   projectId,
-  roadmapCurrentVersion,
   roadmap,
 }: ConceptProjectDiscoveryViewProps) {
   const searchParams = useSearchParams();
@@ -330,7 +327,7 @@ function ConceptProjectDiscoveryView({
         <ConceptProjectRoadmapRail
           canEditVersions={canEditRoadmapVersions}
           canInsertVersions={canInsertRoadmapVersions}
-          currentVersion={roadmapCurrentVersion}
+          currentVersion={null}
           onDeleteRoadmapNode={onDeleteRoadmapNode}
           onInsertVersion={onInsertRoadmapVersion}
           onUpdateRoadmapVersionNodes={onUpdateRoadmapVersionNodes}
@@ -415,7 +412,6 @@ function ZeroBackedConceptProjectDiscovery({
   initialConceptProject,
   isArchived,
   initialMessages,
-  initialRoadmapCurrentVersion,
   initialRoadmap,
   projectId,
 }: Omit<ConceptProjectDiscoveryProps, "zeroEnabled">) {
@@ -426,21 +422,15 @@ function ZeroBackedConceptProjectDiscovery({
   const [messagesResult] = useQuery(
     queries.conceptProjectChats.messagesByConceptProjectId({ conceptProjectId }),
   );
-  const [roadmapStateResult] = useQuery(queries.roadmaps.byConceptProjectId({ conceptProjectId }));
   const [roadmapResult] = useQuery(queries.roadmaps.itemsByConceptProjectId({ conceptProjectId }));
 
   const conceptProject = (conceptProjectResult ?? initialConceptProject) as ConceptProjectSnapshot;
   const zeroMessages = messagesResult as PersistedMessage[] | undefined;
-  const zeroRoadmapState = roadmapStateResult as
-    | { currentMajor: number; currentMinor: number }
-    | null
-    | undefined;
   const zeroRoadmap = roadmapResult as RoadmapItem[] | undefined;
   const messages =
     zeroMessages && (zeroMessages.length > 0 || initialMessages.length === 0)
       ? zeroMessages
       : initialMessages;
-  const roadmapCurrentVersion = zeroRoadmapState ?? initialRoadmapCurrentVersion;
   const roadmap =
     zeroRoadmap && (zeroRoadmap.length > 0 || initialRoadmap.length === 0)
       ? zeroRoadmap
@@ -539,7 +529,6 @@ function ZeroBackedConceptProjectDiscovery({
       onInsertRoadmapVersion={handleInsertRoadmapVersion}
       onUpdateRoadmapVersionNodes={handleUpdateRoadmapVersionNodes}
       projectId={projectId}
-      roadmapCurrentVersion={roadmapCurrentVersion}
       roadmap={roadmap}
     />
   );
@@ -550,7 +539,6 @@ function FallbackConceptProjectDiscovery({
   initialConceptProject,
   isArchived,
   initialMessages,
-  initialRoadmapCurrentVersion,
   initialRoadmap,
   projectId,
 }: Omit<ConceptProjectDiscoveryProps, "zeroEnabled">) {
@@ -655,7 +643,6 @@ function FallbackConceptProjectDiscovery({
       onInsertRoadmapVersion={handleInsertRoadmapVersion}
       onUpdateRoadmapVersionNodes={handleUpdateRoadmapVersionNodes}
       projectId={projectId}
-      roadmapCurrentVersion={initialRoadmapCurrentVersion}
       roadmap={initialRoadmap}
     />
   );
