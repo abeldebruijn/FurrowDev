@@ -2,6 +2,7 @@ import Link from "next/link";
 import { withAuth } from "@workos-inc/authkit-nextjs";
 
 import { buttonVariants } from "@/components/ui/button-variants";
+import { ChevronLeft } from "lucide-react";
 
 function getInitials(email: string, firstName?: string | null) {
   if (firstName?.trim()) {
@@ -11,18 +12,45 @@ function getInitials(email: string, firstName?: string | null) {
   return email.slice(0, 1).toUpperCase();
 }
 
-export async function SiteHeader() {
+export async function SiteHeader({
+  children,
+  back,
+}: {
+  children?: React.ReactNode;
+  back?: string;
+}) {
   const { user } = await withAuth();
 
   return (
-    <header className="border-b bg-background">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
-        <Link
-          href="/"
-          className="font-heading text-[2rem] font-semibold tracking-tight text-foreground"
-        >
-          FurrowDev
-        </Link>
+    <header className="border-b bg-background sticky top-0 z-10 w-full">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-2 sm:px-6">
+        <div className="flex items-center gap-1">
+          {back && (
+            <Link
+              href={back}
+              className={buttonVariants({
+                variant: "outline",
+                size: "icon",
+              })}
+              aria-label="Go back"
+            >
+              <ChevronLeft />
+            </Link>
+          )}
+
+          {children ? (
+            <span className="font-heading text-xl font-semibold tracking-tight text-foreground flex items-center">
+              {children}
+            </span>
+          ) : (
+            <Link
+              href="/"
+              className="font-heading text-xl font-semibold tracking-tight text-foreground"
+            >
+              FurrowDev
+            </Link>
+          )}
+        </div>
 
         {user ? (
           <div className="flex items-center gap-3">
@@ -38,7 +66,7 @@ export async function SiteHeader() {
             </Link>
             <Link
               href="/settings"
-              className="flex size-10 items-center justify-center rounded-full bg-[radial-gradient(circle_at_30%_30%,#b287ff,#7c3aed_60%,#5b21b6)] font-sans text-sm font-semibold text-white shadow-sm"
+              className="flex size-8 items-center justify-center rounded-full bg-[radial-gradient(circle_at_30%_30%,#b287ff,#7c3aed_60%,#5b21b6)] font-sans text-sm font-semibold text-white shadow-sm"
             >
               {getInitials(user.email, user.firstName)}
             </Link>

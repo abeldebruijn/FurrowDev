@@ -1,0 +1,4 @@
+interface:
+  display_name: "Write Zero Data"
+  short_description: "Help write data with Zero mutators"
+  default_prompt: "Use $write-zero-data to define Zero mutators and wire mutate endpoints."

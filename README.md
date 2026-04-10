@@ -1,36 +1,135 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# FurrowDev
 
-## Getting Started
+Next 16 app with WorkOS auth, Drizzle/Postgres, and Zero sync plumbing.
 
-First, run the development server:
+## Env
+
+Copy `.env.example` to `.env.local` and fill in WorkOS values.
+
+App env:
+
+- `DATABASE_URL`
+- `NEXT_PUBLIC_ZERO_CACHE_URL`
+- `WORKOS_API_KEY`
+- `WORKOS_CLIENT_ID`
+- `WORKOS_CLAIM_TOKEN`
+- `WORKOS_COOKIE_PASSWORD`
+- `NEXT_PUBLIC_WORKOS_REDIRECT_URI`
+
+Zero-cache env:
+
+- `ZERO_UPSTREAM_DB`
+- `ZERO_QUERY_URL`
+- `ZERO_MUTATE_URL`
+- `ZERO_QUERY_FORWARD_COOKIES=true`
+- `ZERO_MUTATE_FORWARD_COOKIES=true`
+
+## Local dev
+
+Use 3 terminals.
+
+Terminal 1: start Postgres with Docker and logical replication enabled:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+docker run -d \
+  --name furrow-postgres \
+  -e POSTGRES_PASSWORD=password \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_DB=postgres \
+  -p 5432:5432 \
+  docker.io/library/postgres:16-alpine \
+  postgres -c wal_level=logical
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Terminal 2: install deps, generate artifacts, then run Next:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+vp install
+vp run zero:schema
+vp run db:generate
+vp run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Terminal 3: start zero-cache:
 
-## Learn More
+```bash
+vp run zero:cache-dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+Terminal 4: (optional) open Drizzle Studio:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+vp run db:studio
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Verify:
 
-## Deploy on Vercel
+- app: `http://localhost:3000`
+- zero-cache: `http://localhost:4848`
+- postgres: `localhost:5432`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Quick checks:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+curl http://localhost:4848
+podman logs furrow-postgres
+```
+
+If Zero shows websocket failures in the browser:
+
+- make sure `vp run zero:cache-dev` is still running
+- make sure Postgres is reachable on `5432`
+- make sure `NEXT_PUBLIC_ZERO_CACHE_URL=http://localhost:4848`
+- make sure `ZERO_QUERY_URL` and `ZERO_MUTATE_URL` point at the Next app on port `3000`
+
+`vp run zero:cache-dev` loads `.env.local` and `.env`, then falls back to:
+
+- `ZERO_UPSTREAM_DB=$DATABASE_URL`
+- `ZERO_QUERY_URL=http://localhost:3000/api/zero/query`
+- `ZERO_MUTATE_URL=http://localhost:3000/api/zero/mutate`
+- `ZERO_QUERY_FORWARD_COOKIES=true`
+- `ZERO_MUTATE_FORWARD_COOKIES=true`
+
+## Common issues
+
+### Zero says tables are not replicated
+
+If the browser shows `SchemaVersionNotSupported` and errors like:
+
+- `The "users" table does not exist or is not one of the replicated tables`
+
+but the tables do exist in Postgres, Zero is usually using a stale local replica.
+
+Fix:
+
+1. stop `vp run zero:cache-dev`
+2. remove the local replica files
+3. start Zero again
+4. hard refresh the browser
+
+```bash
+rm -f zero.db zero.db-shm zero.db-wal
+vp run zero:cache-dev
+```
+
+If you set `ZERO_REPLICA_FILE` yourself, remove that file instead.
+
+## Database
+
+Drizzle schema lives at `drizzle/schema.ts`.
+
+Commands:
+
+- `vp run db:generate`
+- `vp run db:migrate`
+- `vp run zero:schema`
+
+## Validation
+
+- `vp check`
+- `vp test`
+
+## Docker
+
+`Dockerfile` builds the Next app only.
+Postgres and zero-cache stay separate services.
