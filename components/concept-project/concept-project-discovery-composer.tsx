@@ -114,12 +114,12 @@ export function ConceptProjectDiscoveryComposer({
         <div className="rounded-2xl border bg-background/95 px-6 py-5 shadow-lg backdrop-blur supports-backdrop-filter:bg-background/95">
           <form className="space-y-3" onSubmit={handleSubmit} ref={composerFormRef}>
             <div className="flex items-start justify-between gap-3">
-              <div className="flex min-w-0 sm:hidden">
+              <div className="flex min-w-0 flex-1 sm:flex-none sm:min-w-52">
                 <DropdownMenu>
                   <DropdownMenuTrigger
                     render={
                       <Button
-                        className="w-full justify-between"
+                        className="w-full justify-between sm:w-auto sm:min-w-52"
                         disabled={isStageSelectionDisabled}
                         size="sm"
                         type="button"
@@ -127,20 +127,20 @@ export function ConceptProjectDiscoveryComposer({
                       />
                     }
                   >
+                    {currentStageOption?.isCompleted ? <CheckIcon data-icon="inline-start" /> : null}
                     {currentStageOption?.label ?? CONCEPT_PROJECT_STAGE_LABELS[currentStage]}
                     <ChevronDownIcon data-icon="inline-end" />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="min-w-60" side="top">
                     <DropdownMenuGroup>
-                      <DropdownMenuLabel className="text-md text-white">
-                        Jump to stage
-                      </DropdownMenuLabel>
+                      <DropdownMenuLabel>Jump to stage</DropdownMenuLabel>
                       {stageOptions.map((stageOption) => (
                         <DropdownMenuItem
                           disabled={isStageSelectionDisabled || !stageOption.isUnlocked}
                           key={stageOption.stage}
                           onClick={() => handleStageSelect(stageOption.stage)}
                         >
+                          {stageOption.isCompleted ? <CheckIcon /> : null}
                           <span className="font-sans">{stageOption.label}</span>
                           <DropdownMenuShortcut>
                             {stageOption.isActive
@@ -156,32 +156,6 @@ export function ConceptProjectDiscoveryComposer({
                     </DropdownMenuGroup>
                   </DropdownMenuContent>
                 </DropdownMenu>
-              </div>
-
-              <div className="hidden flex-wrap gap-2 sm:flex">
-                {stageOptions.map((stageOption) => (
-                  <button
-                    aria-current={stageOption.isActive ? "step" : undefined}
-                    className={`rounded-full border px-3 py-1.5 text-sm font-medium transition ${
-                      stageOption.isActive
-                        ? "border-foreground bg-foreground text-background"
-                        : stageOption.isCompleted
-                          ? "border-emerald-600 bg-background text-foreground hover:border-emerald-500"
-                          : stageOption.isUnlocked
-                            ? "border-border bg-background text-foreground hover:border-foreground/40"
-                            : "cursor-not-allowed border-border/60 bg-muted/40 text-muted-foreground"
-                    }`}
-                    disabled={isStageSelectionDisabled || !stageOption.isUnlocked}
-                    key={stageOption.stage}
-                    onClick={() => handleStageSelect(stageOption.stage)}
-                    type="button"
-                  >
-                    <span className="inline-flex items-center gap-1.5">
-                      {stageOption.isCompleted ? <CheckIcon className="size-3.5" /> : null}
-                      {stageOption.label}
-                    </span>
-                  </button>
-                ))}
               </div>
 
               {showGraduateAction ? (
