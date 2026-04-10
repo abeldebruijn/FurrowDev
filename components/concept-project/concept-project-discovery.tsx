@@ -38,7 +38,7 @@ import { queries } from "@/zero/queries";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 
-const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 24;
+const AUTO_FOLLOW_BOTTOM_THRESHOLD_PX = 500;
 const AUTO_SCROLL_COMPOSER_GAP_PX = 16;
 const SUGGEST_OPTIONS_PROMPT = "I don't know, suggest 5 options";
 
@@ -127,8 +127,12 @@ function ConceptProjectDiscoveryView({
   const contentShellRef = useRef<HTMLDivElement | null>(null);
   const composerFormRef = useRef<HTMLFormElement | null>(null);
   const composerShellRef = useRef<HTMLDivElement | null>(null);
+  const followCurrentTypingSessionRef = useRef(false);
+  const pendingFinishedAgentScrollRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const isAtBottomRef = useRef(true);
+  const latestFinishedAgentMessageIdRef = useRef<string | null>(null);
+  const wasSubmittingRef = useRef(false);
   const didHandleInitialScrollRef = useRef(false);
   const currentStage = conceptProject.currentStage;
   const transientToastId = `concept-project-transient-agent-${conceptProjectId}`;
@@ -283,12 +287,16 @@ function ConceptProjectDiscoveryView({
     const scrollBottom = window.scrollY + window.innerHeight;
     const pageBottom = document.documentElement.scrollHeight;
 
-    return pageBottom - scrollBottom <= AUTO_SCROLL_BOTTOM_THRESHOLD_PX;
+    return pageBottom - scrollBottom <= AUTO_FOLLOW_BOTTOM_THRESHOLD_PX;
   }
 
-  function scrollToBottom(behavior: ScrollBehavior = "smooth") {
+  function scrollToBottom(options?: { resumeTypingFollow?: boolean }) {
+    if (options?.resumeTypingFollow && isSubmitting) {
+      followCurrentTypingSessionRef.current = true;
+    }
+
     window.scrollTo({
-      behavior,
+      behavior: "auto",
       top: document.documentElement.scrollHeight,
     });
 
@@ -317,6 +325,11 @@ function ConceptProjectDiscoveryView({
     function handleScroll() {
       const nextIsAtBottom = computeIsAtBottom();
 
+      if (isSubmitting && followCurrentTypingSessionRef.current && !nextIsAtBottom) {
+        followCurrentTypingSessionRef.current = false;
+        pendingFinishedAgentScrollRef.current = false;
+      }
+
       isAtBottomRef.current = nextIsAtBottom;
       setIsAtBottom(nextIsAtBottom);
     }
@@ -329,7 +342,7 @@ function ConceptProjectDiscoveryView({
       window.removeEventListener("scroll", handleScroll);
       window.removeEventListener("resize", handleScroll);
     };
-  }, []);
+  }, [isSubmitting]);
 
   useEffect(() => {
     if (contentShellRef.current) {
@@ -340,13 +353,53 @@ function ConceptProjectDiscoveryView({
 
     isAtBottomRef.current = nextIsAtBottom;
     setIsAtBottom(nextIsAtBottom);
+  }, [currentStage, renderedMessages.length]);
 
-    if (!isAtBottomRef.current) {
+  useEffect(() => {
+    if (isSubmitting && !wasSubmittingRef.current) {
+      const shouldFollowCurrentTypingSession =
+        followCurrentTypingSessionRef.current || computeIsAtBottom();
+
+      followCurrentTypingSessionRef.current = shouldFollowCurrentTypingSession;
+      pendingFinishedAgentScrollRef.current = shouldFollowCurrentTypingSession;
+    }
+
+    if (!isSubmitting) {
+      followCurrentTypingSessionRef.current = false;
+    }
+
+    wasSubmittingRef.current = isSubmitting;
+  }, [isSubmitting]);
+
+  useEffect(() => {
+    if (!isSubmitting || !followCurrentTypingSessionRef.current) {
       return;
     }
 
-    scrollToBottom("smooth");
-  }, [currentStage, renderedMessages.length]);
+    scrollToBottom();
+  }, [isSubmitting, latestTransientAgentMessage?.text]);
+
+  useEffect(() => {
+    const nextLatestFinishedAgentMessageId = latestFinishedAgentMessage?.id ?? null;
+    const previousLatestFinishedAgentMessageId = latestFinishedAgentMessageIdRef.current;
+
+    latestFinishedAgentMessageIdRef.current = nextLatestFinishedAgentMessageId;
+
+    if (
+      !previousLatestFinishedAgentMessageId ||
+      previousLatestFinishedAgentMessageId === nextLatestFinishedAgentMessageId ||
+      isSubmitting ||
+      !pendingFinishedAgentScrollRef.current
+    ) {
+      return;
+    }
+
+    pendingFinishedAgentScrollRef.current = false;
+
+    window.requestAnimationFrame(() => {
+      scrollToBottom();
+    });
+  }, [isSubmitting, latestFinishedAgentMessage?.id]);
 
   useEffect(() => {
     if (didHandleInitialScrollRef.current) {
@@ -365,7 +418,7 @@ function ConceptProjectDiscoveryView({
         contentShellRef.current.style.paddingBottom = `${getComposerOffset()}px`;
       }
 
-      scrollToBottom("auto");
+      scrollToBottom();
     });
   }, [searchParams]);
 
@@ -383,7 +436,11 @@ function ConceptProjectDiscoveryView({
     clearError();
     setInput("");
 
-    await sendMessage({
+    followCurrentTypingSessionRef.current = true;
+    pendingFinishedAgentScrollRef.current = true;
+    scrollToBottom();
+
+    const sendMessagePromise = sendMessage({
       id: crypto.randomUUID(),
       parts: [
         {
@@ -393,6 +450,12 @@ function ConceptProjectDiscoveryView({
       ],
       role: "user",
     });
+
+    window.requestAnimationFrame(() => {
+      scrollToBottom();
+    });
+
+    await sendMessagePromise;
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -501,7 +564,7 @@ function ConceptProjectDiscoveryView({
           isSwitchingStage={isSwitchingStage}
           maxUnlockedStageIndex={maxUnlockedStageIndex}
           onInputChange={setInput}
-          onScrollToBottom={() => scrollToBottom("smooth")}
+          onScrollToBottom={() => scrollToBottom({ resumeTypingFollow: true })}
           openingWordCount={openingWordCount}
           projectId={projectId}
           showGraduateAction={showGraduateAction}
