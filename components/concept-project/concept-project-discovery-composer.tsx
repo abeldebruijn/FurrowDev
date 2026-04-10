@@ -127,20 +127,20 @@ export function ConceptProjectDiscoveryComposer({
                       />
                     }
                   >
-                    {currentStageOption?.isCompleted ? <CheckIcon data-icon="inline-start" /> : null}
                     {currentStageOption?.label ?? CONCEPT_PROJECT_STAGE_LABELS[currentStage]}
                     <ChevronDownIcon data-icon="inline-end" />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="min-w-60" side="top">
                     <DropdownMenuGroup>
-                      <DropdownMenuLabel>Jump to stage</DropdownMenuLabel>
+                      <DropdownMenuLabel className="text-md text-white">
+                        Jump to stage
+                      </DropdownMenuLabel>
                       {stageOptions.map((stageOption) => (
                         <DropdownMenuItem
                           disabled={isStageSelectionDisabled || !stageOption.isUnlocked}
                           key={stageOption.stage}
                           onClick={() => handleStageSelect(stageOption.stage)}
                         >
-                          {stageOption.isCompleted ? <CheckIcon /> : null}
                           <span className="font-sans">{stageOption.label}</span>
                           <DropdownMenuShortcut>
                             {stageOption.isActive
