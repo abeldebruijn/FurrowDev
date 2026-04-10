@@ -6,10 +6,9 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "db:prod": "pnpm run zero:schema && drizzle-kit generate",
     "dev": "next dev",
     "build": "next build",
-    "start": "pnpm run db:prod && next start",
+    "start": "next start",
     "zero:schema": "node --experimental-strip-types --no-warnings scripts/generate-zero-schema.mts",
     "zero:cache-dev": "./scripts/zero-cache-dev.sh"
   },
