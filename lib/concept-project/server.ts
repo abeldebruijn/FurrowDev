@@ -73,7 +73,7 @@ type ApplyConceptProjectStageUnderstandingArgs = {
   description: string;
   name: string;
   roadmapItems: ConceptProjectVersionedRoadmapDraftItem[];
-  stage: Exclude<ConceptProjectStage, "setup">;
+  stage: Exclude<ConceptProjectStage, "setup" | "grill_me">;
   summary: string;
 };
 
@@ -83,7 +83,7 @@ type ApplyConceptProjectSetupUnderstandingArgs = {
   summary: string;
 };
 
-function getSummaryColumn(stage: Exclude<ConceptProjectStage, "setup">) {
+function getSummaryColumn(stage: Exclude<ConceptProjectStage, "setup" | "grill_me">) {
   switch (stage) {
     case "what":
       return "whatSummary";
@@ -94,7 +94,7 @@ function getSummaryColumn(stage: Exclude<ConceptProjectStage, "setup">) {
   }
 }
 
-function getTimestampColumn(stage: Exclude<ConceptProjectStage, "setup">) {
+function getTimestampColumn(stage: Exclude<ConceptProjectStage, "setup" | "grill_me">) {
   switch (stage) {
     case "what":
       return "understoodWhatAt";

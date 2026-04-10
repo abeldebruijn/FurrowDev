@@ -89,7 +89,7 @@ type ConceptProjectDiscoveryMessagesProps = {
   latestFinishedAgentMessageId?: string;
   latestUserMessageId?: string;
   messages: RenderMessage[];
-  nextStage: Exclude<ConceptProjectStage, "setup"> | "setup" | null;
+  nextStage: Exclude<ConceptProjectStage, "grill_me"> | null;
   onProgressToNextStage: () => void;
   onSuggestOptions: () => void;
   progressCard: StageProgressCard | null;

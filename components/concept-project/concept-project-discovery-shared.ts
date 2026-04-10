@@ -76,7 +76,7 @@ export type StageProgressCard = {
 };
 
 export function getStageProgressCard(
-  stage: Exclude<ConceptProjectStage, "setup">,
+  stage: Exclude<ConceptProjectStage, "setup" | "grill_me">,
 ): StageProgressCard {
   switch (stage) {
     case "what":
@@ -113,6 +113,8 @@ export function isStageComplete(
       return Boolean(conceptProject.understoodHowAt);
     case "setup":
       return Boolean(conceptProject.understoodSetupAt);
+    case "grill_me":
+      return conceptProject.currentStage === "grill_me";
   }
 }
 
@@ -122,6 +124,7 @@ export function getMaxUnlockedStageIndex(conceptProject: ConceptProjectSnapshot)
     conceptProject.understoodWhatAt ? getConceptProjectStageIndex("for_whom") : -1,
     conceptProject.understoodForWhomAt ? getConceptProjectStageIndex("how") : -1,
     conceptProject.understoodHowAt ? getConceptProjectStageIndex("setup") : -1,
+    conceptProject.understoodSetupAt ? getConceptProjectStageIndex("grill_me") : -1,
   );
 }
 

@@ -15,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 type ConceptProjectGraduateProps = {
   conceptProjectId: string;
@@ -69,30 +70,38 @@ export function ConceptProjectGraduate({
 
   return (
     <Dialog onOpenChange={setIsOpen} open={isOpen}>
-      <motion.div
-        animate={
-          prefersReducedMotion
-            ? undefined
-            : {
-                boxShadow: [
-                  "0 0 10px rgba(16, 185, 129, 0.1)",
-                  "0 0 20px rgba(16, 185, 129, 0.38)",
-                  "0 0 10px rgba(16, 185, 129, 0.1)",
-                ],
-                scale: [1, 1.02, 1],
-              }
-        }
-        transition={{
-          duration: 2.2,
-          ease: "easeInOut",
-          repeat: Number.POSITIVE_INFINITY,
-          repeatDelay: 0.35,
-        }}
-      >
-        <Button onClick={() => setIsOpen(true)} type="button">
-          Graduate to Project
-        </Button>
-      </motion.div>
+      <Tooltip>
+        <TooltipTrigger render={<span className="inline-flex" />}>
+          <motion.div
+            animate={
+              prefersReducedMotion
+                ? undefined
+                : {
+                    boxShadow: [
+                      "0 0 10px rgba(16, 185, 129, 0.1)",
+                      "0 0 20px rgba(16, 185, 129, 0.38)",
+                      "0 0 10px rgba(16, 185, 129, 0.1)",
+                    ],
+                    scale: [1, 1.02, 1],
+                  }
+            }
+            transition={{
+              duration: 2.2,
+              ease: "easeInOut",
+              repeat: Number.POSITIVE_INFINITY,
+              repeatDelay: 0.35,
+            }}
+          >
+            <Button onClick={() => setIsOpen(true)} type="button">
+              Graduate to Project
+            </Button>
+          </motion.div>
+        </TooltipTrigger>
+        <TooltipContent>
+          Create the real project, copy the current roadmap into it, and archive this concept as a
+          read-only discovery record.
+        </TooltipContent>
+      </Tooltip>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Graduate to a real project</DialogTitle>

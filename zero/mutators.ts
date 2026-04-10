@@ -90,8 +90,20 @@ export const mutators = defineMutators({
       async ({ args, ctx, tx }) => {
         await assertCanAccessConceptProjectServer(tx, ctx, args.id);
 
+        if (args.currentStage === "grill_me") {
+          const conceptProject = await tx.run(zqlAny.conceptProjects.where("id", args.id).one());
+
+          if (!(conceptProject as { understoodSetupAt?: string | null } | null)?.understoodSetupAt) {
+            throw new ApplicationError("Setup must be complete before entering grill me.", {
+              details: {
+                conceptProjectId: args.id,
+              },
+            });
+          }
+        }
+
         const next: {
-          currentStage?: "what" | "for_whom" | "how" | "setup";
+          currentStage?: "what" | "for_whom" | "how" | "setup" | "grill_me";
           id: string;
           name?: string | null;
           description?: string | null;
@@ -129,6 +141,18 @@ export const mutators = defineMutators({
       }),
       async ({ args, ctx, tx }) => {
         await assertCanAccessConceptProjectServer(tx, ctx, args.id);
+
+        if (args.currentStage === "grill_me") {
+          const conceptProject = await tx.run(zqlAny.conceptProjects.where("id", args.id).one());
+
+          if (!(conceptProject as { understoodSetupAt?: string | null } | null)?.understoodSetupAt) {
+            throw new ApplicationError("Setup must be complete before entering grill me.", {
+              details: {
+                conceptProjectId: args.id,
+              },
+            });
+          }
+        }
 
         await tx.mutate.conceptProjects.update({
           currentStage: args.currentStage,

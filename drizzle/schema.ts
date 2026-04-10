@@ -21,6 +21,7 @@ export const conceptProjectStage = pgEnum("concept_project_stage", [
   "for_whom",
   "how",
   "setup",
+  "grill_me",
 ]);
 
 export const users = pgTable("users", {

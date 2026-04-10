@@ -51,6 +51,8 @@ function getTransientAgentActivity(stage: ConceptProjectStage, hasVisibleText: b
         return "capturing technical shape";
       case "setup":
         return "finalizing setup plan";
+      case "grill_me":
+        return "stress-testing setup assumptions";
     }
   }
 
@@ -63,6 +65,8 @@ function getTransientAgentActivity(stage: ConceptProjectStage, hasVisibleText: b
       return "mapping constraints and implementation";
     case "setup":
       return "writing setup summary and bootstrap tasks";
+    case "grill_me":
+      return "probing gaps and sharpening setup decisions";
   }
 }
 
@@ -191,7 +195,7 @@ function ConceptProjectDiscoveryView({
     Boolean(latestTransientAgentMessage?.text.length),
   );
 
-  const isSetupStage = currentStage === "setup";
+  const isSetupStage = currentStage === "setup" || currentStage === "grill_me";
   const isSubmitting = !isArchived && (status === "submitted" || status === "streaming");
   const latestFinishedAgentMessage = [...renderedMessages]
     .reverse()
@@ -201,13 +205,17 @@ function ConceptProjectDiscoveryView({
     .find((message) => message.type === "person");
   const canProgressToNextStage =
     currentStage !== "setup" &&
+    currentStage !== "grill_me" &&
     ((currentStage === "what" && Boolean(conceptProject.understoodWhatAt)) ||
       (currentStage === "for_whom" && Boolean(conceptProject.understoodForWhomAt)) ||
       (currentStage === "how" && Boolean(conceptProject.understoodHowAt)));
-  const nextStage = currentStage === "setup" ? null : getNextConceptProjectStage(currentStage);
+  const nextStage =
+    currentStage === "setup" || currentStage === "grill_me"
+      ? null
+      : getNextConceptProjectStage(currentStage);
   const progressCard = canProgressToNextStage ? getStageProgressCard(currentStage) : null;
   const hasRoadmap = roadmap.length > 0;
-  const showGraduateAction = currentStage === "setup" && Boolean(conceptProject.understoodSetupAt);
+  const showGraduateAction = Boolean(conceptProject.understoodSetupAt);
 
   useEffect(() => {
     if (!isSubmitting) {

@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 import {
   createForWhomAgent,
+  createGrillMeAgent,
   createHowAgent,
   createSetupAgent,
   createWhatAgent,
@@ -112,6 +113,13 @@ export async function POST(request: NextRequest, { params }: ConceptProjectChatR
     );
   }
 
+  if (conceptProject.currentStage === "grill_me" && !conceptProject.understoodSetupAt) {
+    return Response.json(
+      { error: "Setup must be complete before entering grill me." },
+      { status: 400 },
+    );
+  }
+
   await ensureConceptProjectOpeningMessage(conceptProject, db);
 
   const transcriptBeforePersist = await getConceptProjectTranscript(conceptProject.id, db);
@@ -165,7 +173,9 @@ export async function POST(request: NextRequest, { params }: ConceptProjectChatR
         ? createForWhomAgent(agentContext)
         : freshConceptProject.currentStage === "how"
           ? createHowAgent(agentContext)
-          : createSetupAgent(agentContext);
+          : freshConceptProject.currentStage === "setup"
+            ? createSetupAgent(agentContext)
+            : createGrillMeAgent(agentContext);
 
   return createAgentUIStreamResponse({
     abortSignal: request.signal,

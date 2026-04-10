@@ -2,13 +2,12 @@
 
 import {
   ArrowDownIcon,
-  CheckIcon,
   ChevronDownIcon,
   CommandIcon,
   CornerDownLeftIcon,
 } from "lucide-react";
 
-import { ConceptProjectGraduate } from "@/components/concept-project/concept-project-graduate";
+import { ConceptProjectPostSetupActions } from "@/components/concept-project/concept-project-post-setup-actions";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -160,8 +159,10 @@ export function ConceptProjectDiscoveryComposer({
 
               {showGraduateAction ? (
                 <div className="shrink-0">
-                  <ConceptProjectGraduate
+                  <ConceptProjectPostSetupActions
                     conceptProjectId={conceptProjectId}
+                    currentStage={currentStage}
+                    disabled={isSubmitting || isSwitchingStage}
                     projectId={projectId ?? null}
                   />
                 </div>

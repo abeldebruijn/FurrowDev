@@ -85,6 +85,13 @@ export async function PATCH(request: NextRequest, { params }: ConceptProjectSett
       );
     }
 
+    if (body.data.currentStage === "grill_me" && !conceptProject.understoodSetupAt) {
+      return Response.json(
+        { error: "Setup must be complete before entering grill me." },
+        { status: 400 },
+      );
+    }
+
     await db
       .update(conceptProjects)
       .set({

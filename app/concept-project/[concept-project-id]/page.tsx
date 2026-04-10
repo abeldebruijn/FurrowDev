@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { ConceptProjectDiscovery } from "@/components/concept-project/concept-project-discovery";
-import { ConceptProjectGraduate } from "@/components/concept-project/concept-project-graduate";
+import { ConceptProjectPostSetupActions } from "@/components/concept-project/concept-project-post-setup-actions";
 import { ConceptProjectSettings } from "@/components/concept-project/concept-project-settings";
 import { SiteHeader } from "@/components/ui/site-header";
 import {
@@ -72,10 +72,11 @@ export default async function ConceptProjectPage({ params }: ConceptProjectPageP
       </SiteHeader>
 
       <main className="mx-auto flex min-h-[calc(100vh-61px)] w-full max-w-350 flex-col gap-6 px-4 py-8 sm:px-6">
-        {conceptProject.currentStage === "setup" && conceptProject.understoodSetupAt ? (
+        {!conceptProject.projectId && conceptProject.understoodSetupAt ? (
           <div className="flex justify-end">
-            <ConceptProjectGraduate
+            <ConceptProjectPostSetupActions
               conceptProjectId={conceptProject.id}
+              currentStage={conceptProject.currentStage}
               projectId={conceptProject.projectId}
             />
           </div>

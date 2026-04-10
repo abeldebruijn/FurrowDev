@@ -29,6 +29,13 @@
       "when": 1775746977795,
       "tag": "0003_simple_warstar",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1775815200000,
+      "tag": "0004_sudden_grill_me",
+      "breakpoints": true
     }
   ]
 }

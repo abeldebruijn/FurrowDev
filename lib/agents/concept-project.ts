@@ -19,6 +19,7 @@ import {
 import { buildConceptProjectSetupSummary } from "@/lib/concept-project/setup";
 import { normalizeRoadmapItemName } from "@/lib/concept-project/roadmap";
 import { getDb } from "@/lib/db";
+import { buildGrillMeSkillInstructions } from "@/lib/agents/grill-me";
 
 const CONCEPT_PROJECT_MODEL = "anthropic/claude-sonnet-4.6";
 
@@ -163,7 +164,7 @@ function buildPersistingOnFinish(context: ConceptProjectAgentContext, stage: Con
 
 function createStageTools(context: ConceptProjectAgentContext) {
   const executeStageUnderstanding = async (
-    stage: Exclude<ConceptProjectStage, "setup">,
+    stage: Exclude<ConceptProjectStage, "setup" | "grill_me">,
     input: z.infer<typeof stageCompletionSchema>,
   ) => {
     const db = getDb();
@@ -237,8 +238,11 @@ function createStageTools(context: ConceptProjectAgentContext) {
           throw new Error("Concept project not found");
         }
 
-        if (latestConceptProject.currentStage !== "setup") {
-          throw new Error("Concept project is not in the setup stage");
+        if (
+          latestConceptProject.currentStage !== "setup" &&
+          latestConceptProject.currentStage !== "grill_me"
+        ) {
+          throw new Error("Concept project is not in the setup or grill me stage");
         }
 
         const setupSummary = buildConceptProjectSetupSummary(input);
@@ -256,7 +260,7 @@ function createStageTools(context: ConceptProjectAgentContext) {
         });
 
         return {
-          nextStage: "setup" as const,
+          nextStage: latestConceptProject.currentStage,
           ok: true,
         };
       },
@@ -348,6 +352,10 @@ function createSetupInstructions(context: ConceptProjectAgentContext) {
   ].join("\n");
 }
 
+function createGrillMeInstructions(context: ConceptProjectAgentContext) {
+  return buildGrillMeSkillInstructions(buildProjectSnapshot(context));
+}
+
 export const createWhatAgent: StageAgentFactory = (context) =>
   new ToolLoopAgent({
     activeTools: ["understandsWhat"],
@@ -384,6 +392,16 @@ export const createSetupAgent: StageAgentFactory = (context) =>
     instructions: createSetupInstructions(context),
     model: CONCEPT_PROJECT_MODEL,
     onFinish: buildPersistingOnFinish(context, "setup"),
+    stopWhen: stepCountIs(12),
+    tools: createStageTools(context),
+  });
+
+export const createGrillMeAgent: StageAgentFactory = (context) =>
+  new ToolLoopAgent({
+    activeTools: ["understandsSetup"],
+    instructions: createGrillMeInstructions(context),
+    model: CONCEPT_PROJECT_MODEL,
+    onFinish: buildPersistingOnFinish(context, "grill_me"),
     stopWhen: stepCountIs(12),
     tools: createStageTools(context),
   });
