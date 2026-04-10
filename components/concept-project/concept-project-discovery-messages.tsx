@@ -1,7 +1,6 @@
 "use client";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { LoaderCircleIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -14,60 +13,6 @@ import type {
   RenderMessage,
   StageProgressCard,
 } from "@/components/concept-project/concept-project-discovery-shared";
-
-function getTransientAgentActivity(stage: ConceptProjectStage, hasVisibleText: boolean) {
-  if (hasVisibleText) {
-    switch (stage) {
-      case "what":
-        return "locking project summary";
-      case "for_whom":
-        return "tightening audience fit";
-      case "how":
-        return "capturing technical shape";
-      case "setup":
-        return "finalizing setup plan";
-    }
-  }
-
-  switch (stage) {
-    case "what":
-      return "drafting roadmap and product framing";
-    case "for_whom":
-      return "refining target audience and scope";
-    case "how":
-      return "mapping constraints and implementation";
-    case "setup":
-      return "writing setup summary and bootstrap tasks";
-  }
-}
-
-function TransientAgentStatus({
-  hasVisibleText,
-  stage,
-}: {
-  hasVisibleText: boolean;
-  stage: ConceptProjectStage;
-}) {
-  const activityLabel = getTransientAgentActivity(stage, hasVisibleText);
-
-  return (
-    <div
-      aria-live="polite"
-      className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-border/70 bg-background/70 px-3 py-2 text-xs text-muted-foreground"
-    >
-      <div className="flex items-center gap-2">
-        <LoaderCircleIcon aria-hidden="true" className="size-3.5 animate-spin text-foreground/70" />
-        <span className="font-medium text-foreground/80">{activityLabel}</span>
-      </div>
-      <div aria-hidden="true" className="flex items-center gap-1.5">
-        <span className="h-1 w-6 rounded-full bg-foreground/15" />
-        <span className="h-1 w-10 animate-pulse rounded-full bg-foreground/35 [animation-delay:120ms]" />
-        <span className="h-1 w-6 rounded-full bg-foreground/15" />
-      </div>
-      <span className="sr-only">{`${CONCEPT_PROJECT_STAGE_LABELS[stage]} agent is ${activityLabel}.`}</span>
-    </div>
-  );
-}
 
 function MessageMarkdown({ isAgent, text }: { isAgent: boolean; text: string }) {
   const mutedClass = isAgent ? "text-muted-foreground" : "text-background/80";
@@ -174,7 +119,6 @@ export function ConceptProjectDiscoveryMessages({
     >
       {messages.map((message) => {
         const isAgent = message.type === "agent";
-        const showTransientAgentStatus = isAgent && message.isTransient;
         const showSuggestOptionsAction =
           !isSubmitting &&
           latestFinishedAgentMessageId === message.id &&
@@ -205,12 +149,6 @@ export function ConceptProjectDiscoveryMessages({
                     </span>
                   ) : null}
                 </div>
-                {showTransientAgentStatus ? (
-                  <TransientAgentStatus
-                    hasVisibleText={message.text.length > 0}
-                    stage={message.stage}
-                  />
-                ) : null}
                 <MessageMarkdown isAgent={isAgent} text={message.text} />
               </div>
             </div>

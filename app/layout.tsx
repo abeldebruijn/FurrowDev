@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { getTokenClaims } from "@workos-inc/authkit-nextjs";
 
+import { ThemeProvider } from "@/components/providers/theme-provider";
 import { ZeroProviderClient } from "@/components/providers/zero-provider-client";
+import { Toaster } from "@/components/ui/sonner";
 import { upsertViewerFromWorkOSSession } from "@/lib/zero/context";
 import { getWorkOSSession } from "@/lib/workos-session";
 import "./globals.css";
@@ -46,15 +48,18 @@ export default async function RootLayout({
       : null;
 
   return (
-    <html lang="en" className="h-full">
+    <html lang="en" className="h-full" suppressHydrationWarning>
       <body className="min-h-full antialiased">
-        <ZeroProviderClient
-          cacheURL={process.env.NEXT_PUBLIC_ZERO_CACHE_URL}
-          userID={userID}
-          zeroContext={zeroContext}
-        >
-          {children}
-        </ZeroProviderClient>
+        <ThemeProvider attribute="class" defaultTheme="system" disableTransitionOnChange enableSystem>
+          <ZeroProviderClient
+            cacheURL={process.env.NEXT_PUBLIC_ZERO_CACHE_URL}
+            userID={userID}
+            zeroContext={zeroContext}
+          >
+            {children}
+          </ZeroProviderClient>
+          <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   );

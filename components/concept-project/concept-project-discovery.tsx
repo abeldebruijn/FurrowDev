@@ -6,6 +6,7 @@ import { useQuery, useZero } from "@rocicorp/zero/react";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 
 import { ConceptProjectDiscoveryComposer } from "@/components/concept-project/concept-project-discovery-composer";
 import { ConceptProjectDiscoveryMessages } from "@/components/concept-project/concept-project-discovery-messages";
@@ -23,6 +24,7 @@ import {
 } from "@/components/concept-project/concept-project-discovery-shared";
 import type { ConceptProjectAgentUIMessage } from "@/lib/agents/concept-project";
 import {
+  CONCEPT_PROJECT_STAGE_LABELS,
   getNextConceptProjectStage,
   getConceptProjectStageIndex,
   getConceptProjectWordCount,
@@ -37,6 +39,32 @@ import { Button } from "@/components/ui/button";
 const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 24;
 const AUTO_SCROLL_COMPOSER_GAP_PX = 16;
 const SUGGEST_OPTIONS_PROMPT = "I don't know, suggest 5 options";
+
+function getTransientAgentActivity(stage: ConceptProjectStage, hasVisibleText: boolean) {
+  if (hasVisibleText) {
+    switch (stage) {
+      case "what":
+        return "locking project summary";
+      case "for_whom":
+        return "tightening audience fit";
+      case "how":
+        return "capturing technical shape";
+      case "setup":
+        return "finalizing setup plan";
+    }
+  }
+
+  switch (stage) {
+    case "what":
+      return "drafting roadmap and product framing";
+    case "for_whom":
+      return "refining target audience and scope";
+    case "how":
+      return "mapping constraints and implementation";
+    case "setup":
+      return "writing setup summary and bootstrap tasks";
+  }
+}
 
 type ConceptProjectDiscoveryViewProps = {
   canEditRoadmapVersions: boolean;
@@ -96,6 +124,7 @@ function ConceptProjectDiscoveryView({
   const isAtBottomRef = useRef(true);
   const didHandleInitialScrollRef = useRef(false);
   const currentStage = conceptProject.currentStage;
+  const transientToastId = `concept-project-transient-agent-${conceptProjectId}`;
   const hasAnsweredOpeningPrompt = messages.some((message) => message.type === "person");
   const openingWordCount = getConceptProjectWordCount(input);
   const maxUnlockedStageIndex = getMaxUnlockedStageIndex(conceptProject);
@@ -150,6 +179,17 @@ function ConceptProjectDiscoveryView({
       }),
     [currentStage, messages, persistedMessageIds, status, transientMessages],
   );
+  const latestTransientAgentMessage = useMemo(
+    () =>
+      [...renderedMessages]
+        .reverse()
+        .find((message) => message.type === "agent" && message.isTransient),
+    [renderedMessages],
+  );
+  const transientAgentActivity = getTransientAgentActivity(
+    currentStage,
+    Boolean(latestTransientAgentMessage?.text.length),
+  );
 
   const isSetupStage = currentStage === "setup";
   const isSubmitting = !isArchived && (status === "submitted" || status === "streaming");
@@ -168,6 +208,27 @@ function ConceptProjectDiscoveryView({
   const progressCard = canProgressToNextStage ? getStageProgressCard(currentStage) : null;
   const hasRoadmap = roadmap.length > 0;
   const showGraduateAction = currentStage === "setup" && Boolean(conceptProject.understoodSetupAt);
+
+  useEffect(() => {
+    if (!isSubmitting) {
+      toast.dismiss(transientToastId);
+      return;
+    }
+
+    toast.loading(`${CONCEPT_PROJECT_STAGE_LABELS[currentStage]} agent`, {
+      description: transientAgentActivity,
+      duration: Number.POSITIVE_INFINITY,
+      id: transientToastId,
+      position: "top-center",
+    });
+  }, [currentStage, isSubmitting, transientAgentActivity, transientToastId]);
+
+  useEffect(
+    () => () => {
+      toast.dismiss(transientToastId);
+    },
+    [transientToastId],
+  );
 
   function getComposerOffset() {
     const composerHeight = composerShellRef.current?.offsetHeight ?? 0;

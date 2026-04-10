@@ -1,9 +1,24 @@
 "use client";
 
-import { ArrowDownIcon, CheckIcon, CommandIcon, CornerDownLeftIcon } from "lucide-react";
+import {
+  ArrowDownIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  CommandIcon,
+  CornerDownLeftIcon,
+} from "lucide-react";
 
 import { ConceptProjectGraduate } from "@/components/concept-project/concept-project-graduate";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuShortcut,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   CONCEPT_PROJECT_STAGE_LABELS,
   conceptProjectStages,
@@ -64,6 +79,22 @@ export function ConceptProjectDiscoveryComposer({
   projectId,
   showGraduateAction,
 }: ConceptProjectDiscoveryComposerProps) {
+  const stageOptions = conceptProjectStages.map((stage, index) => {
+    const isActive = stage === currentStage;
+    const isCompleted = isStageComplete(conceptProject, stage);
+    const isUnlocked = index <= maxUnlockedStageIndex;
+
+    return {
+      isActive,
+      isCompleted,
+      isUnlocked,
+      label: CONCEPT_PROJECT_STAGE_LABELS[stage],
+      stage,
+    };
+  });
+  const currentStageOption = stageOptions.find((stage) => stage.stage === currentStage);
+  const isStageSelectionDisabled = !canSwitchStages || isSubmitting || isSwitchingStage;
+
   return (
     <div className="fixed inset-x-0 bottom-0 z-20" ref={composerShellRef}>
       <div className="mx-auto w-full max-w-240 px-4 pb-6 sm:px-6">
@@ -83,36 +114,74 @@ export function ConceptProjectDiscoveryComposer({
         <div className="rounded-2xl border bg-background/95 px-6 py-5 shadow-lg backdrop-blur supports-backdrop-filter:bg-background/95">
           <form className="space-y-3" onSubmit={handleSubmit} ref={composerFormRef}>
             <div className="flex items-start justify-between gap-3">
-              <div className="flex flex-wrap gap-2">
-                {conceptProjectStages.map((stage, index) => {
-                  const isActive = stage === currentStage;
-                  const isCompleted = isStageComplete(conceptProject, stage);
-                  const isUnlocked = index <= maxUnlockedStageIndex;
+              <div className="flex min-w-0 sm:hidden">
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={
+                      <Button
+                        className="w-full justify-between"
+                        disabled={isStageSelectionDisabled}
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                      />
+                    }
+                  >
+                    {currentStageOption?.label ?? CONCEPT_PROJECT_STAGE_LABELS[currentStage]}
+                    <ChevronDownIcon data-icon="inline-end" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="min-w-60" side="top">
+                    <DropdownMenuGroup>
+                      <DropdownMenuLabel className="text-md text-white">
+                        Jump to stage
+                      </DropdownMenuLabel>
+                      {stageOptions.map((stageOption) => (
+                        <DropdownMenuItem
+                          disabled={isStageSelectionDisabled || !stageOption.isUnlocked}
+                          key={stageOption.stage}
+                          onClick={() => handleStageSelect(stageOption.stage)}
+                        >
+                          <span className="font-sans">{stageOption.label}</span>
+                          <DropdownMenuShortcut>
+                            {stageOption.isActive
+                              ? "Current"
+                              : !stageOption.isUnlocked
+                                ? "Locked"
+                                : stageOption.isCompleted
+                                  ? "Done"
+                                  : ""}
+                          </DropdownMenuShortcut>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
 
-                  return (
-                    <button
-                      aria-current={isActive ? "step" : undefined}
-                      className={`rounded-full border px-3 py-1.5 text-sm font-medium transition ${
-                        isActive
-                          ? "border-foreground bg-foreground text-background"
-                          : isCompleted
-                            ? "border-emerald-600 bg-background text-foreground hover:border-emerald-500"
-                            : isUnlocked
-                              ? "border-border bg-background text-foreground hover:border-foreground/40"
-                              : "cursor-not-allowed border-border/60 bg-muted/40 text-muted-foreground"
-                      }`}
-                      disabled={!canSwitchStages || !isUnlocked || isSubmitting || isSwitchingStage}
-                      key={stage}
-                      onClick={() => handleStageSelect(stage)}
-                      type="button"
-                    >
-                      <span className="inline-flex items-center gap-1.5">
-                        {isCompleted ? <CheckIcon className="size-3.5" /> : null}
-                        {CONCEPT_PROJECT_STAGE_LABELS[stage]}
-                      </span>
-                    </button>
-                  );
-                })}
+              <div className="hidden flex-wrap gap-2 sm:flex">
+                {stageOptions.map((stageOption) => (
+                  <button
+                    aria-current={stageOption.isActive ? "step" : undefined}
+                    className={`rounded-full border px-3 py-1.5 text-sm font-medium transition ${
+                      stageOption.isActive
+                        ? "border-foreground bg-foreground text-background"
+                        : stageOption.isCompleted
+                          ? "border-emerald-600 bg-background text-foreground hover:border-emerald-500"
+                          : stageOption.isUnlocked
+                            ? "border-border bg-background text-foreground hover:border-foreground/40"
+                            : "cursor-not-allowed border-border/60 bg-muted/40 text-muted-foreground"
+                    }`}
+                    disabled={isStageSelectionDisabled || !stageOption.isUnlocked}
+                    key={stageOption.stage}
+                    onClick={() => handleStageSelect(stageOption.stage)}
+                    type="button"
+                  >
+                    <span className="inline-flex items-center gap-1.5">
+                      {stageOption.isCompleted ? <CheckIcon className="size-3.5" /> : null}
+                      {stageOption.label}
+                    </span>
+                  </button>
+                ))}
               </div>
 
               {showGraduateAction ? (

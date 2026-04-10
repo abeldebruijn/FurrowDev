@@ -82,7 +82,6 @@ export function ConceptProjectGraduate({
                 scale: [1, 1.02, 1],
               }
         }
-        className="rounded-xl"
         transition={{
           duration: 2.2,
           ease: "easeInOut",
@@ -90,11 +89,7 @@ export function ConceptProjectGraduate({
           repeatDelay: 0.35,
         }}
       >
-        <Button
-          className="shadow-[0_0_0_rgba(16,185,129,0)]"
-          onClick={() => setIsOpen(true)}
-          type="button"
-        >
+        <Button onClick={() => setIsOpen(true)} type="button">
           Graduate to Project
         </Button>
       </motion.div>
