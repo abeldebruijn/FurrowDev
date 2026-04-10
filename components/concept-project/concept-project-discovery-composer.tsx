@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  ArrowDownIcon,
-  ChevronDownIcon,
-  CommandIcon,
-  CornerDownLeftIcon,
-} from "lucide-react";
+import { ArrowDownIcon, ChevronDownIcon, CommandIcon, CornerDownLeftIcon } from "lucide-react";
 
 import { ConceptProjectPostSetupActions } from "@/components/concept-project/concept-project-post-setup-actions";
 import { Button } from "@/components/ui/button";
@@ -110,98 +105,98 @@ export function ConceptProjectDiscoveryComposer({
             </Button>
           ) : null}
         </div>
-        <div className="rounded-2xl border bg-background/95 px-6 py-5 shadow-lg backdrop-blur supports-backdrop-filter:bg-background/95">
-          <form className="space-y-3" onSubmit={handleSubmit} ref={composerFormRef}>
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex min-w-0 flex-1 sm:flex-none sm:min-w-52">
-                <DropdownMenu>
-                  <DropdownMenuTrigger
-                    render={
-                      <Button
-                        className="w-full justify-between sm:w-auto sm:min-w-52"
-                        disabled={isStageSelectionDisabled}
-                        size="sm"
-                        type="button"
-                        variant="outline"
-                      />
-                    }
-                  >
-                    {currentStageOption?.label ?? CONCEPT_PROJECT_STAGE_LABELS[currentStage]}
-                    <ChevronDownIcon data-icon="inline-end" />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="min-w-60" side="top">
-                    <DropdownMenuGroup>
-                      <DropdownMenuLabel className="text-md text-white">
-                        Jump to stage
-                      </DropdownMenuLabel>
-                      {stageOptions.map((stageOption) => (
-                        <DropdownMenuItem
-                          disabled={isStageSelectionDisabled || !stageOption.isUnlocked}
-                          key={stageOption.stage}
-                          onClick={() => handleStageSelect(stageOption.stage)}
-                        >
-                          <span className="font-sans">{stageOption.label}</span>
-                          <DropdownMenuShortcut>
-                            {stageOption.isActive
-                              ? "Current"
-                              : !stageOption.isUnlocked
-                                ? "Locked"
-                                : stageOption.isCompleted
-                                  ? "Done"
-                                  : ""}
-                          </DropdownMenuShortcut>
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuGroup>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+
+        <form onSubmit={handleSubmit} ref={composerFormRef}>
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <div className="flex min-w-0 flex-1 sm:flex-none sm:min-w-52">
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      className="w-full justify-between sm:w-auto sm:min-w-52"
+                      disabled={isStageSelectionDisabled}
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                    />
+                  }
+                >
+                  {currentStageOption?.label ?? CONCEPT_PROJECT_STAGE_LABELS[currentStage]}
+                  <ChevronDownIcon data-icon="inline-end" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="min-w-60" side="top">
+                  <DropdownMenuGroup>
+                    <DropdownMenuLabel className="text-md text-white">
+                      Jump to stage
+                    </DropdownMenuLabel>
+                    {stageOptions.map((stageOption) => (
+                      <DropdownMenuItem
+                        disabled={isStageSelectionDisabled || !stageOption.isUnlocked}
+                        key={stageOption.stage}
+                        onClick={() => handleStageSelect(stageOption.stage)}
+                      >
+                        <span className="font-sans">{stageOption.label}</span>
+                        <DropdownMenuShortcut>
+                          {stageOption.isActive
+                            ? "Current"
+                            : !stageOption.isUnlocked
+                              ? "Locked"
+                              : stageOption.isCompleted
+                                ? "Done"
+                                : ""}
+                        </DropdownMenuShortcut>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            {showGraduateAction ? (
+              <div className="shrink-0">
+                <ConceptProjectPostSetupActions
+                  conceptProjectId={conceptProjectId}
+                  currentStage={currentStage}
+                  disabled={isSubmitting || isSwitchingStage}
+                  projectId={projectId ?? null}
+                />
               </div>
+            ) : null}
+          </div>
 
-              {showGraduateAction ? (
-                <div className="shrink-0">
-                  <ConceptProjectPostSetupActions
-                    conceptProjectId={conceptProjectId}
-                    currentStage={currentStage}
-                    disabled={isSubmitting || isSwitchingStage}
-                    projectId={projectId ?? null}
-                  />
-                </div>
-              ) : null}
-            </div>
+          <div className="relative bg-background rounded-lg">
+            <textarea
+              className="min-h-32 w-full rounded-lg border bg-background px-4 py-3 text-sm outline-none transition focus:border-foreground"
+              onChange={(event) => onInputChange(event.target.value)}
+              onKeyDown={handleComposerKeyDown}
+              placeholder={
+                hasAnsweredOpeningPrompt
+                  ? "Answer the current question or add more detail."
+                  : "Keep the first answer concise."
+              }
+              value={input}
+            />
 
-            <div className="relative">
-              <textarea
-                className="min-h-32 w-full rounded-2xl border bg-background px-4 py-3 text-sm outline-none transition focus:border-foreground"
-                onChange={(event) => onInputChange(event.target.value)}
-                onKeyDown={handleComposerKeyDown}
-                placeholder={
-                  hasAnsweredOpeningPrompt
-                    ? "Answer the current question or add more detail."
-                    : "Keep the first answer concise."
-                }
-                value={input}
-              />
+            <Button
+              disabled={!input.trim() || isSubmitting}
+              type="submit"
+              className="absolute right-2 bottom-4"
+            >
+              {isSubmitting ? (
+                "Thinking..."
+              ) : (
+                <>
+                  Send
+                  <div className="flex">
+                    <CommandIcon className="size-2.5" /> <CornerDownLeftIcon className="size-2.5" />
+                  </div>
+                </>
+              )}
+            </Button>
+          </div>
 
-              <Button
-                disabled={!input.trim() || isSubmitting}
-                type="submit"
-                className="absolute right-2 bottom-4"
-              >
-                {isSubmitting ? (
-                  "Thinking..."
-                ) : (
-                  <>
-                    Send
-                    <div className="flex">
-                      <CommandIcon className="size-2.5" />{" "}
-                      <CornerDownLeftIcon className="size-2.5" />
-                    </div>
-                  </>
-                )}
-              </Button>
-            </div>
-
-            <div className="flex items-center justify-between gap-3">
+          {(!hasAnsweredOpeningPrompt || composerError || errorMessage) && (
+            <div className="flex items-center justify-between gap-3 bg-background p-2">
               <div className="space-y-1">
                 {!hasAnsweredOpeningPrompt ? (
                   <p
@@ -219,8 +214,8 @@ export function ConceptProjectDiscoveryComposer({
                 ) : null}
               </div>
             </div>
-          </form>
-        </div>
+          )}
+        </form>
       </div>
     </div>
   );
