@@ -205,7 +205,12 @@ export async function DELETE(request: NextRequest, { params }: ConceptProjectSet
   const viewer = await upsertViewerFromWorkOSSession(session);
   const { ["concept-project-id"]: conceptProjectId } = await params;
   const db = getDb();
-  const rawBody = await request.json().catch(() => null);
+  let rawBody: unknown;
+  try {
+    rawBody = await request.json();
+  } catch {
+    return Response.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
   const roadmapNodeBody = deleteRoadmapNodeSchema.safeParse(rawBody);
   const conceptProjectDeleteBody = deleteConceptProjectSchema.safeParse(rawBody);
 
