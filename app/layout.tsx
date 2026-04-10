@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/components/providers/theme-provider";
 import { ZeroProviderClient } from "@/components/providers/zero-provider-client";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { isZeroEnabled } from "@/lib/zero/config";
 import { upsertViewerFromWorkOSSession } from "@/lib/zero/context";
 import { getWorkOSSession } from "@/lib/workos-session";
 import "./globals.css";
@@ -32,6 +33,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const zeroEnabled = isZeroEnabled();
   const session = await getWorkOSSession();
   const userID = session?.user.id ?? "anon";
   const viewer = session ? await upsertViewerFromWorkOSSession(session) : null;
@@ -54,9 +56,9 @@ export default async function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="system" disableTransitionOnChange enableSystem>
           <TooltipProvider>
             <ZeroProviderClient
-              cacheURL={process.env.NEXT_PUBLIC_ZERO_CACHE_URL}
+              cacheURL={zeroEnabled ? process.env.NEXT_PUBLIC_ZERO_CACHE_URL : undefined}
               userID={userID}
-              zeroContext={zeroContext}
+              zeroContext={zeroEnabled ? zeroContext : null}
             >
               {children}
             </ZeroProviderClient>

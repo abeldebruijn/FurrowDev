@@ -9,6 +9,7 @@ Copy `.env.example` to `.env.local` and fill in WorkOS values.
 App env:
 
 - `DATABASE_URL`
+- `NEXT_PUBLIC_ZERO_ENABLED`
 - `NEXT_PUBLIC_ZERO_CACHE_URL`
 - `WORKOS_API_KEY`
 - `WORKOS_CLIENT_ID`
@@ -80,6 +81,7 @@ If Zero shows websocket failures in the browser:
 - make sure `vp run zero:cache-dev` is still running
 - make sure Postgres is reachable on `5432`
 - make sure `NEXT_PUBLIC_ZERO_CACHE_URL=http://localhost:4848`
+- make sure `NEXT_PUBLIC_ZERO_ENABLED=true` if you want the browser to use Zero
 - make sure `ZERO_QUERY_URL` and `ZERO_MUTATE_URL` point at the Next app on port `3000`
 
 `vp run zero:cache-dev` loads `.env.local` and `.env`, then falls back to:

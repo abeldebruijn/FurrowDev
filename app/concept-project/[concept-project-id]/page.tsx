@@ -13,6 +13,7 @@ import {
   getConceptProjectTranscript,
 } from "@/lib/concept-project/server";
 import { getDb } from "@/lib/db";
+import { isZeroEnabled } from "@/lib/zero/config";
 import { upsertViewerFromWorkOSSession } from "@/lib/zero/context";
 import { getWorkOSSession } from "@/lib/workos-session";
 
@@ -32,6 +33,7 @@ function getName(name: string | null) {
 }
 
 export default async function ConceptProjectPage({ params }: ConceptProjectPageProps) {
+  const zeroEnabled = isZeroEnabled();
   await withAuth({ ensureSignedIn: true });
 
   const session = await getWorkOSSession();
@@ -97,7 +99,7 @@ export default async function ConceptProjectPage({ params }: ConceptProjectPageP
           initialRoadmap={roadmap}
           isArchived={Boolean(conceptProject.projectId)}
           projectId={conceptProject.projectId}
-          zeroEnabled={Boolean(process.env.NEXT_PUBLIC_ZERO_CACHE_URL)}
+          zeroEnabled={zeroEnabled}
         />
       </main>
     </>
