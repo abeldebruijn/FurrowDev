@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "motion/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -57,6 +57,8 @@ export function ConceptProjectRoadmapRail({
   canEditVersions,
   canInsertVersions,
   currentVersion,
+  disableCollapse = false,
+  scrollToCurrentVersion = false,
   onDeleteRoadmapNode,
   onInsertVersion,
   onUpdateRoadmapVersionNodes,
@@ -66,6 +68,8 @@ export function ConceptProjectRoadmapRail({
   canEditVersions: boolean;
   canInsertVersions: boolean;
   currentVersion: ConceptProjectRoadmapCurrentVersion;
+  disableCollapse?: boolean;
+  scrollToCurrentVersion?: boolean;
   onDeleteRoadmapNode?: (nodeId: string) => Promise<void>;
   onInsertVersion?: (args: InsertRoadmapVersionArgs) => Promise<void>;
   onUpdateRoadmapVersionNodes?: (drafts: EditRoadmapNodeDraft[]) => Promise<void>;
@@ -74,6 +78,7 @@ export function ConceptProjectRoadmapRail({
 }) {
   const prefersReducedMotion = useReducedMotion();
   const previousScrollYRef = useRef(0);
+  const railScrollerRef = useRef<HTMLDivElement | null>(null);
   const [activeInsertTarget, setActiveInsertTarget] =
     useState<GroupedConceptProjectRoadmapVersion | null>(null);
   const [activeVersion, setActiveVersion] = useState<GroupedConceptProjectRoadmapVersion | null>(
@@ -95,10 +100,15 @@ export function ConceptProjectRoadmapRail({
     () => groupConceptProjectRoadmapVersions(roadmap, currentVersion),
     [currentVersion, roadmap],
   );
-  const effectiveIsCollapsed = isMobile || isCollapsed;
+  const effectiveIsCollapsed = isMobile || (!disableCollapse && isCollapsed);
   const showInsertControls = !effectiveIsCollapsed && canInsertVersions && Boolean(onInsertVersion);
 
   useEffect(() => {
+    if (disableCollapse) {
+      setIsCollapsed(false);
+      return;
+    }
+
     function handleScroll() {
       const scrollY = window.scrollY;
 
@@ -122,7 +132,7 @@ export function ConceptProjectRoadmapRail({
     return () => {
       window.removeEventListener("scroll", handleScroll);
     };
-  }, []);
+  }, [disableCollapse]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(max-width: 639px)");
@@ -138,6 +148,58 @@ export function ConceptProjectRoadmapRail({
       mediaQuery.removeEventListener("change", syncIsMobile);
     };
   }, []);
+
+  useLayoutEffect(() => {
+    if (!scrollToCurrentVersion) {
+      return;
+    }
+
+    const railScrollerElement = railScrollerRef.current;
+
+    if (!railScrollerElement) {
+      return;
+    }
+
+    const currentVersionElement = railScrollerElement.querySelector<HTMLElement>(
+      '[data-current-version="true"]',
+    );
+
+    if (!currentVersionElement) {
+      railScrollerElement.scrollTo({
+        behavior: prefersReducedMotion ? "auto" : "smooth",
+        left: 0,
+      });
+      return;
+    }
+
+    // Walk up offset parents to get element's left offset relative to the scroll container.
+    let elementOffsetLeft = 0;
+    let offsetNode: HTMLElement | null = currentVersionElement;
+
+    while (offsetNode && offsetNode !== railScrollerElement) {
+      elementOffsetLeft += offsetNode.offsetLeft;
+      offsetNode = offsetNode.offsetParent as HTMLElement | null;
+    }
+
+    const targetScrollLeft = Math.max(
+      0,
+      elementOffsetLeft - railScrollerElement.clientWidth / 2 + currentVersionElement.offsetWidth / 2,
+    );
+
+    // Disable scroll-snap so it doesn't fight the programmatic scroll.
+    railScrollerElement.style.scrollSnapType = "none";
+    railScrollerElement.scrollLeft = targetScrollLeft;
+
+    let frame = window.requestAnimationFrame(() => {
+      frame = window.requestAnimationFrame(() => {
+        railScrollerElement.style.scrollSnapType = "";
+      });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [groupedVersions, prefersReducedMotion, scrollToCurrentVersion]);
 
   if (groupedVersions.length === 0) {
     return null;
@@ -342,7 +404,10 @@ export function ConceptProjectRoadmapRail({
               </div>
             </motion.div>
 
-            <div className="relative min-w-0 max-w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden px-3 py-3 sm:px-4">
+            <div
+              className="relative min-w-0 max-w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden px-3 py-3 sm:px-4"
+              ref={railScrollerRef}
+            >
               <div className="flex w-max min-w-full items-center gap-2 pr-2 sm:gap-3">
                 {groupedVersions.map((version, index) => {
                   const showInsertAfter = showInsertControls && version.canInsertAfter;
@@ -363,6 +428,7 @@ export function ConceptProjectRoadmapRail({
                             ? "border-foreground bg-foreground text-background"
                             : "border-border/70 bg-background/88 text-foreground",
                         )}
+                        data-current-version={version.isCurrent ? "true" : undefined}
                         onClick={() => handleOpenEdit(version)}
                         transition={transition}
                         type="button"

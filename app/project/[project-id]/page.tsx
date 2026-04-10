@@ -72,31 +72,6 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
       </SiteHeader>
 
       <main className="mx-auto flex min-h-[calc(100vh-61px)] w-full max-w-350 flex-col gap-6 px-4 py-8 sm:px-6">
-        {project.conceptProjectId ? (
-          <Alert>
-            <AlertTitle>Graduated from concept</AlertTitle>
-            <AlertDescription>
-              This project was created from a concept project and now owns its own roadmap snapshot.
-            </AlertDescription>
-            <div className="mt-4">
-              <Link href={`/concept-project/${project.conceptProjectId}`}>
-                <Button type="button" variant="outline">
-                  Open Source Concept
-                </Button>
-              </Link>
-            </div>
-          </Alert>
-        ) : null}
-
-        <section className="space-y-3 rounded-3xl border bg-card px-6 py-5">
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-muted-foreground">Description</p>
-            <p className="text-base leading-7 text-foreground">
-              {getDescription(project.description)}
-            </p>
-          </div>
-        </section>
-
         <section className="space-y-4">
           <div className="space-y-1">
             <h2 className="text-lg font-semibold tracking-tight text-foreground">Roadmap</h2>
@@ -116,12 +91,21 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
                   }
                 : null
             }
+            disableCollapse
+            scrollToCurrentVersion
             roadmap={roadmap}
             className="sticky"
           />
         </section>
 
-        <section className="h-dvh">test for scrolling</section>
+        <section className="space-y-3">
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-muted-foreground">Description</p>
+            <p className="text-base leading-7 text-foreground">
+              {getDescription(project.description)}
+            </p>
+          </div>
+        </section>
       </main>
     </>
   );
