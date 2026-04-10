@@ -4,21 +4,26 @@ import { DefaultChatTransport } from "ai";
 import { useChat } from "@ai-sdk/react";
 import { useQuery, useZero } from "@rocicorp/zero/react";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { ConceptProjectGraduate } from "@/components/concept-project/concept-project-graduate";
+import { ConceptProjectDiscoveryComposer } from "@/components/concept-project/concept-project-discovery-composer";
+import { ConceptProjectDiscoveryMessages } from "@/components/concept-project/concept-project-discovery-messages";
 import { ConceptProjectRoadmapRail } from "@/components/concept-project/concept-project-roadmap-rail";
-import type { ConceptProjectAgentUIMessage } from "@/lib/agents/concept-project";
-import type {
-  ConceptProjectRoadmapCurrentVersion,
-  ConceptProjectRoadmapVisualItem,
-} from "@/lib/concept-project/roadmap";
 import {
-  CONCEPT_PROJECT_STAGE_LABELS,
-  conceptProjectStages,
+  buildRenderedMessages,
+  type ConceptProjectDiscoveryProps,
+  type ConceptProjectSnapshot,
+  getMaxUnlockedStageIndex,
+  getStageProgressCard,
+  type PersistedMessage,
+  type RoadmapItem,
+  type RoadmapNodeDraft,
+  type RoadmapVersionInsertArgs,
+} from "@/components/concept-project/concept-project-discovery-shared";
+import type { ConceptProjectAgentUIMessage } from "@/lib/agents/concept-project";
+import type { ConceptProjectRoadmapCurrentVersion } from "@/lib/concept-project/roadmap";
+import {
   getNextConceptProjectStage,
   getConceptProjectStageIndex,
   getConceptProjectWordCount,
@@ -29,166 +34,10 @@ import { mutators } from "@/zero/mutators";
 import { queries } from "@/zero/queries";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { ArrowDownIcon, CheckIcon, CommandIcon, CornerDownLeftIcon } from "lucide-react";
 
 const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 24;
 const AUTO_SCROLL_COMPOSER_GAP_PX = 16;
 const SUGGEST_OPTIONS_PROMPT = "I don't know, suggest 5 options";
-
-type PersistedMessage = {
-  id: string;
-  message: string;
-  order: number;
-  stage: ConceptProjectStage;
-  type: "agent" | "person";
-};
-
-type RoadmapItem = ConceptProjectRoadmapVisualItem;
-
-type ConceptProjectSnapshot = {
-  chatId: string;
-  currentStage: ConceptProjectStage;
-  description: string | null;
-  forWhomSummary: string | null;
-  howSummary: string | null;
-  id: string;
-  name: string | null;
-  roadmapId: string | null;
-  understoodForWhomAt: string | Date | null;
-  understoodHowAt: string | Date | null;
-  understoodSetupAt: string | Date | null;
-  understoodWhatAt: string | Date | null;
-  setupSummary: string | null;
-  whatSummary: string | null;
-};
-
-type ConceptProjectDiscoveryProps = {
-  conceptProjectId: string;
-  initialConceptProject: ConceptProjectSnapshot;
-  isArchived?: boolean;
-  initialMessages: PersistedMessage[];
-  initialRoadmapCurrentVersion: ConceptProjectRoadmapCurrentVersion;
-  initialRoadmap: RoadmapItem[];
-  projectId?: string | null;
-  zeroEnabled: boolean;
-};
-
-type RenderMessage = {
-  id: string;
-  isTransient: boolean;
-  stage: ConceptProjectStage;
-  text: string;
-  type: "agent" | "person";
-};
-
-function getStageProgressCard(stage: Exclude<ConceptProjectStage, "setup">) {
-  switch (stage) {
-    case "what":
-      return {
-        body: "I understand what you want to create. You can keep refining the concept, or continue into who this is for.",
-        buttonLabel: "Continue to for whom",
-        title: "What Agent",
-      };
-    case "for_whom":
-      return {
-        body: "I understand who this project is for and how broad the audience should be. You can keep refining the audience, or continue into how it should work.",
-        buttonLabel: "Continue to how",
-        title: "For Whom Agent",
-      };
-    case "how":
-      return {
-        body: "I understand the technical shape and product constraints. You can keep refining the implementation direction, or continue into setup.",
-        buttonLabel: "Continue to setup",
-        title: "How Agent",
-      };
-  }
-}
-
-function isStageComplete(conceptProject: ConceptProjectSnapshot, stage: ConceptProjectStage) {
-  switch (stage) {
-    case "what":
-      return Boolean(conceptProject.understoodWhatAt);
-    case "for_whom":
-      return Boolean(conceptProject.understoodForWhomAt);
-    case "how":
-      return Boolean(conceptProject.understoodHowAt);
-    case "setup":
-      return Boolean(conceptProject.understoodSetupAt);
-  }
-}
-
-function getTextFromUIMessage(message: ConceptProjectAgentUIMessage) {
-  return message.parts
-    .flatMap((part) => (part.type === "text" ? [part.text] : []))
-    .join("")
-    .trim();
-}
-
-function MessageMarkdown({ isAgent, text }: { isAgent: boolean; text: string }) {
-  const mutedClass = isAgent ? "text-muted-foreground" : "text-background/80";
-  const codeClass = isAgent
-    ? "rounded bg-background px-1.5 py-0.5 text-foreground"
-    : "rounded bg-background/15 px-1.5 py-0.5 text-background";
-  const preClass = isAgent
-    ? "overflow-x-auto rounded-xl border border-border bg-background px-4 py-3 text-foreground"
-    : "overflow-x-auto rounded-xl border border-background/20 bg-background/10 px-4 py-3 text-background";
-
-  return (
-    <div className="mt-1 text-sm leading-6">
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={{
-          a: ({ node: _node, ...props }) => (
-            <a
-              {...props}
-              className="underline underline-offset-4"
-              rel="noreferrer"
-              target="_blank"
-            />
-          ),
-          code: ({ children, className, node: _node, ...props }) => {
-            const isBlock = Boolean(className);
-
-            if (isBlock) {
-              return (
-                <code {...props} className={className}>
-                  {children}
-                </code>
-              );
-            }
-
-            return (
-              <code {...props} className={codeClass}>
-                {children}
-              </code>
-            );
-          },
-          em: ({ node: _node, ...props }) => <em {...props} className="italic" />,
-          li: ({ node: _node, ...props }) => <li {...props} className="ml-5 pl-1" />,
-          ol: ({ node: _node, ...props }) => <ol {...props} className="list-decimal space-y-1" />,
-          p: ({ node: _node, ...props }) => <p {...props} className="my-0" />,
-          pre: ({ node: _node, ...props }) => <pre {...props} className={preClass} />,
-          strong: ({ node: _node, ...props }) => <strong {...props} className="font-semibold" />,
-          table: ({ node: _node, ...props }) => (
-            <div className="overflow-x-auto">
-              <table {...props} className="w-full border-collapse text-left text-sm" />
-            </div>
-          ),
-          td: ({ node: _node, ...props }) => (
-            <td {...props} className={`border px-3 py-2 align-top ${mutedClass}`} />
-          ),
-          th: ({ node: _node, ...props }) => (
-            <th {...props} className="border px-3 py-2 font-semibold" />
-          ),
-          ul: ({ node: _node, ...props }) => <ul {...props} className="list-disc space-y-1" />,
-          hr: ({ node: _node, ...props }) => <hr {...props} className="my-4" />,
-        }}
-      >
-        {text || "..."}
-      </ReactMarkdown>
-    </div>
-  );
-}
 
 type ConceptProjectDiscoveryViewProps = {
   canEditRoadmapVersions: boolean;
@@ -252,12 +101,7 @@ function ConceptProjectDiscoveryView({
   const currentStage = conceptProject.currentStage;
   const hasAnsweredOpeningPrompt = messages.some((message) => message.type === "person");
   const openingWordCount = getConceptProjectWordCount(input);
-  const maxUnlockedStageIndex = Math.max(
-    getConceptProjectStageIndex(currentStage),
-    conceptProject.understoodWhatAt ? getConceptProjectStageIndex("for_whom") : -1,
-    conceptProject.understoodForWhomAt ? getConceptProjectStageIndex("how") : -1,
-    conceptProject.understoodHowAt ? getConceptProjectStageIndex("setup") : -1,
-  );
+  const maxUnlockedStageIndex = getMaxUnlockedStageIndex(conceptProject);
 
   const {
     clearError,
@@ -298,34 +142,17 @@ function ConceptProjectDiscoveryView({
     [messages],
   );
 
-  const renderedMessages = useMemo(() => {
-    const persisted: RenderMessage[] = messages.map((message) => ({
-      id: message.id,
-      isTransient: false,
-      stage: message.stage,
-      text: message.message,
-      type: message.type,
-    }));
-
-    const pending = transientMessages
-      .filter((message) => {
-        if (message.role === "assistant" && status === "ready") {
-          return false;
-        }
-
-        return !persistedMessageIds.has(message.id);
-      })
-      .map((message) => ({
-        id: message.id,
-        isTransient: true,
-        stage: currentStage,
-        text: getTextFromUIMessage(message),
-        type: message.role === "user" ? "person" : "agent",
-      }))
-      .filter((message) => message.text.length > 0 || message.type === "agent");
-
-    return [...persisted, ...pending];
-  }, [currentStage, messages, persistedMessageIds, status, transientMessages]);
+  const renderedMessages = useMemo(
+    () =>
+      buildRenderedMessages({
+        currentStage,
+        messages,
+        persistedMessageIds,
+        status,
+        transientMessages,
+      }),
+    [currentStage, messages, persistedMessageIds, status, transientMessages],
+  );
 
   const isSetupStage = currentStage === "setup";
   const isSubmitting = !isArchived && (status === "submitted" || status === "streaming");
@@ -510,101 +337,32 @@ function ConceptProjectDiscoveryView({
           roadmap={roadmap}
         />
 
-        <div
-          className={cn(
-            "flex-1 space-y-3 overflow-y-auto px-6 py-5",
-            hasRoadmap && "pt-44 sm:pt-48",
-          )}
-        >
-          {renderedMessages.map((message) => {
-            const isAgent = message.type === "agent";
-            const showSuggestOptionsAction =
-              !isSubmitting &&
-              latestFinishedAgentMessage?.id === message.id &&
-              isAgent &&
-              !message.isTransient;
-            const showProgressAction =
-              canProgressToNextStage &&
-              nextStage !== null &&
-              !isSubmitting &&
-              latestUserMessage?.id === message.id &&
-              !isAgent;
-
-            return (
-              <div key={message.id} className="space-y-3">
-                <div className={isAgent ? "mr-auto max-w-[85%]" : "ml-auto max-w-[60ch]"}>
-                  <div
-                    className={`rounded-2xl border px-4 py-3 ${
-                      isAgent
-                        ? "border-border bg-muted/50"
-                        : "border-foreground bg-accent text-accent-foreground"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      {isAgent ? (
-                        <span
-                          className={`text-xs font-semibold font-mono text-mutedtext-muted-foreground`}
-                        >
-                          {`${CONCEPT_PROJECT_STAGE_LABELS[message.stage]} agent:`}
-                        </span>
-                      ) : null}
-                      {message.isTransient ? (
-                        <span
-                          className={`text-[10px] ${
-                            isAgent ? "text-muted-foreground" : "text-background/70"
-                          }`}
-                        >
-                          live
-                        </span>
-                      ) : null}
-                    </div>
-                    <MessageMarkdown isAgent={isAgent} text={message.text} />
-                  </div>
-                </div>
-                {showSuggestOptionsAction && !isArchived ? (
-                  <div className="flex justify-end">
-                    <Button
-                      className="cursor-pointer"
-                      onClick={() =>
-                        submitUserMessage(
-                          SUGGEST_OPTIONS_PROMPT +
-                            ". For each option give a concise description, pros and cons.",
-                        )
-                      }
-                      type="button"
-                    >
-                      {SUGGEST_OPTIONS_PROMPT}
-                    </Button>
-                  </div>
-                ) : null}
-                {showProgressAction && nextStage && progressCard ? (
-                  <div className="space-y-3">
-                    <div className="mr-auto max-w-[85%] rounded-2xl border border-border bg-muted/50 px-4 py-3">
-                      <p className="text-xs font-semibold font-mono text-muted-foreground">
-                        {`${progressCard.title}:`}
-                      </p>
-                      <p className="mt-1 text-sm leading-6 text-foreground">{progressCard.body}</p>
-                    </div>
-                    <div className="flex justify-end">
-                      <Button
-                        className="cursor-pointer"
-                        onClick={() =>
-                          handleStageSelect(nextStage, {
-                            appendIntroMessage: true,
-                          })
-                        }
-                        type="button"
-                      >
-                        {progressCard.buttonLabel}
-                      </Button>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
-          <div aria-hidden="true" ref={messagesEndRef} />
-        </div>
+        <ConceptProjectDiscoveryMessages
+          canProgressToNextStage={canProgressToNextStage}
+          contentClassName={cn(hasRoadmap && "pt-44 sm:pt-48")}
+          hasRoadmap={hasRoadmap}
+          isArchived={isArchived}
+          isSubmitting={isSubmitting}
+          latestFinishedAgentMessageId={latestFinishedAgentMessage?.id}
+          latestUserMessageId={latestUserMessage?.id}
+          messages={renderedMessages}
+          nextStage={nextStage}
+          onProgressToNextStage={() =>
+            nextStage
+              ? handleStageSelect(nextStage, {
+                  appendIntroMessage: true,
+                })
+              : undefined
+          }
+          onSuggestOptions={() =>
+            submitUserMessage(
+              SUGGEST_OPTIONS_PROMPT +
+                ". For each option give a concise description, pros and cons.",
+            )
+          }
+          progressCard={progressCard}
+        />
+        <div aria-hidden="true" ref={messagesEndRef} />
       </div>
 
       {isArchived && projectId ? (
@@ -623,122 +381,30 @@ function ConceptProjectDiscoveryView({
       ) : null}
 
       {!isArchived ? (
-        <div className="fixed inset-x-0 bottom-0 z-20" ref={composerShellRef}>
-          <div className="mx-auto w-full max-w-240 px-4 pb-6 sm:px-6">
-            <div className="mb-3 flex h-14 justify-center">
-              {!isAtBottom ? (
-                <Button
-                  aria-label="Scroll to latest message"
-                  className="size-11 rounded-full shadow-md"
-                  onClick={() => scrollToBottom("smooth")}
-                  size="icon"
-                  type="button"
-                >
-                  <ArrowDownIcon className="size-5" />
-                </Button>
-              ) : null}
-            </div>
-            <div className="rounded-2xl border bg-background/95 px-6 py-5 shadow-lg backdrop-blur supports-backdrop-filter:bg-background/95">
-              <form className="space-y-3" onSubmit={handleSubmit} ref={composerFormRef}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex flex-wrap gap-2">
-                    {conceptProjectStages.map((stage, index) => {
-                      const isActive = stage === currentStage;
-                      const isCompleted = isStageComplete(conceptProject, stage);
-                      const isUnlocked = index <= maxUnlockedStageIndex;
-
-                      return (
-                        <button
-                          aria-current={isActive ? "step" : undefined}
-                          className={`rounded-full border px-3 py-1.5 text-sm font-medium transition ${
-                            isActive
-                              ? "border-foreground bg-foreground text-background"
-                              : isCompleted
-                                ? "border-emerald-600 bg-background text-foreground hover:border-emerald-500"
-                                : isUnlocked
-                                  ? "border-border bg-background text-foreground hover:border-foreground/40"
-                                  : "cursor-not-allowed border-border/60 bg-muted/40 text-muted-foreground"
-                          }`}
-                          disabled={
-                            !canSwitchStages || !isUnlocked || isSubmitting || isSwitchingStage
-                          }
-                          key={stage}
-                          onClick={() => handleStageSelect(stage)}
-                          type="button"
-                        >
-                          <span className="inline-flex items-center gap-1.5">
-                            {isCompleted ? <CheckIcon className="size-3.5" /> : null}
-                            {CONCEPT_PROJECT_STAGE_LABELS[stage]}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {showGraduateAction ? (
-                    <div className="shrink-0">
-                      <ConceptProjectGraduate
-                        conceptProjectId={conceptProjectId}
-                        projectId={projectId ?? null}
-                      />
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="relative">
-                  <textarea
-                    className="min-h-32 w-full rounded-2xl border bg-background px-4 py-3 text-sm outline-none transition focus:border-foreground"
-                    onChange={(event) => setInput(event.target.value)}
-                    onKeyDown={handleComposerKeyDown}
-                    placeholder={
-                      hasAnsweredOpeningPrompt
-                        ? "Answer the current question or add more detail."
-                        : "Keep the first answer concise."
-                    }
-                    value={input}
-                  />
-
-                  <Button
-                    disabled={!input.trim() || isSubmitting}
-                    type="submit"
-                    className="absolute right-2 bottom-4"
-                  >
-                    {isSubmitting ? (
-                      "Thinking..."
-                    ) : (
-                      <>
-                        Send
-                        <div className="flex">
-                          <CommandIcon className="size-2.5" />{" "}
-                          <CornerDownLeftIcon className="size-2.5" />
-                        </div>
-                      </>
-                    )}
-                  </Button>
-                </div>
-
-                <div className="flex items-center justify-between gap-3">
-                  <div className="space-y-1">
-                    {!hasAnsweredOpeningPrompt ? (
-                      <p
-                        className={`text-xs ${
-                          openingWordCount > 128 ? "text-destructive" : "text-muted-foreground"
-                        }`}
-                      >
-                        {openingWordCount}/128 words
-                      </p>
-                    ) : null}
-                    {composerError ? (
-                      <p className="text-xs text-destructive">{composerError}</p>
-                    ) : error ? (
-                      <p className="text-xs text-destructive">{error.message}</p>
-                    ) : null}
-                  </div>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
+        <ConceptProjectDiscoveryComposer
+          canSwitchStages={canSwitchStages}
+          composerError={composerError}
+          composerFormRef={composerFormRef}
+          composerShellRef={composerShellRef}
+          conceptProject={conceptProject}
+          conceptProjectId={conceptProjectId}
+          currentStage={currentStage}
+          errorMessage={error?.message}
+          handleComposerKeyDown={handleComposerKeyDown}
+          handleStageSelect={(stage) => handleStageSelect(stage)}
+          handleSubmit={handleSubmit}
+          hasAnsweredOpeningPrompt={hasAnsweredOpeningPrompt}
+          input={input}
+          isAtBottom={isAtBottom}
+          isSubmitting={isSubmitting}
+          isSwitchingStage={isSwitchingStage}
+          maxUnlockedStageIndex={maxUnlockedStageIndex}
+          onInputChange={setInput}
+          onScrollToBottom={() => scrollToBottom("smooth")}
+          openingWordCount={openingWordCount}
+          projectId={projectId}
+          showGraduateAction={showGraduateAction}
+        />
       ) : null}
     </>
   );
@@ -800,12 +466,7 @@ function ZeroBackedConceptProjectDiscovery({
     });
   }
 
-  async function handleInsertRoadmapVersion(args: {
-    description?: string;
-    majorVersion: number;
-    minorVersion: number;
-    name: string;
-  }) {
+  async function handleInsertRoadmapVersion(args: RoadmapVersionInsertArgs) {
     if (!conceptProject.roadmapId) {
       throw new Error("Roadmap not found.");
     }
@@ -825,13 +486,7 @@ function ZeroBackedConceptProjectDiscovery({
     router.refresh();
   }
 
-  async function handleUpdateRoadmapVersionNodes(
-    drafts: Array<{
-      description?: string;
-      id: string;
-      name: string;
-    }>,
-  ) {
+  async function handleUpdateRoadmapVersionNodes(drafts: RoadmapNodeDraft[]) {
     await Promise.all(
       drafts.map(
         (draft) =>
@@ -901,12 +556,7 @@ function FallbackConceptProjectDiscovery({
 }: Omit<ConceptProjectDiscoveryProps, "zeroEnabled">) {
   const router = useRouter();
 
-  async function handleInsertRoadmapVersion(args: {
-    description?: string;
-    majorVersion: number;
-    minorVersion: number;
-    name: string;
-  }) {
+  async function handleInsertRoadmapVersion(args: RoadmapVersionInsertArgs) {
     const response = await fetch(`/api/concept-project/${conceptProjectId}/settings`, {
       body: JSON.stringify(args),
       headers: {
@@ -924,13 +574,7 @@ function FallbackConceptProjectDiscovery({
     router.refresh();
   }
 
-  async function handleUpdateRoadmapVersionNodes(
-    drafts: Array<{
-      description?: string;
-      id: string;
-      name: string;
-    }>,
-  ) {
+  async function handleUpdateRoadmapVersionNodes(drafts: RoadmapNodeDraft[]) {
     await Promise.all(
       drafts.map(async (draft) => {
         const response = await fetch(`/api/concept-project/${conceptProjectId}/settings`, {

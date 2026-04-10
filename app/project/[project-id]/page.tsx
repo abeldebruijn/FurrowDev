@@ -1,12 +1,9 @@
 import { withAuth } from "@workos-inc/authkit-nextjs";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ConceptProjectRoadmapRail } from "@/components/concept-project/concept-project-roadmap-rail";
 import { ProjectSettings } from "@/components/project/project-settings";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
 import { SiteHeader } from "@/components/ui/site-header";
 import { getDb } from "@/lib/db";
 import {
@@ -14,8 +11,8 @@ import {
   getProjectRoadmap,
   getProjectRoadmapItems,
 } from "@/lib/project/server";
-import { upsertViewerFromWorkOSSession } from "@/lib/zero/context";
 import { getWorkOSSession } from "@/lib/workos-session";
+import { upsertViewerFromWorkOSSession } from "@/lib/zero/context";
 
 type ProjectPageProps = {
   params: Promise<{
