@@ -53,6 +53,10 @@ const deleteRoadmapNodeSchema = z.object({
   nodeId: z.uuid(),
 });
 
+const deleteConceptProjectSchema = z.object({
+  deleteConceptProject: z.literal(true),
+});
+
 function getFriendlySettingsError(error: unknown, requestedStage?: string) {
   const message = error instanceof Error ? error.message : "";
 
@@ -75,12 +79,24 @@ export async function PATCH(request: NextRequest, { params }: ConceptProjectSett
 
   const viewer = await upsertViewerFromWorkOSSession(session);
   const { ["concept-project-id"]: conceptProjectId } = await params;
-  const rawBody = await request.json();
+  const rawBody = await request.json().catch(() => null);
+
+  if (rawBody === null) {
+    return Response.json({ error: "Invalid JSON body." }, { status: 400 });
+  }
+
   const body = updateSchema.safeParse(rawBody);
   const roadmapNodeBody = updateRoadmapNodeSchema.safeParse(rawBody);
 
   if (!body.success && !roadmapNodeBody.success) {
-    return Response.json({ error: "Invalid name" }, { status: 400 });
+    return Response.json(
+      {
+        error: "Validation failed.",
+        roadmapNodeErrors: roadmapNodeBody.error.flatten(),
+        updateErrors: body.error.flatten(),
+      },
+      { status: 400 },
+    );
   }
 
   const db = getDb();
@@ -92,10 +108,7 @@ export async function PATCH(request: NextRequest, { params }: ConceptProjectSett
 
   if (body.success) {
     if (conceptProject.projectId) {
-      return Response.json(
-        { error: "Archived concept projects are read-only." },
-        { status: 400 },
-      );
+      return Response.json({ error: "Archived concept projects are read-only." }, { status: 400 });
     }
 
     if (body.data.currentStage === "grill_me" && !conceptProject.understoodSetupAt) {
@@ -126,10 +139,7 @@ export async function PATCH(request: NextRequest, { params }: ConceptProjectSett
 
   if (roadmapNodeBody.success) {
     if (conceptProject.projectId) {
-      return Response.json(
-        { error: "Archived concept projects are read-only." },
-        { status: 400 },
-      );
+      return Response.json({ error: "Archived concept projects are read-only." }, { status: 400 });
     }
 
     if (!conceptProject.understoodSetupAt) {
@@ -197,6 +207,7 @@ export async function DELETE(request: NextRequest, { params }: ConceptProjectSet
   const db = getDb();
   const rawBody = await request.json().catch(() => null);
   const roadmapNodeBody = deleteRoadmapNodeSchema.safeParse(rawBody);
+  const conceptProjectDeleteBody = deleteConceptProjectSchema.safeParse(rawBody);
 
   if (roadmapNodeBody.success) {
     const conceptProject = await getAccessibleConceptProject(viewer.id, conceptProjectId, db);
@@ -213,10 +224,7 @@ export async function DELETE(request: NextRequest, { params }: ConceptProjectSet
     }
 
     if (conceptProject.projectId) {
-      return Response.json(
-        { error: "Archived concept projects are read-only." },
-        { status: 400 },
-      );
+      return Response.json({ error: "Archived concept projects are read-only." }, { status: 400 });
     }
 
     try {
@@ -239,6 +247,10 @@ export async function DELETE(request: NextRequest, { params }: ConceptProjectSet
     }
   }
 
+  if (!conceptProjectDeleteBody.success) {
+    return Response.json({ error: "Explicit delete intent required." }, { status: 400 });
+  }
+
   const deleted = await deleteAccessibleConceptProject(viewer.id, conceptProjectId, db);
 
   if (!deleted) {
@@ -257,7 +269,13 @@ export async function POST(request: NextRequest, { params }: ConceptProjectSetti
 
   const viewer = await upsertViewerFromWorkOSSession(session);
   const { ["concept-project-id"]: conceptProjectId } = await params;
-  const body = insertRoadmapVersionSchema.safeParse(await request.json());
+  const rawBody = await request.json().catch(() => null);
+
+  if (rawBody === null) {
+    return Response.json({ error: "Invalid JSON body." }, { status: 400 });
+  }
+
+  const body = insertRoadmapVersionSchema.safeParse(rawBody);
 
   if (!body.success) {
     return Response.json({ error: "Invalid roadmap node" }, { status: 400 });

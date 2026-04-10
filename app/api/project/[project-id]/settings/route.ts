@@ -29,7 +29,13 @@ export async function PATCH(request: NextRequest, { params }: ProjectSettingsRou
 
   const viewer = await upsertViewerFromWorkOSSession(session);
   const { ["project-id"]: projectId } = await params;
-  const body = updateSchema.safeParse(await request.json());
+  const rawBody = await request.json().catch(() => null);
+
+  if (rawBody === null) {
+    return Response.json({ error: "Invalid JSON body." }, { status: 400 });
+  }
+
+  const body = updateSchema.safeParse(rawBody);
 
   if (!body.success) {
     return Response.json({ error: "Invalid project update." }, { status: 400 });

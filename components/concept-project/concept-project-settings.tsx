@@ -127,6 +127,12 @@ function SettingsDialogContent({
 
     try {
       const response = await fetch(`/api/concept-project/${conceptProjectId}/settings`, {
+        body: JSON.stringify({
+          deleteConceptProject: true,
+        }),
+        headers: {
+          "content-type": "application/json",
+        },
         method: "DELETE",
       });
 
@@ -211,8 +217,7 @@ function SettingsDialogContent({
             <Alert>
               <AlertTitle>Project created</AlertTitle>
               <AlertDescription>
-                This concept is preserved as a read-only archive. Continue work in the real
-                project.
+                This concept is preserved as a read-only archive. Continue work in the real project.
               </AlertDescription>
               <div className="mt-4">
                 <Link href={`/project/${projectId}`}>

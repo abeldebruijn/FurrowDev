@@ -10,8 +10,8 @@ type ConceptProjectGraduateRouteProps = {
   }>;
 };
 
-export async function POST(_request: NextRequest, { params }: ConceptProjectGraduateRouteProps) {
-  const session = await getWorkOSSession();
+export async function POST(request: NextRequest, { params }: ConceptProjectGraduateRouteProps) {
+  const session = await getWorkOSSession(request);
 
   if (!session) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });

@@ -183,7 +183,9 @@ export function ConceptProjectRoadmapRail({
 
     const targetScrollLeft = Math.max(
       0,
-      elementOffsetLeft - railScrollerElement.clientWidth / 2 + currentVersionElement.offsetWidth / 2,
+      elementOffsetLeft -
+        railScrollerElement.clientWidth / 2 +
+        currentVersionElement.offsetWidth / 2,
     );
 
     // Disable scroll-snap so it doesn't fight the programmatic scroll.
@@ -619,18 +621,30 @@ export function ConceptProjectRoadmapRail({
                     {isExpanded ? (
                       <div className="space-y-4 px-4 py-4">
                         <div className="space-y-2">
-                          <label className="text-sm font-medium text-foreground">Title</label>
+                          <label
+                            className="text-sm font-medium text-foreground"
+                            htmlFor={`roadmap-node-title-${draft.id}`}
+                          >
+                            Title
+                          </label>
                           <input
                             className="w-full rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:border-foreground"
+                            id={`roadmap-node-title-${draft.id}`}
                             onChange={(event) => updateDraft(draft.id, "name", event.target.value)}
                             value={draft.name}
                           />
                         </div>
 
                         <div className="space-y-2">
-                          <label className="text-sm font-medium text-foreground">Description</label>
+                          <label
+                            className="text-sm font-medium text-foreground"
+                            htmlFor={`roadmap-node-description-${draft.id}`}
+                          >
+                            Description
+                          </label>
                           <textarea
                             className="min-h-24 w-full rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:border-foreground"
+                            id={`roadmap-node-description-${draft.id}`}
                             onChange={(event) =>
                               updateDraft(draft.id, "description", event.target.value)
                             }

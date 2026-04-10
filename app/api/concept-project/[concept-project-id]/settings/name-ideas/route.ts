@@ -18,7 +18,17 @@ type ConceptProjectNameIdeasRouteProps = {
 };
 
 const responseSchema = z.object({
-  names: z.array(z.string().trim().min(1).max(120)).length(10),
+  names: z
+    .array(z.string().trim().min(1).max(120))
+    .length(10)
+    .superRefine((names, ctx) => {
+      if (new Set(names).size !== names.length) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Names must be unique.",
+        });
+      }
+    }),
 });
 
 export async function POST(request: NextRequest, { params }: ConceptProjectNameIdeasRouteProps) {

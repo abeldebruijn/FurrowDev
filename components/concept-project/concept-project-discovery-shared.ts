@@ -146,13 +146,15 @@ export function buildRenderedMessages(args: {
   const isHiddenKickoffMessage = (message: string) =>
     message.trim() === CONCEPT_PROJECT_GRILL_ME_AUTO_KICKOFF_MESSAGE;
 
-  const persisted: RenderMessage[] = args.messages.map((message) => ({
-    id: message.id,
-    isTransient: false,
-    stage: message.stage,
-    text: message.message,
-    type: message.type,
-  }));
+  const persisted: RenderMessage[] = args.messages
+    .filter((message) => !(message.type === "person" && isHiddenKickoffMessage(message.message)))
+    .map((message) => ({
+      id: message.id,
+      isTransient: false,
+      stage: message.stage,
+      text: message.message,
+      type: message.type,
+    }));
 
   const pending: RenderMessage[] = args.transientMessages
     .filter((message) => {
@@ -160,10 +162,7 @@ export function buildRenderedMessages(args: {
         return false;
       }
 
-      if (
-        message.role === "user" &&
-        isHiddenKickoffMessage(getTextFromUIMessage(message))
-      ) {
+      if (message.role === "user" && isHiddenKickoffMessage(getTextFromUIMessage(message))) {
         return false;
       }
 

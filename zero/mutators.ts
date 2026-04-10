@@ -12,6 +12,7 @@ import { conceptProjectStages } from "@/lib/concept-project/shared";
 import {
   assertCanAccessConceptProjectServer,
   assertChatBelongsToConceptProjectServer,
+  assertRoadmapBelongsToConceptProjectServer,
   assertViewerOwnsOrganisationServer,
   validateRoadmapParentServer,
 } from "@/zero/shared";
@@ -93,7 +94,9 @@ export const mutators = defineMutators({
         if (args.currentStage === "grill_me") {
           const conceptProject = await tx.run(zqlAny.conceptProjects.where("id", args.id).one());
 
-          if (!(conceptProject as { understoodSetupAt?: string | null } | null)?.understoodSetupAt) {
+          if (
+            !(conceptProject as { understoodSetupAt?: string | null } | null)?.understoodSetupAt
+          ) {
             throw new ApplicationError("Setup must be complete before entering grill me.", {
               details: {
                 conceptProjectId: args.id,
@@ -145,7 +148,9 @@ export const mutators = defineMutators({
         if (args.currentStage === "grill_me") {
           const conceptProject = await tx.run(zqlAny.conceptProjects.where("id", args.id).one());
 
-          if (!(conceptProject as { understoodSetupAt?: string | null } | null)?.understoodSetupAt) {
+          if (
+            !(conceptProject as { understoodSetupAt?: string | null } | null)?.understoodSetupAt
+          ) {
             throw new ApplicationError("Setup must be complete before entering grill me.", {
               details: {
                 conceptProjectId: args.id,
@@ -206,6 +211,12 @@ export const mutators = defineMutators({
       }),
       async ({ args, ctx, tx }) => {
         await assertCanAccessConceptProjectServer(tx, ctx, args.conceptProjectId);
+        await assertRoadmapBelongsToConceptProjectServer(
+          tx,
+          ctx,
+          args.conceptProjectId,
+          args.roadmapId,
+        );
         await validateRoadmapParentServer(tx, args.roadmapId, args.parentId, {
           majorVersion: args.majorVersion,
           minorVersion: args.minorVersion,
@@ -239,7 +250,12 @@ export const mutators = defineMutators({
           return;
         }
 
-        await assertCanAccessConceptProjectServer(tx, ctx, args.conceptProjectId);
+        await assertRoadmapBelongsToConceptProjectServer(
+          tx,
+          ctx,
+          args.conceptProjectId,
+          args.roadmapId,
+        );
 
         const [conceptProjectResult, currentRoadmapResult, existingItemsResult] = await Promise.all(
           [
@@ -323,7 +339,12 @@ export const mutators = defineMutators({
           return;
         }
 
-        await assertCanAccessConceptProjectServer(tx, ctx, args.conceptProjectId);
+        await assertRoadmapBelongsToConceptProjectServer(
+          tx,
+          ctx,
+          args.conceptProjectId,
+          args.roadmapId,
+        );
 
         const [conceptProjectResult, currentRoadmapResult, existingItemsResult] = await Promise.all(
           [
@@ -398,8 +419,6 @@ export const mutators = defineMutators({
         minorVersion: z.int().optional(),
       }),
       async ({ args, ctx, tx }) => {
-        await assertCanAccessConceptProjectServer(tx, ctx, args.conceptProjectId);
-
         const existing: any =
           tx.location === "server"
             ? await tx.run(zqlAny.roadmapItems.where("id", args.id).one())
@@ -417,6 +436,17 @@ export const mutators = defineMutators({
         const majorVersion = args.majorVersion ?? existing?.majorVersion;
         const minorVersion = args.minorVersion ?? existing?.minorVersion;
         const parentId = args.parentId !== undefined ? args.parentId : existing?.parentId;
+
+        if (roadmapId) {
+          await assertRoadmapBelongsToConceptProjectServer(
+            tx,
+            ctx,
+            args.conceptProjectId,
+            roadmapId,
+          );
+        } else {
+          await assertCanAccessConceptProjectServer(tx, ctx, args.conceptProjectId);
+        }
 
         if (roadmapId && majorVersion !== undefined && minorVersion !== undefined) {
           await validateRoadmapParentServer(tx, roadmapId, parentId, {

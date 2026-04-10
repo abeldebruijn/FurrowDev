@@ -617,9 +617,21 @@ function ZeroBackedConceptProjectDiscovery({
           "content-type": "application/json",
         },
         method: "PATCH",
-      }).then(() => {
-        router.refresh();
-      });
+      })
+        .then(async (response) => {
+          if (!response.ok) {
+            const errorBody = (await response.json().catch(() => null)) as {
+              error?: string;
+            } | null;
+
+            throw new Error(errorBody?.error || "Failed to update stage.");
+          }
+
+          router.refresh();
+        })
+        .catch((error) => {
+          toast.error(error instanceof Error ? error.message : "Failed to update stage.");
+        });
     });
   }
 
@@ -794,7 +806,7 @@ function FallbackConceptProjectDiscovery({
         router.refresh();
       }}
       onStageSelect={async (stage, options) => {
-        await fetch(`/api/concept-project/${conceptProjectId}/settings`, {
+        const response = await fetch(`/api/concept-project/${conceptProjectId}/settings`, {
           body: JSON.stringify({
             appendIntroMessage: options?.appendIntroMessage,
             currentStage: stage,
@@ -804,6 +816,13 @@ function FallbackConceptProjectDiscovery({
           },
           method: "PATCH",
         });
+
+        if (!response.ok) {
+          const errorBody = (await response.json().catch(() => null)) as { error?: string } | null;
+
+          toast.error(errorBody?.error || "Failed to update stage.");
+          return;
+        }
 
         router.refresh();
       }}

@@ -88,6 +88,9 @@ export function ConceptProjectDiscoveryComposer({
   });
   const currentStageOption = stageOptions.find((stage) => stage.stage === currentStage);
   const isStageSelectionDisabled = !canSwitchStages || isSubmitting || isSwitchingStage;
+  const composerLabel = hasAnsweredOpeningPrompt
+    ? "Answer the current concept project question"
+    : "Describe your concept project";
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-20" ref={composerShellRef}>
@@ -165,8 +168,13 @@ export function ConceptProjectDiscoveryComposer({
           </div>
 
           <div className="relative bg-background rounded-lg">
+            <label className="sr-only" htmlFor="concept-project-discovery-input">
+              {composerLabel}
+            </label>
             <textarea
+              aria-label={composerLabel}
               className="min-h-32 w-full rounded-lg border bg-background px-4 py-3 text-sm outline-none transition focus:border-foreground"
+              id="concept-project-discovery-input"
               onChange={(event) => onInputChange(event.target.value)}
               onKeyDown={handleComposerKeyDown}
               placeholder={

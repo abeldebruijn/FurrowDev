@@ -41,6 +41,38 @@ export async function assertCanAccessConceptProjectServer(
   }
 }
 
+export async function assertRoadmapBelongsToConceptProjectServer(
+  tx: any,
+  ctx: ZeroContext,
+  conceptProjectId: string,
+  roadmapId: string,
+) {
+  if (tx.location !== "server") {
+    return;
+  }
+
+  const conceptProject = await tx.run(
+    visibleConceptProjectsQuery(ctx).where("id", conceptProjectId).one(),
+  );
+
+  if (!conceptProject) {
+    throw new ApplicationError("Concept project not found or not accessible", {
+      details: {
+        conceptProjectId,
+      },
+    });
+  }
+
+  if (conceptProject.roadmapId !== roadmapId) {
+    throw new ApplicationError("Roadmap does not belong to concept project", {
+      details: {
+        conceptProjectId,
+        roadmapId,
+      },
+    });
+  }
+}
+
 export async function assertViewerOwnsOrganisationServer(
   tx: any,
   ctx: ZeroContext,
