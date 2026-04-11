@@ -231,6 +231,48 @@ export async function graduateConceptProjectToProject(
   return project;
 }
 
+export async function generateAccessibleProjectUbiquitousLanguage(
+  viewerId: string,
+  projectId: string,
+  db: Database = getDb(),
+) {
+  const project = await getAccessibleProject(viewerId, projectId, db);
+
+  if (!project) {
+    return null;
+  }
+
+  const conceptProject =
+    project.conceptProjectId !== null
+      ? await getAccessibleConceptProject(viewerId, project.conceptProjectId, db)
+      : null;
+
+  const [roadmapItems, transcript] = await Promise.all([
+    getProjectRoadmapItems(project.roadmapId, db),
+    project.conceptProjectId && conceptProject
+      ? getConceptProjectTranscript(project.conceptProjectId, db)
+      : Promise.resolve([]),
+  ]);
+
+  const ubiquitousLanguageMarkdown = await generateProjectUbiquitousLanguageMarkdown({
+    description: project.description,
+    forWhomSummary: conceptProject?.forWhomSummary ?? null,
+    howSummary: conceptProject?.howSummary ?? null,
+    name: project.name,
+    roadmapItems,
+    setupSummary: conceptProject?.setupSummary ?? null,
+    transcript,
+    whatSummary: conceptProject?.whatSummary ?? null,
+  });
+
+  await db
+    .update(projects)
+    .set({ ubiquitousLanguageMarkdown })
+    .where(eq(projects.id, project.id));
+
+  return getAccessibleProject(viewerId, project.id, db);
+}
+
 export async function updateAccessibleProject(
   viewerId: string,
   projectId: string,

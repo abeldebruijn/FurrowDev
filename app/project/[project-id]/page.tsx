@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
 import { ConceptProjectRoadmapRail } from "@/components/concept-project/concept-project-roadmap-rail";
+import { ProjectGenerateUbiquitousLanguageButton } from "@/components/project/project-generate-ubiquitous-language-button";
 import { ProjectSettings } from "@/components/project/project-settings";
 import { MarkdownContent } from "@/components/ui/markdown-content";
 import { SiteHeader } from "@/components/ui/site-header";
@@ -129,9 +130,12 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
               />
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">
-              No ubiquitous language has been recorded yet.
-            </p>
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                No ubiquitous language has been recorded yet.
+              </p>
+              <ProjectGenerateUbiquitousLanguageButton projectId={project.id} />
+            </div>
           )}
         </section>
       </main>
