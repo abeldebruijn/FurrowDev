@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
-import { getTokenClaims } from "@workos-inc/authkit-nextjs";
+import { getTokenClaims, withAuth } from "@workos-inc/authkit-nextjs";
+import { AuthKitProvider } from "@workos-inc/authkit-nextjs/components";
 
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { ZeroProviderClient } from "@/components/providers/zero-provider-client";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { isZeroEnabled } from "@/lib/zero/config";
-import { upsertViewerFromWorkOSSession } from "@/lib/zero/context";
-import { getWorkOSSession } from "@/lib/workos-session";
+import { upsertViewerFromWorkOSUser } from "@/lib/zero/context";
 import "./globals.css";
 
 type TokenClaims = {
@@ -34,37 +34,45 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const zeroEnabled = isZeroEnabled();
-  const session = await getWorkOSSession();
-  const userID = session?.user.id ?? "anon";
-  const viewer = session ? await upsertViewerFromWorkOSSession(session) : null;
-  const claims = session ? await getTokenClaims<TokenClaims>(session.accessToken) : null;
+  const auth = await withAuth();
+  const { accessToken, ...initialAuth } = auth;
+  const userID = auth.user?.id ?? "anon";
+  const viewer = auth.user ? await upsertViewerFromWorkOSUser(auth.user) : null;
+  const claims = accessToken ? await getTokenClaims<TokenClaims>(accessToken) : null;
   const zeroContext =
-    session && viewer
+    auth.user && viewer
       ? {
           viewerId: viewer.id,
           workosUserId: viewer.workosUserId,
-          orgId: typeof claims?.org_id === "string" ? claims.org_id : undefined,
-          role: typeof claims?.role === "string" ? claims.role : undefined,
-          roles: getStringArray(claims?.roles),
-          permissions: getStringArray(claims?.permissions),
+          orgId:
+            typeof auth.organizationId === "string"
+              ? auth.organizationId
+              : typeof claims?.org_id === "string"
+                ? claims.org_id
+                : undefined,
+          role: typeof auth.role === "string" ? auth.role : typeof claims?.role === "string" ? claims.role : undefined,
+          roles: auth.roles ?? getStringArray(claims?.roles),
+          permissions: auth.permissions ?? getStringArray(claims?.permissions),
         }
       : null;
 
   return (
     <html lang="en" className="h-full" suppressHydrationWarning>
       <body className="min-h-full antialiased">
-        <ThemeProvider attribute="class" defaultTheme="system" disableTransitionOnChange enableSystem>
-          <TooltipProvider>
-            <ZeroProviderClient
-              cacheURL={zeroEnabled ? process.env.NEXT_PUBLIC_ZERO_CACHE_URL : undefined}
-              userID={userID}
-              zeroContext={zeroEnabled ? zeroContext : null}
-            >
-              {children}
-            </ZeroProviderClient>
-            <Toaster />
-          </TooltipProvider>
-        </ThemeProvider>
+        <AuthKitProvider initialAuth={initialAuth}>
+          <ThemeProvider attribute="class" defaultTheme="system" disableTransitionOnChange enableSystem>
+            <TooltipProvider>
+              <ZeroProviderClient
+                cacheURL={zeroEnabled ? process.env.NEXT_PUBLIC_ZERO_CACHE_URL : undefined}
+                userID={userID}
+                zeroContext={zeroEnabled ? zeroContext : null}
+              >
+                {children}
+              </ZeroProviderClient>
+              <Toaster />
+            </TooltipProvider>
+          </ThemeProvider>
+        </AuthKitProvider>
       </body>
     </html>
   );

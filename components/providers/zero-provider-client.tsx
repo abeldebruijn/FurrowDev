@@ -1,6 +1,7 @@
 "use client";
 
 import { ZeroProvider } from "@rocicorp/zero/react";
+import { useAccessToken } from "@workos-inc/authkit-nextjs/components";
 
 import type { ZeroContext } from "@/lib/zero/context";
 import { mutators } from "@/zero/mutators";
@@ -19,12 +20,19 @@ export function ZeroProviderClient({
   userID,
   zeroContext,
 }: ZeroProviderClientProps) {
+  const { accessToken, loading } = useAccessToken();
+
+  if (loading) {
+    return <>{children}</>;
+  }
+
   if (!cacheURL || !zeroContext) {
     return <>{children}</>;
   }
 
   return (
     <ZeroProvider
+      auth={accessToken}
       cacheURL={cacheURL}
       context={zeroContext}
       mutators={mutators}
