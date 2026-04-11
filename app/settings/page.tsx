@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { signOut, withAuth } from "@workos-inc/authkit-nextjs";
+import { redirect } from "next/navigation";
 
 import { SiteHeader } from "@/components/ui/site-header";
 import { Button } from "@/components/ui/button";
@@ -15,7 +16,11 @@ import {
 } from "@/components/ui/table";
 
 export default async function ProtectedPage() {
-  const { user } = await withAuth({ ensureSignedIn: true });
+  const { user } = await withAuth();
+
+  if (!user) {
+    redirect("/login");
+  }
 
   return (
     <>

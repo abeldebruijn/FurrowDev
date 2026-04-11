@@ -38,7 +38,11 @@ function getRealProjectName(name: string) {
 }
 
 export default async function Home() {
-	await withAuth({ ensureSignedIn: true });
+	const { user } = await withAuth();
+
+	if (!user) {
+		redirect("/login");
+	}
 
 	const session = await getWorkOSSession();
 

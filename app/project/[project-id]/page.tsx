@@ -1,6 +1,6 @@
 import { withAuth } from "@workos-inc/authkit-nextjs";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { ConceptProjectRoadmapRail } from "@/components/concept-project/concept-project-roadmap-rail";
 import { ProjectSettings } from "@/components/project/project-settings";
@@ -34,7 +34,11 @@ function getDescription(description: string | null) {
 }
 
 export default async function ProjectPage({ params }: ProjectPageProps) {
-  await withAuth({ ensureSignedIn: true });
+  const { user } = await withAuth();
+
+  if (!user) {
+    redirect("/login");
+  }
 
   const session = await getWorkOSSession();
 

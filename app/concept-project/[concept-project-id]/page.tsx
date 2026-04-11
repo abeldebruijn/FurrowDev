@@ -1,6 +1,6 @@
 import { withAuth } from "@workos-inc/authkit-nextjs";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { ConceptProjectDiscovery } from "@/components/concept-project/concept-project-discovery";
 import { ConceptProjectPostSetupActions } from "@/components/concept-project/concept-project-post-setup-actions";
@@ -34,7 +34,11 @@ function getName(name: string | null) {
 
 export default async function ConceptProjectPage({ params }: ConceptProjectPageProps) {
   const zeroEnabled = isZeroEnabled();
-  await withAuth({ ensureSignedIn: true });
+  const { user } = await withAuth();
+
+  if (!user) {
+    redirect("/login");
+  }
 
   const session = await getWorkOSSession();
 
