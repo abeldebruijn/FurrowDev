@@ -21,20 +21,21 @@ export function ZeroProviderClient({
   zeroContext,
 }: ZeroProviderClientProps) {
   const { accessToken, loading } = useAccessToken();
+  const zeroConfigured = Boolean(cacheURL && zeroContext);
 
-  if (loading) {
+  if (!zeroConfigured) {
     return <>{children}</>;
   }
 
-  if (!cacheURL || !zeroContext) {
-    return <>{children}</>;
+  if (loading || !accessToken) {
+    return null;
   }
 
   return (
     <ZeroProvider
       auth={accessToken}
-      cacheURL={cacheURL}
-      context={zeroContext}
+      cacheURL={cacheURL!}
+      context={zeroContext!}
       mutators={mutators}
       schema={schema}
       storageKey="furrow-dev"
