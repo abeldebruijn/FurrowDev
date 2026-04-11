@@ -8,5 +8,5 @@ export default authkitMiddleware({
 });
 
 export const config = {
-  matcher: ["/", "/settings/:path*", "/concept-project/:path*", "/project/:path*"],
+  matcher: ["/", "/settings/:path*", "/concept-project/:path*", "/project/:path*", "/api/zero/:path*"],
 };
