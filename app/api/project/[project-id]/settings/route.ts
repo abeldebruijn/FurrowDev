@@ -15,10 +15,17 @@ const updateSchema = z
   .object({
     description: z.string().max(600).optional(),
     name: z.string().trim().min(1).max(120).optional(),
+    ubiquitousLanguageMarkdown: z.string().max(30000).optional(),
   })
-  .refine((value) => value.name !== undefined || value.description !== undefined, {
-    message: "Nothing to update",
-  });
+  .refine(
+    (value) =>
+      value.name !== undefined ||
+      value.description !== undefined ||
+      value.ubiquitousLanguageMarkdown !== undefined,
+    {
+      message: "Nothing to update",
+    },
+  );
 
 export async function PATCH(request: NextRequest, { params }: ProjectSettingsRouteProps) {
   const session = await getWorkOSSession(request);

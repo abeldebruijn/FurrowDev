@@ -14,7 +14,9 @@ import {
   getConceptProjectRoadmap,
   getConceptProjectRoadmapItems,
   getAccessibleConceptProject,
+  getConceptProjectTranscript,
 } from "@/lib/concept-project/server";
+import { generateProjectUbiquitousLanguageMarkdown } from "@/lib/project/ubiquitous-language";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
@@ -26,6 +28,7 @@ export type AccessibleProject = {
   id: string;
   name: string;
   roadmapId: string | null;
+  ubiquitousLanguageMarkdown: string | null;
 };
 
 export type ProjectRoadmap = Awaited<ReturnType<typeof getProjectRoadmap>>;
@@ -99,6 +102,7 @@ export async function getAccessibleProject(
       id: projects.id,
       name: projects.name,
       roadmapId: projects.roadmapId,
+      ubiquitousLanguageMarkdown: projects.ubiquitousLanguageMarkdown,
     })
     .from(projects)
     .leftJoin(organisations, eq(projects.orgOwner, organisations.id))
@@ -128,6 +132,7 @@ export async function getAccessibleProjectByConceptProjectId(
       id: projects.id,
       name: projects.name,
       roadmapId: projects.roadmapId,
+      ubiquitousLanguageMarkdown: projects.ubiquitousLanguageMarkdown,
     })
     .from(projects)
     .leftJoin(organisations, eq(projects.orgOwner, organisations.id))
@@ -188,6 +193,20 @@ export async function graduateConceptProjectToProject(
   const projectId = await db.transaction(async (tx) => {
     const roadmapId = await cloneRoadmapSnapshot(tx, conceptProject.roadmapId);
     const nextProjectId = randomUUID();
+    const [transcript, roadmapItems] = await Promise.all([
+      getConceptProjectTranscript(conceptProject.id, tx),
+      getConceptProjectRoadmapItems(conceptProject.roadmapId, tx),
+    ]);
+    const ubiquitousLanguageMarkdown = await generateProjectUbiquitousLanguageMarkdown({
+      description: conceptProject.description,
+      forWhomSummary: conceptProject.forWhomSummary,
+      howSummary: conceptProject.howSummary,
+      name: conceptProject.name,
+      roadmapItems,
+      setupSummary: conceptProject.setupSummary,
+      transcript,
+      whatSummary: conceptProject.whatSummary,
+    });
 
     await tx.insert(projects).values({
       conceptProjectId: conceptProject.id,
@@ -196,6 +215,7 @@ export async function graduateConceptProjectToProject(
       name: conceptProject.name?.trim() || "Untitled project",
       orgOwner: conceptProject.orgOwner,
       roadmapId,
+      ubiquitousLanguageMarkdown,
       userOwner: conceptProject.userOwner,
     });
 
@@ -217,6 +237,7 @@ export async function updateAccessibleProject(
   values: {
     description?: string | null;
     name?: string;
+    ubiquitousLanguageMarkdown?: string | null;
   },
   db: Database = getDb(),
 ) {
@@ -229,6 +250,7 @@ export async function updateAccessibleProject(
   const nextValues: {
     description?: string | null;
     name?: string;
+    ubiquitousLanguageMarkdown?: string | null;
   } = {};
 
   if (values.description !== undefined) {
@@ -237,6 +259,10 @@ export async function updateAccessibleProject(
 
   if (values.name !== undefined) {
     nextValues.name = values.name.trim();
+  }
+
+  if (values.ubiquitousLanguageMarkdown !== undefined) {
+    nextValues.ubiquitousLanguageMarkdown = values.ubiquitousLanguageMarkdown?.trim() || null;
   }
 
   if (Object.keys(nextValues).length === 0) {
