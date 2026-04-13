@@ -2,7 +2,14 @@ import { randomUUID } from "node:crypto";
 
 import { and, eq, isNull, or } from "drizzle-orm";
 
-import { conceptProjects, organisations, roadmapItems, roadmaps, projects } from "@/drizzle/schema";
+import {
+  admins,
+  conceptProjects,
+  organisations,
+  roadmapItems,
+  roadmaps,
+  projects,
+} from "@/drizzle/schema";
 import { getDb, type Database } from "@/lib/db";
 import {
   getConceptProjectRoadmap,
@@ -25,6 +32,14 @@ export type AccessibleProject = {
   roadmapId: string | null;
   ubiquitousLanguageMarkdown: string | null;
   userOwner: string | null;
+};
+
+export type ProjectAccess = AccessibleProject & {
+  canViewModeration: boolean;
+  canViewSettings: boolean;
+  isAdmin: boolean;
+  isOrganisationProject: boolean;
+  isOwner: boolean;
 };
 
 export type ProjectRoadmap = Awaited<ReturnType<typeof getProjectRoadmap>>;
@@ -114,6 +129,71 @@ export async function getAccessibleProject(
     .limit(1);
 
   return (rows[0] ?? null) as AccessibleProject | null;
+}
+
+export async function getProjectAccess(
+  viewerId: string,
+  projectId: string,
+  db: Database = getDb(),
+): Promise<ProjectAccess | null> {
+  const rows = await db
+    .select({
+      adminUserId: admins.userId,
+      conceptProjectId: projects.conceptProjectId,
+      conceptProjectName: conceptProjects.name,
+      createdAt: projects.createdAt,
+      description: projects.description,
+      id: projects.id,
+      name: projects.name,
+      organisationOwnerId: organisations.ownerId,
+      orgOwner: projects.orgOwner,
+      roadmapId: projects.roadmapId,
+      ubiquitousLanguageMarkdown: projects.ubiquitousLanguageMarkdown,
+      userOwner: projects.userOwner,
+    })
+    .from(projects)
+    .leftJoin(organisations, eq(projects.orgOwner, organisations.id))
+    .leftJoin(conceptProjects, eq(projects.conceptProjectId, conceptProjects.id))
+    .leftJoin(admins, and(eq(admins.projectId, projects.id), eq(admins.userId, viewerId)))
+    .where(
+      and(
+        eq(projects.id, projectId),
+        or(
+          eq(projects.userOwner, viewerId),
+          eq(organisations.ownerId, viewerId),
+          eq(admins.userId, viewerId),
+        ),
+      ),
+    )
+    .limit(1);
+
+  const project = rows[0] ?? null;
+
+  if (!project) {
+    return null;
+  }
+
+  const isOwner = project.userOwner === viewerId || project.organisationOwnerId === viewerId;
+  const isAdmin = project.adminUserId === viewerId;
+  const isOrganisationProject = project.orgOwner !== null;
+
+  return {
+    conceptProjectId: project.conceptProjectId,
+    conceptProjectName: project.conceptProjectName,
+    createdAt: project.createdAt,
+    description: project.description,
+    id: project.id,
+    name: project.name,
+    orgOwner: project.orgOwner,
+    roadmapId: project.roadmapId,
+    ubiquitousLanguageMarkdown: project.ubiquitousLanguageMarkdown,
+    userOwner: project.userOwner,
+    canViewModeration: isOrganisationProject && (isOwner || isAdmin),
+    canViewSettings: isOwner || isAdmin,
+    isAdmin,
+    isOrganisationProject,
+    isOwner,
+  };
 }
 
 export async function getAccessibleProjectByConceptProjectId(
