@@ -1,14 +1,8 @@
 import { randomUUID } from "node:crypto";
 
-import { and, eq, or } from "drizzle-orm";
+import { and, eq, isNull, or } from "drizzle-orm";
 
-import {
-  conceptProjects,
-  organisations,
-  roadmapItems,
-  roadmaps,
-  projects,
-} from "@/drizzle/schema";
+import { conceptProjects, organisations, roadmapItems, roadmaps, projects } from "@/drizzle/schema";
 import { getDb, type Database } from "@/lib/db";
 import {
   getConceptProjectRoadmap,
@@ -27,8 +21,10 @@ export type AccessibleProject = {
   description: string | null;
   id: string;
   name: string;
+  orgOwner: string | null;
   roadmapId: string | null;
   ubiquitousLanguageMarkdown: string | null;
+  userOwner: string | null;
 };
 
 export type ProjectRoadmap = Awaited<ReturnType<typeof getProjectRoadmap>>;
@@ -101,8 +97,10 @@ export async function getAccessibleProject(
       description: projects.description,
       id: projects.id,
       name: projects.name,
+      orgOwner: projects.orgOwner,
       roadmapId: projects.roadmapId,
       ubiquitousLanguageMarkdown: projects.ubiquitousLanguageMarkdown,
+      userOwner: projects.userOwner,
     })
     .from(projects)
     .leftJoin(organisations, eq(projects.orgOwner, organisations.id))
@@ -131,8 +129,10 @@ export async function getAccessibleProjectByConceptProjectId(
       description: projects.description,
       id: projects.id,
       name: projects.name,
+      orgOwner: projects.orgOwner,
       roadmapId: projects.roadmapId,
       ubiquitousLanguageMarkdown: projects.ubiquitousLanguageMarkdown,
+      userOwner: projects.userOwner,
     })
     .from(projects)
     .leftJoin(organisations, eq(projects.orgOwner, organisations.id))
@@ -184,29 +184,34 @@ export async function graduateConceptProjectToProject(
     throw new Error("Setup must be complete before graduation.");
   }
 
-  const existingProject = await getAccessibleProjectByConceptProjectId(viewerId, conceptProjectId, db);
+  const existingProject = await getAccessibleProjectByConceptProjectId(
+    viewerId,
+    conceptProjectId,
+    db,
+  );
 
   if (existingProject) {
     return existingProject;
   }
 
+  const [transcript, roadmapItems] = await Promise.all([
+    getConceptProjectTranscript(conceptProject.id, db),
+    getConceptProjectRoadmapItems(conceptProject.roadmapId, db),
+  ]);
+  const ubiquitousLanguageMarkdown = await generateProjectUbiquitousLanguageMarkdown({
+    description: conceptProject.description,
+    forWhomSummary: conceptProject.forWhomSummary,
+    howSummary: conceptProject.howSummary,
+    name: conceptProject.name,
+    roadmapItems,
+    setupSummary: conceptProject.setupSummary,
+    transcript,
+    whatSummary: conceptProject.whatSummary,
+  });
+
   const projectId = await db.transaction(async (tx) => {
     const roadmapId = await cloneRoadmapSnapshot(tx, conceptProject.roadmapId);
     const nextProjectId = randomUUID();
-    const [transcript, roadmapItems] = await Promise.all([
-      getConceptProjectTranscript(conceptProject.id, tx),
-      getConceptProjectRoadmapItems(conceptProject.roadmapId, tx),
-    ]);
-    const ubiquitousLanguageMarkdown = await generateProjectUbiquitousLanguageMarkdown({
-      description: conceptProject.description,
-      forWhomSummary: conceptProject.forWhomSummary,
-      howSummary: conceptProject.howSummary,
-      name: conceptProject.name,
-      roadmapItems,
-      setupSummary: conceptProject.setupSummary,
-      transcript,
-      whatSummary: conceptProject.whatSummary,
-    });
 
     await tx.insert(projects).values({
       conceptProjectId: conceptProject.id,
@@ -265,12 +270,30 @@ export async function generateAccessibleProjectUbiquitousLanguage(
     whatSummary: conceptProject?.whatSummary ?? null,
   });
 
-  await db
+  const updatedProjects = await db
     .update(projects)
     .set({ ubiquitousLanguageMarkdown })
-    .where(eq(projects.id, project.id));
+    .where(
+      and(
+        eq(projects.id, project.id),
+        project.userOwner === null
+          ? isNull(projects.userOwner)
+          : eq(projects.userOwner, project.userOwner),
+        project.orgOwner === null
+          ? isNull(projects.orgOwner)
+          : eq(projects.orgOwner, project.orgOwner),
+      ),
+    )
+    .returning({ id: projects.id });
 
-  return getAccessibleProject(viewerId, project.id, db);
+  if (updatedProjects.length === 0) {
+    throw new Error("Project could not be updated because access changed.");
+  }
+
+  return {
+    ...project,
+    ubiquitousLanguageMarkdown,
+  };
 }
 
 export async function updateAccessibleProject(
@@ -304,17 +327,17 @@ export async function updateAccessibleProject(
   }
 
   if (values.ubiquitousLanguageMarkdown !== undefined) {
-    nextValues.ubiquitousLanguageMarkdown = values.ubiquitousLanguageMarkdown?.trim() || null;
+    nextValues.ubiquitousLanguageMarkdown =
+      values.ubiquitousLanguageMarkdown === null || /^\s*$/.test(values.ubiquitousLanguageMarkdown)
+        ? null
+        : values.ubiquitousLanguageMarkdown;
   }
 
   if (Object.keys(nextValues).length === 0) {
     return project;
   }
 
-  await db
-    .update(projects)
-    .set(nextValues)
-    .where(eq(projects.id, projectId));
+  await db.update(projects).set(nextValues).where(eq(projects.id, projectId));
 
   return getAccessibleProject(viewerId, projectId, db);
 }

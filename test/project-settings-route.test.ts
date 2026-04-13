@@ -61,6 +61,32 @@ describe("PATCH /api/project/[project-id]/settings", () => {
     });
   });
 
+  it("accepts large ubiquitous language markdown payloads", async () => {
+    const markdown = `# Ubiquitous Language\n\n${"term ".repeat(7000)}`;
+
+    const response = await PATCH(
+      new Request("http://localhost/api/project/project-1/settings", {
+        body: JSON.stringify({
+          ubiquitousLanguageMarkdown: markdown,
+        }),
+        headers: {
+          "content-type": "application/json",
+        },
+        method: "PATCH",
+      }) as any,
+      {
+        params: Promise.resolve({
+          "project-id": "project-1",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(updateAccessibleProject).toHaveBeenCalledWith("viewer-1", "project-1", {
+      ubiquitousLanguageMarkdown: markdown,
+    });
+  });
+
   it("rejects an empty update payload", async () => {
     const response = await PATCH(
       new Request("http://localhost/api/project/project-1/settings", {

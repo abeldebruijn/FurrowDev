@@ -34,8 +34,17 @@ type GlossaryGroup = {
   heading: string;
 };
 
-function escapePipes(value: string) {
-  return value.replaceAll("|", "\\|");
+function sanitizeMarkdown(value: string | null | undefined) {
+  const normalized = value
+    ?.replace(/\p{Cc}+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!normalized) {
+    return "";
+  }
+
+  return normalized.replace(/[\\`*_{}[\]()#+\-!>|:=]/g, "\\$&");
 }
 
 function normalizeWhitespace(value: string | null | undefined) {
@@ -59,7 +68,25 @@ function toDefinition(value: string | null | undefined, fallback: string) {
 }
 
 function uniqueAliases(...values: Array<string | null | undefined>) {
-  return [...new Set(values.map((value) => value?.trim()).filter(Boolean) as string[])];
+  return [
+    ...new Set(values.map((value) => normalizeWhitespace(value)).filter(Boolean) as string[]),
+  ];
+}
+
+function hasRequiredMarkdownSections(markdown: string) {
+  const normalized = markdown.trim();
+
+  return (
+    normalized.startsWith("# Ubiquitous Language") &&
+    /(^|\n)##\s+(Core terms|Glossary|Terms|Discovery terms|Roadmap vocabulary|Emerging domain terms)\s*$/m.test(
+      normalized,
+    ) &&
+    normalized.includes("| Term |") &&
+    normalized.includes("| Definition |") &&
+    normalized.includes("## Relationships") &&
+    normalized.includes("## Example dialogue") &&
+    normalized.includes("## Flagged ambiguities")
+  );
 }
 
 function createPrompt(source: ProjectUbiquitousLanguageSource) {
@@ -92,12 +119,12 @@ function createPrompt(source: ProjectUbiquitousLanguageSource) {
     "Be opinionated. Prefer canonical terms and call out ambiguities explicitly.",
     "Only output Markdown.",
     "",
-    `Project name: ${source.name?.trim() || "Untitled project"}`,
-    `Project description: ${source.description?.trim() || "No description."}`,
-    `What summary: ${source.whatSummary?.trim() || "Unknown"}`,
-    `For whom summary: ${source.forWhomSummary?.trim() || "Unknown"}`,
-    `How summary: ${source.howSummary?.trim() || "Unknown"}`,
-    `Setup summary: ${source.setupSummary?.trim() || "Unknown"}`,
+    `Project name: ${normalizeWhitespace(source.name) || "Untitled project"}`,
+    `Project description: ${normalizeWhitespace(source.description) || "No description."}`,
+    `What summary: ${normalizeWhitespace(source.whatSummary) || "Unknown"}`,
+    `For whom summary: ${normalizeWhitespace(source.forWhomSummary) || "Unknown"}`,
+    `How summary: ${normalizeWhitespace(source.howSummary) || "Unknown"}`,
+    `Setup summary: ${normalizeWhitespace(source.setupSummary) || "Unknown"}`,
     "Roadmap items:",
     roadmapText,
     "Discovery transcript:",
@@ -106,14 +133,19 @@ function createPrompt(source: ProjectUbiquitousLanguageSource) {
 }
 
 function extractQuotedTerms(text: string) {
-  return [...text.matchAll(/"([^"]{3,80})"/g)].map((match) => match[1]?.trim() || "").filter(Boolean);
+  return [...text.matchAll(/"([^"]{3,80})"/g)]
+    .map((match) => match[1]?.trim() || "")
+    .filter(Boolean);
 }
 
 function buildRoadmapEntries(roadmapItems: ConceptRoadmapItem[]): GlossaryEntry[] {
   return roadmapItems.slice(0, 5).map((item) => ({
     aliasesToAvoid: uniqueAliases("ticket", "task"),
-    definition: toDefinition(item.description, `A roadmap capability tracked in version v${item.majorVersion}.${item.minorVersion}`),
-    term: item.name.trim(),
+    definition: toDefinition(
+      item.description,
+      `A roadmap capability tracked in version v${item.majorVersion}.${item.minorVersion}`,
+    ),
+    term: normalizeWhitespace(item.name) || "Untitled roadmap item",
   }));
 }
 
@@ -150,7 +182,8 @@ export function buildFallbackProjectUbiquitousLanguageMarkdown(
         },
         {
           aliasesToAvoid: uniqueAliases("build", "implementation"),
-          definition: "The graduated product record that owns delivery after concept discovery is complete",
+          definition:
+            "The graduated product record that owns delivery after concept discovery is complete",
           term: "Project",
         },
         {
@@ -208,7 +241,8 @@ export function buildFallbackProjectUbiquitousLanguageMarkdown(
       heading: "## Emerging domain terms",
       entries: quotedTerms.map((term) => ({
         aliasesToAvoid: uniqueAliases("feature", "thing"),
-        definition: "A concept explicitly named during discovery that should keep one consistent meaning",
+        definition:
+          "A concept explicitly named during discovery that should keep one consistent meaning",
         term,
       })),
     });
@@ -224,22 +258,26 @@ export function buildFallbackProjectUbiquitousLanguageMarkdown(
         "|------|-----------|-----------------|",
         ...group.entries.map(
           (entry) =>
-            `| **${escapePipes(entry.term)}** | ${escapePipes(entry.definition)} | ${escapePipes(entry.aliasesToAvoid.join(", ") || "None")} |`,
+            `| **${sanitizeMarkdown(entry.term)}** | ${sanitizeMarkdown(entry.definition)} | ${sanitizeMarkdown(entry.aliasesToAvoid.join(", ") || "None")} |`,
         ),
       ].join("\n"),
     )
     .join("\n\n");
 
-  const roadmapTerm = source.roadmapItems[0]?.name?.trim() || "Roadmap item";
-  const audienceTerm = "Audience";
-  const projectTerm = productName || "Project";
+  const roadmapTerm = sanitizeMarkdown(source.roadmapItems[0]?.name || "Roadmap item");
+  const audienceTerm = sanitizeMarkdown("Audience");
+  const projectTerm = sanitizeMarkdown(productName || "Project");
   const ambiguityNotes = [
     '- "project" should mean the graduated execution record; use **Concept project** for the pre-graduation discovery artifact.',
     ...(!normalizeWhitespace(source.forWhomSummary)
-      ? ['- The target **Audience** is still vague; tighten this term if a more precise actor name emerges.']
+      ? [
+          "- The target **Audience** is still vague; tighten this term if a more precise actor name emerges.",
+        ]
       : []),
     ...(!normalizeWhitespace(source.howSummary)
-      ? ['- The delivery **Approach** is still broad; split it into narrower terms if the team starts overloading the word.']
+      ? [
+          "- The delivery **Approach** is still broad; split it into narrower terms if the team starts overloading the word.",
+        ]
       : []),
   ];
 
@@ -282,7 +320,7 @@ export async function generateProjectUbiquitousLanguageMarkdown(
     });
     const markdown = result.text.trim();
 
-    if (markdown.startsWith("# Ubiquitous Language")) {
+    if (hasRequiredMarkdownSections(result.text)) {
       return markdown;
     }
   } catch {}

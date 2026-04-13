@@ -15,7 +15,7 @@ const updateSchema = z
   .object({
     description: z.string().max(600).optional(),
     name: z.string().trim().min(1).max(120).optional(),
-    ubiquitousLanguageMarkdown: z.string().max(30000).optional(),
+    ubiquitousLanguageMarkdown: z.string().optional(),
   })
   .refine(
     (value) =>

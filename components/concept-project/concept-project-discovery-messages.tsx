@@ -18,6 +18,7 @@ function MessageMarkdown({ isAgent, text }: { isAgent: boolean; text: string }) 
     <MarkdownContent
       className={isAgent ? "mt-1 text-sm leading-6 text-muted-foreground" : "mt-1 text-sm leading-6 text-background/80"}
       text={text || "..."}
+      tone={isAgent ? "default" : "inverse"}
     />
   );
 }
