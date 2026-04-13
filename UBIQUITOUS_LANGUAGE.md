@@ -2,79 +2,79 @@
 
 ## Core lifecycle
 
-| Term | Definition | Aliases to avoid |
-|------|-----------|-----------------|
-| **FurrowDev** | A cloud-hosted git platform built around realtime, agent-native project development. | App, tool, dashboard |
-| **Concept Project** | The entry-point project state where a new idea is discovered and shaped with an agent. | Draft project, idea, proposal |
-| **Project** | A full project that has graduated from a **Concept Project**. | Repo, final concept, workspace |
-| **Graduation** | The state change where a **Concept Project** becomes a **Project** and the original concept becomes a read-only record. (updated) | Promotion, conversion, publish |
-| **Discovery Flow** | The staged agent conversation that shapes a **Concept Project** before **Graduation**. (new) | Onboarding, intake, setup flow |
-| **Discovery Record** | The archived read-only **Concept Project** preserved after **Graduation**. (new) | Archive, old draft, concept copy |
+| Term                 | Definition                                                                                                                        | Aliases to avoid                 |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| **FurrowDev**        | A cloud-hosted git platform built around realtime, agent-native project development.                                              | App, tool, dashboard             |
+| **Concept Project**  | The entry-point project state where a new idea is discovered and shaped with an agent.                                            | Draft project, idea, proposal    |
+| **Project**          | A full project that has graduated from a **Concept Project**.                                                                     | Repo, final concept, workspace   |
+| **Graduation**       | The state change where a **Concept Project** becomes a **Project** and the original concept becomes a read-only record. (updated) | Promotion, conversion, publish   |
+| **Discovery Flow**   | The staged agent conversation that shapes a **Concept Project** before **Graduation**. (new)                                      | Onboarding, intake, setup flow   |
+| **Discovery Record** | The archived read-only **Concept Project** preserved after **Graduation**. (new)                                                  | Archive, old draft, concept copy |
 
 ## Discovery flow
 
-| Term | Definition | Aliases to avoid |
-|------|-----------|-----------------|
-| **Stage** | One named step inside the **Discovery Flow**. (new) | Step, phase, screen |
-| **What Stage** | The **Stage** where the **Agent** learns what the project is about. (new) | Idea stage, concept stage |
-| **For Whom Stage** | The **Stage** where the **Agent** learns the target audience and expected scale. (new) | Audience stage, user stage |
-| **How Stage** | The **Stage** where the **Agent** learns the high-level technical shape and constraints. (new) | Technical stage, implementation stage |
-| **Setup Stage** | The **Stage** where the bootstrap structure, stack, and core tooling are defined before optional pressure-testing or **Graduation**. (updated) | Build stage, next step |
-| **Grill Me Stage** | The optional post-setup **Stage** where the plan is pressure-tested for missing assumptions, constraints, and tradeoffs. (new) | Review stage, challenge stage, QA stage |
-| **Stage Summary** | The persisted understanding captured at the end of a **Stage**. (new) | Notes, recap, conclusion |
-| **What Summary** | The **Stage Summary** for the **What Stage**. (new) | Concept summary |
-| **For Whom Summary** | The **Stage Summary** for the **For Whom Stage**. (new) | Audience summary |
-| **How Summary** | The **Stage Summary** for the **How Stage**. (new) | Technical summary |
-| **Setup Summary** | The **Stage Summary** for the **Setup Stage** or a refined summary saved from the **Grill Me Stage**. (new) | Bootstrap notes, stack summary |
+| Term                 | Definition                                                                                                                                     | Aliases to avoid                        |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| **Stage**            | One named step inside the **Discovery Flow**. (new)                                                                                            | Step, phase, screen                     |
+| **What Stage**       | The **Stage** where the **Agent** learns what the project is about. (new)                                                                      | Idea stage, concept stage               |
+| **For Whom Stage**   | The **Stage** where the **Agent** learns the target audience and expected scale. (new)                                                         | Audience stage, user stage              |
+| **How Stage**        | The **Stage** where the **Agent** learns the high-level technical shape and constraints. (new)                                                 | Technical stage, implementation stage   |
+| **Setup Stage**      | The **Stage** where the bootstrap structure, stack, and core tooling are defined before optional pressure-testing or **Graduation**. (updated) | Build stage, next step                  |
+| **Grill Me Stage**   | The optional post-setup **Stage** where the plan is pressure-tested for missing assumptions, constraints, and tradeoffs. (new)                 | Review stage, challenge stage, QA stage |
+| **Stage Summary**    | The persisted understanding captured at the end of a **Stage**. (new)                                                                          | Notes, recap, conclusion                |
+| **What Summary**     | The **Stage Summary** for the **What Stage**. (new)                                                                                            | Concept summary                         |
+| **For Whom Summary** | The **Stage Summary** for the **For Whom Stage**. (new)                                                                                        | Audience summary                        |
+| **How Summary**      | The **Stage Summary** for the **How Stage**. (new)                                                                                             | Technical summary                       |
+| **Setup Summary**    | The **Stage Summary** for the **Setup Stage** or a refined summary saved from the **Grill Me Stage**. (new)                                    | Bootstrap notes, stack summary          |
 
 ## Discovery artifacts
 
-| Term | Definition | Aliases to avoid |
-|------|-----------|-----------------|
-| **Chat** | The conversation attached to one **Concept Project**. (updated) | Thread, prompt |
-| **Transcript** | The ordered history of all **Messages** in a **Chat**. (new) | Chat log, history dump |
-| **Message** | A single entry in a **Chat** written by a **User** or an **Agent**. | Comment, line, event |
-| **Name** | The canonical title of a **Concept Project** or **Project**. | Label, slug, heading |
-| **Description** | The short narrative summary of a **Concept Project** or **Project**. | Notes, body, overview |
-| **Roadmap** | The structured plan attached to a **Concept Project** and organized into versioned milestones. (updated) | Plan, checklist, task list |
-| **Roadmap Item** | A single scoped item within a **Roadmap**. | Task, step, ticket |
-| **Roadmap Version** | A numbered milestone inside a **Roadmap** identified by `major.minor`. (new) | Milestone number, version node |
-| **Current Roadmap Version** | The persisted **Roadmap Version** that represents the latest active milestone in a **Roadmap**. (new) | Latest version, active milestone |
-| **Setup Roadmap** | The `v0.0` slice of the **Roadmap** that contains bootstrap and tooling tasks rather than product features. (new) | Bootstrap plan, install checklist |
-| **Version Trail** | The ordered visual sequence of **Roadmap Versions** shown in the concept project experience. (new) | Timeline, roadmap strip |
-| **Generated Name Ideas** | A temporary list of candidate **Names** proposed inside **Concept Project Settings**. (new) | Suggestions, options, alternates |
-| **Generated Description** | The current persisted **Description** shown in **Concept Project Settings**. (new) | Summary text, project blurb |
+| Term                        | Definition                                                                                                        | Aliases to avoid                  |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| **Chat**                    | The conversation attached to one **Concept Project**. (updated)                                                   | Thread, prompt                    |
+| **Transcript**              | The ordered history of all **Messages** in a **Chat**. (new)                                                      | Chat log, history dump            |
+| **Message**                 | A single entry in a **Chat** written by a **User** or an **Agent**.                                               | Comment, line, event              |
+| **Name**                    | The canonical title of a **Concept Project** or **Project**.                                                      | Label, slug, heading              |
+| **Description**             | The short narrative summary of a **Concept Project** or **Project**.                                              | Notes, body, overview             |
+| **Roadmap**                 | The structured plan attached to a **Concept Project** and organized into versioned milestones. (updated)          | Plan, checklist, task list        |
+| **Roadmap Item**            | A single scoped item within a **Roadmap**.                                                                        | Task, step, ticket                |
+| **Roadmap Version**         | A numbered milestone inside a **Roadmap** identified by `major.minor`. (new)                                      | Milestone number, version node    |
+| **Current Roadmap Version** | The persisted **Roadmap Version** that represents the latest active milestone in a **Roadmap**. (new)             | Latest version, active milestone  |
+| **Setup Roadmap**           | The `v0.0` slice of the **Roadmap** that contains bootstrap and tooling tasks rather than product features. (new) | Bootstrap plan, install checklist |
+| **Version Trail**           | The ordered visual sequence of **Roadmap Versions** shown in the concept project experience. (new)                | Timeline, roadmap strip           |
+| **Generated Name Ideas**    | A temporary list of candidate **Names** proposed inside **Concept Project Settings**. (new)                       | Suggestions, options, alternates  |
+| **Generated Description**   | The current persisted **Description** shown in **Concept Project Settings**. (new)                                | Summary text, project blurb       |
 
 ## Actions
 
-| Term | Definition | Aliases to avoid |
-|------|-----------|-----------------|
-| **Grill Me** | The action that moves a **Concept Project** into the **Grill Me Stage** for deeper questioning. (new) | Review, inspect, challenge |
-| **Graduate to Project** | The action that performs **Graduation** and creates the real **Project**. (new) | Finish, launch, convert button |
+| Term                    | Definition                                                                                            | Aliases to avoid               |
+| ----------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------ |
+| **Grill Me**            | The action that moves a **Concept Project** into the **Grill Me Stage** for deeper questioning. (new) | Review, inspect, challenge     |
+| **Graduate to Project** | The action that performs **Graduation** and creates the real **Project**. (new)                       | Finish, launch, convert button |
 
 ## Management
 
-| Term | Definition | Aliases to avoid |
-|------|-----------|-----------------|
-| **Concept Project Settings** | The dialog where a **User** can manage metadata for a **Concept Project**. (new) | Preferences, config, edit modal |
-| **Delete Concept Project** | The irreversible action that removes a **Concept Project** and its dependent records. (new) | Remove project, archive, close |
+| Term                         | Definition                                                                                  | Aliases to avoid                |
+| ---------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------- |
+| **Concept Project Settings** | The dialog where a **User** can manage metadata for a **Concept Project**. (new)            | Preferences, config, edit modal |
+| **Delete Concept Project**   | The irreversible action that removes a **Concept Project** and its dependent records. (new) | Remove project, archive, close  |
 
 ## Roadmap interface
 
-| Term | Definition | Aliases to avoid |
-|------|-----------|-----------------|
-| **Roadmap Rail** | The fixed top-of-screen UI that displays the **Version Trail** for a **Concept Project**. (new) | Sticky header, timeline bar, roadmap parent |
-| **Roadmap Node** | One visual card in the **Roadmap Rail** representing a single **Roadmap Version**. (new) | Box, item card, milestone card |
-| **Collapsed Rail** | The compact **Roadmap Rail** state that shows version numbers only. (new) | Minimized rail, compressed timeline |
-| **Expanded Rail** | The detailed **Roadmap Rail** state that shows version numbers and short labels. (new) | Open rail, full timeline |
+| Term               | Definition                                                                                      | Aliases to avoid                            |
+| ------------------ | ----------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| **Roadmap Rail**   | The fixed top-of-screen UI that displays the **Version Trail** for a **Concept Project**. (new) | Sticky header, timeline bar, roadmap parent |
+| **Roadmap Node**   | One visual card in the **Roadmap Rail** representing a single **Roadmap Version**. (new)        | Box, item card, milestone card              |
+| **Collapsed Rail** | The compact **Roadmap Rail** state that shows version numbers only. (new)                       | Minimized rail, compressed timeline         |
+| **Expanded Rail**  | The detailed **Roadmap Rail** state that shows version numbers and short labels. (new)          | Open rail, full timeline                    |
 
 ## Actors
 
-| Term | Definition | Aliases to avoid |
-|------|-----------|-----------------|
-| **User** | The authenticated person who creates and owns work in FurrowDev. | Account, person, customer |
-| **Agent** | The system participant that helps discover a project and generates initial project artifacts. | Bot, assistant, AI |
-| **Organisation** | A group owner that can own a **Concept Project** or **Project** instead of a single **User**. | Team, workspace, company |
+| Term             | Definition                                                                                    | Aliases to avoid          |
+| ---------------- | --------------------------------------------------------------------------------------------- | ------------------------- |
+| **User**         | The authenticated person who creates and owns work in FurrowDev.                              | Account, person, customer |
+| **Agent**        | The system participant that helps discover a project and generates initial project artifacts. | Bot, assistant, AI        |
+| **Organisation** | A group owner that can own a **Concept Project** or **Project** instead of a single **User**. | Team, workspace, company  |
 
 ## Relationships
 

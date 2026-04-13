@@ -4,9 +4,7 @@ import postgres from "postgres";
 import * as schema from "@/drizzle/schema";
 
 declare global {
-  // eslint-disable-next-line no-var
   var __furrowSql: postgres.Sql | undefined;
-  // eslint-disable-next-line no-var
   var __furrowDb: ReturnType<typeof drizzle<typeof schema>> | undefined;
 }
 

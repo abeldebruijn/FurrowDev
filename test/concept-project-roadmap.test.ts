@@ -243,9 +243,7 @@ describe("normalizeRoadmapItemName", () => {
   });
 
   it("strips textual version prefixes from roadmap titles", () => {
-    expect(normalizeRoadmapItemName("version 2.0 - Enterprise scale")).toBe(
-      "Enterprise scale",
-    );
+    expect(normalizeRoadmapItemName("version 2.0 - Enterprise scale")).toBe("Enterprise scale");
   });
 
   it("keeps normal titles unchanged", () => {

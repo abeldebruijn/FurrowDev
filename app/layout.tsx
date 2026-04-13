@@ -50,7 +50,12 @@ export default async function RootLayout({
               : typeof claims?.org_id === "string"
                 ? claims.org_id
                 : undefined,
-          role: typeof auth.role === "string" ? auth.role : typeof claims?.role === "string" ? claims.role : undefined,
+          role:
+            typeof auth.role === "string"
+              ? auth.role
+              : typeof claims?.role === "string"
+                ? claims.role
+                : undefined,
           roles: auth.roles ?? getStringArray(claims?.roles),
           permissions: auth.permissions ?? getStringArray(claims?.permissions),
         }
@@ -60,7 +65,12 @@ export default async function RootLayout({
     <html lang="en" className="h-full" suppressHydrationWarning>
       <body className="min-h-full antialiased">
         <AuthKitProvider initialAuth={initialAuth}>
-          <ThemeProvider attribute="class" defaultTheme="system" disableTransitionOnChange enableSystem>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            disableTransitionOnChange
+            enableSystem
+          >
             <TooltipProvider>
               <ZeroProviderClient
                 cacheURL={zeroEnabled ? process.env.NEXT_PUBLIC_ZERO_CACHE_URL : undefined}
