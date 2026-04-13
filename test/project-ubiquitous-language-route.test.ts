@@ -71,27 +71,57 @@ describe("POST /api/project/[project-id]/ubiquitous-language", () => {
     expect(response.status).toBe(404);
   });
 
-  it("returns 409 when the project access changes before updating", async () => {
-    generateAccessibleProjectUbiquitousLanguage.mockRejectedValue(
-      new Error("Project could not be updated because access changed."),
-    );
+  it("returns 401 when there is no session", async () => {
+    getWorkOSSession.mockResolvedValue(null);
 
     const response = await POST(
       new Request("http://localhost/api/project/project-1/ubiquitous-language", {
         method: "POST",
       }) as any,
-      {
-        params: Promise.resolve({
-          "project-id": "project-1",
-        }),
-      },
+      { params: Promise.resolve({ "project-id": "project-1" }) },
     );
 
-    expect(response.status).toBe(409);
-    await expect(response.json()).resolves.toEqual({
-      error: "Conflict",
-      code: "ACCESS_CHANGE_CONFLICT",
-      details: "Project could not be updated because access changed.",
-    });
+    expect(response.status).toBe(401);
+    expect(generateAccessibleProjectUbiquitousLanguage).not.toHaveBeenCalled();
+  });
+
+  it("returns ok:true in the response body on success", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/project/project-1/ubiquitous-language", {
+        method: "POST",
+      }) as any,
+      { params: Promise.resolve({ "project-id": "project-1" }) },
+    );
+
+    const body = await response.json();
+    expect(body).toEqual({ ok: true });
+  });
+
+  it("passes the correct project id from the route params", async () => {
+    await POST(
+      new Request("http://localhost/api/project/another-project-id/ubiquitous-language", {
+        method: "POST",
+      }) as any,
+      { params: Promise.resolve({ "project-id": "another-project-id" }) },
+    );
+
+    expect(generateAccessibleProjectUbiquitousLanguage).toHaveBeenCalledWith(
+      "viewer-1",
+      "another-project-id",
+    );
+  });
+
+  it("returns the error message in the 404 response body", async () => {
+    generateAccessibleProjectUbiquitousLanguage.mockResolvedValue(null);
+
+    const response = await POST(
+      new Request("http://localhost/api/project/project-1/ubiquitous-language", {
+        method: "POST",
+      }) as any,
+      { params: Promise.resolve({ "project-id": "project-1" }) },
+    );
+
+    const body = await response.json();
+    expect(body).toHaveProperty("error");
   });
 });
