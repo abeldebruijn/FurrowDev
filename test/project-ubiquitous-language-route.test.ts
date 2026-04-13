@@ -70,4 +70,28 @@ describe("POST /api/project/[project-id]/ubiquitous-language", () => {
 
     expect(response.status).toBe(404);
   });
+
+  it("returns 409 when the project access changes before updating", async () => {
+    generateAccessibleProjectUbiquitousLanguage.mockRejectedValue(
+      new Error("Project could not be updated because access changed."),
+    );
+
+    const response = await POST(
+      new Request("http://localhost/api/project/project-1/ubiquitous-language", {
+        method: "POST",
+      }) as any,
+      {
+        params: Promise.resolve({
+          "project-id": "project-1",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      error: "Conflict",
+      code: "ACCESS_CHANGE_CONFLICT",
+      details: "Project could not be updated because access changed.",
+    });
+  });
 });
