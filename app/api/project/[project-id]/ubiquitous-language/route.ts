@@ -10,10 +10,7 @@ type ProjectUbiquitousLanguageRouteProps = {
   }>;
 };
 
-export async function POST(
-  request: NextRequest,
-  { params }: ProjectUbiquitousLanguageRouteProps,
-) {
+export async function POST(request: NextRequest, { params }: ProjectUbiquitousLanguageRouteProps) {
   const session = await getWorkOSSession(request);
 
   if (!session) {

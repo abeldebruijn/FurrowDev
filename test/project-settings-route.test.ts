@@ -1,14 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-const {
-  updateAccessibleProject,
-  getWorkOSSession,
-  upsertViewerFromWorkOSSession,
-} = vi.hoisted(() => ({
-  getWorkOSSession: vi.fn(),
-  updateAccessibleProject: vi.fn(),
-  upsertViewerFromWorkOSSession: vi.fn(),
-}));
+const { updateAccessibleProject, getWorkOSSession, upsertViewerFromWorkOSSession } = vi.hoisted(
+  () => ({
+    getWorkOSSession: vi.fn(),
+    updateAccessibleProject: vi.fn(),
+    upsertViewerFromWorkOSSession: vi.fn(),
+  }),
+);
 
 vi.mock("@/lib/project/server", () => ({
   updateAccessibleProject,

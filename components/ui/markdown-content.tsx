@@ -30,11 +30,7 @@ const toneClasses = {
   },
 } as const;
 
-export function MarkdownContent({
-  className,
-  text,
-  tone = "default",
-}: MarkdownContentProps) {
+export function MarkdownContent({ className, text, tone = "default" }: MarkdownContentProps) {
   const classes = toneClasses[tone];
 
   return (
@@ -67,7 +63,9 @@ export function MarkdownContent({
             }
 
             return (
-              <code {...props} className={classes.code}>{children}</code>
+              <code {...props} className={classes.code}>
+                {children}
+              </code>
             );
           },
           em: ({ node: _node, ...props }) => <em {...props} className="italic" />,

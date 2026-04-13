@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-const { generateAccessibleProjectUbiquitousLanguage, getWorkOSSession, upsertViewerFromWorkOSSession } =
-  vi.hoisted(() => ({
-    generateAccessibleProjectUbiquitousLanguage: vi.fn(),
-    getWorkOSSession: vi.fn(),
-    upsertViewerFromWorkOSSession: vi.fn(),
-  }));
+const {
+  generateAccessibleProjectUbiquitousLanguage,
+  getWorkOSSession,
+  upsertViewerFromWorkOSSession,
+} = vi.hoisted(() => ({
+  generateAccessibleProjectUbiquitousLanguage: vi.fn(),
+  getWorkOSSession: vi.fn(),
+  upsertViewerFromWorkOSSession: vi.fn(),
+}));
 
 vi.mock("@/lib/project/server", () => ({
   generateAccessibleProjectUbiquitousLanguage,

@@ -7,7 +7,8 @@ describe("buildFallbackProjectUbiquitousLanguageMarkdown", () => {
     const markdown = buildFallbackProjectUbiquitousLanguageMarkdown({
       description: "A product studio that turns early concepts into staffed delivery projects.",
       forWhomSummary: "Independent founders and small product teams who need help shipping.",
-      howSummary: 'The team uses a "graduation" workflow that locks discovery language before delivery.',
+      howSummary:
+        'The team uses a "graduation" workflow that locks discovery language before delivery.',
       name: "Furrow",
       roadmapItems: [
         {
@@ -24,7 +25,8 @@ describe("buildFallbackProjectUbiquitousLanguageMarkdown", () => {
           type: "person",
         },
       ],
-      whatSummary: 'A workflow for turning a concept into a real delivery track around "graduation".',
+      whatSummary:
+        'A workflow for turning a concept into a real delivery track around "graduation".',
     });
 
     expect(markdown).toContain("# Ubiquitous Language");

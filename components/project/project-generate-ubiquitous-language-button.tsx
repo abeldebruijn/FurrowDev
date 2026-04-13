@@ -34,9 +34,7 @@ export function ProjectGenerateUbiquitousLanguageButton({
 
       router.refresh();
     } catch (error) {
-      setError(
-        error instanceof Error ? error.message : "Failed to generate ubiquitous language.",
-      );
+      setError(error instanceof Error ? error.message : "Failed to generate ubiquitous language.");
     } finally {
       setIsGenerating(false);
     }
