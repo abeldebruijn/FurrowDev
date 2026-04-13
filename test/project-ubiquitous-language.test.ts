@@ -13,7 +13,8 @@ describe("buildFallbackProjectUbiquitousLanguageMarkdown", () => {
     const markdown = buildFallbackProjectUbiquitousLanguageMarkdown({
       description: "A product studio that turns early concepts into staffed delivery projects.",
       forWhomSummary: "Independent founders and small product teams who need help shipping.",
-      howSummary: 'The team uses a "graduation" workflow that locks discovery language before delivery.',
+      howSummary:
+        'The team uses a "graduation" workflow that locks discovery language before delivery.',
       name: "Furrow",
       roadmapItems: [
         {
@@ -30,7 +31,8 @@ describe("buildFallbackProjectUbiquitousLanguageMarkdown", () => {
           type: "person",
         },
       ],
-      whatSummary: 'A workflow for turning a concept into a real delivery track around "graduation".',
+      whatSummary:
+        'A workflow for turning a concept into a real delivery track around "graduation".',
     });
 
     expect(markdown).toContain("# Ubiquitous Language");
@@ -74,7 +76,6 @@ describe("buildFallbackProjectUbiquitousLanguageMarkdown", () => {
 
     expect(markdown).not.toContain("The target **Audience** is still vague");
     expect(markdown).not.toContain("The delivery **Approach** is still broad");
-    // Always-present ambiguity note should still be present
     expect(markdown).toContain('"project" should mean the graduated execution record');
   });
 
@@ -132,8 +133,6 @@ describe("buildFallbackProjectUbiquitousLanguageMarkdown", () => {
     });
 
     const emergingSection = markdown.split("## Emerging domain terms")[1] ?? "";
-    // Only the first 3 across whatSummary, forWhomSummary, howSummary should appear
-    // whatSummary: delta, forWhomSummary: alpha, beta — that's 3 already; gamma should be dropped
     const rowMatches = emergingSection.match(/\| \*\*/g) ?? [];
     expect(rowMatches.length).toBe(3);
   });
@@ -175,7 +174,6 @@ describe("buildFallbackProjectUbiquitousLanguageMarkdown", () => {
       whatSummary: null,
     });
 
-    // Items 0-4 appear, Items 5 and 6 are dropped
     expect(markdown).toContain("| **Item 4** |");
     expect(markdown).not.toContain("| **Item 5** |");
     expect(markdown).not.toContain("| **Item 6** |");
@@ -211,7 +209,6 @@ describe("buildFallbackProjectUbiquitousLanguageMarkdown", () => {
       whatSummary: null,
     });
 
-    // The line about "versioned capabilities" should be absent when no items exist
     expect(markdown).not.toContain("versioned capabilities");
   });
 
@@ -227,12 +224,11 @@ describe("buildFallbackProjectUbiquitousLanguageMarkdown", () => {
       whatSummary: null,
     });
 
-    // The roadmap definition should be derived from setupSummary
     expect(markdown).toContain("The roadmap is the execution contract");
   });
 
   it("truncates very long definitions to 220 characters", () => {
-    const longDescription = "Word ".repeat(50); // 250 chars
+    const longDescription = "Word ".repeat(50);
     const markdown = buildFallbackProjectUbiquitousLanguageMarkdown({
       description: longDescription,
       forWhomSummary: null,
@@ -244,7 +240,6 @@ describe("buildFallbackProjectUbiquitousLanguageMarkdown", () => {
       whatSummary: null,
     });
 
-    // The product name entry definition should be truncated with ...
     expect(markdown).toContain("...");
   });
 
@@ -260,7 +255,6 @@ describe("buildFallbackProjectUbiquitousLanguageMarkdown", () => {
       whatSummary: null,
     });
 
-    // "Concept project" and "Project" rows are always present
     expect(markdown).toContain("| **Concept project** |");
     expect(markdown).toContain("| **Project** |");
   });
@@ -288,15 +282,12 @@ describe("buildFallbackProjectUbiquitousLanguageMarkdown", () => {
       forWhomSummary: null,
       howSummary: null,
       name: null,
-      roadmapItems: [
-        { description: null, majorVersion: 3, minorVersion: 2, name: "No-desc item" },
-      ],
+      roadmapItems: [{ description: null, majorVersion: 3, minorVersion: 2, name: "No-desc item" }],
       setupSummary: null,
       transcript: [],
       whatSummary: null,
     });
 
-    // Fallback definition includes the version
     expect(markdown).toContain("v3.2");
   });
 });
@@ -307,7 +298,12 @@ describe("generateProjectUbiquitousLanguageMarkdown", () => {
     forWhomSummary: null,
     howSummary: null,
     name: "TestProject",
-    roadmapItems: [] as { description: string | null; majorVersion: number; minorVersion: number; name: string }[],
+    roadmapItems: [] as {
+      description: string | null;
+      majorVersion: number;
+      minorVersion: number;
+      name: string;
+    }[],
     setupSummary: null,
     transcript: [] as { message: string; type: "agent" | "person" }[],
     whatSummary: null,
@@ -328,7 +324,6 @@ describe("generateProjectUbiquitousLanguageMarkdown", () => {
     const result = await generateProjectUbiquitousLanguageMarkdown(minimalSource);
 
     expect(result).toContain("# Ubiquitous Language");
-    // Fallback always includes the Core terms section
     expect(result).toContain("## Core terms");
   });
 

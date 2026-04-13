@@ -53,9 +53,7 @@ export function getConceptProjectStageIndex(stage: ConceptProjectStage) {
   return conceptProjectStages.indexOf(stage);
 }
 
-export function getNextConceptProjectStage(
-  stage: (typeof conceptProjectLinearStages)[number],
-) {
+export function getNextConceptProjectStage(stage: (typeof conceptProjectLinearStages)[number]) {
   const nextStage = conceptProjectLinearStages[conceptProjectLinearStages.indexOf(stage) + 1];
 
   if (!nextStage) {

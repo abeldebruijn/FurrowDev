@@ -29,6 +29,7 @@ import {
 import { getSetupRoadmapCurrentVersion } from "@/lib/concept-project/setup";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+type Queryable = Database | Transaction;
 
 export type AccessibleConceptProject = {
   chatId: string;
@@ -181,7 +182,7 @@ export async function getConceptProjectViewerName(viewerId: string, db: Database
 
 export async function getConceptProjectTranscript(
   conceptProjectId: string,
-  db: Database = getDb(),
+  db: Queryable = getDb(),
 ) {
   return db
     .select({
@@ -248,7 +249,7 @@ export async function deleteAccessibleConceptProject(
 
 export async function getConceptProjectRoadmapItems(
   roadmapId: string | null,
-  db: Database = getDb(),
+  db: Queryable = getDb(),
 ) {
   if (!roadmapId) {
     return [];
@@ -267,7 +268,7 @@ export async function getConceptProjectRoadmapItems(
     .orderBy(roadmapItems.majorVersion, roadmapItems.minorVersion, roadmapItems.name);
 }
 
-export async function getConceptProjectRoadmap(roadmapId: string | null, db: Database = getDb()) {
+export async function getConceptProjectRoadmap(roadmapId: string | null, db: Queryable = getDb()) {
   if (!roadmapId) {
     return null;
   }

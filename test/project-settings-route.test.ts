@@ -1,14 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-const {
-  updateAccessibleProject,
-  getWorkOSSession,
-  upsertViewerFromWorkOSSession,
-} = vi.hoisted(() => ({
-  getWorkOSSession: vi.fn(),
-  updateAccessibleProject: vi.fn(),
-  upsertViewerFromWorkOSSession: vi.fn(),
-}));
+const { updateAccessibleProject, getWorkOSSession, upsertViewerFromWorkOSSession } = vi.hoisted(
+  () => ({
+    getWorkOSSession: vi.fn(),
+    updateAccessibleProject: vi.fn(),
+    upsertViewerFromWorkOSSession: vi.fn(),
+  }),
+);
 
 vi.mock("@/lib/project/server", () => ({
   updateAccessibleProject,
@@ -58,6 +56,32 @@ describe("PATCH /api/project/[project-id]/settings", () => {
     expect(response.status).toBe(200);
     expect(updateAccessibleProject).toHaveBeenCalledWith("viewer-1", "project-1", {
       ubiquitousLanguageMarkdown: "# Ubiquitous Language\n\n## Core terms",
+    });
+  });
+
+  it("accepts large ubiquitous language markdown payloads", async () => {
+    const markdown = `# Ubiquitous Language\n\n${"term ".repeat(7000)}`;
+
+    const response = await PATCH(
+      new Request("http://localhost/api/project/project-1/settings", {
+        body: JSON.stringify({
+          ubiquitousLanguageMarkdown: markdown,
+        }),
+        headers: {
+          "content-type": "application/json",
+        },
+        method: "PATCH",
+      }) as any,
+      {
+        params: Promise.resolve({
+          "project-id": "project-1",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(updateAccessibleProject).toHaveBeenCalledWith("viewer-1", "project-1", {
+      ubiquitousLanguageMarkdown: markdown,
     });
   });
 

@@ -3,7 +3,9 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
 import { ConceptProjectRoadmapRail } from "@/components/concept-project/concept-project-roadmap-rail";
+import { ProjectGenerateUbiquitousLanguageButton } from "@/components/project/project-generate-ubiquitous-language-button";
 import { ProjectSettings } from "@/components/project/project-settings";
+import { MarkdownContent } from "@/components/ui/markdown-content";
 import { SiteHeader } from "@/components/ui/site-header";
 import { getDb } from "@/lib/db";
 import {
@@ -69,6 +71,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
           description={project.description}
           name={project.name}
           projectId={project.id}
+          ubiquitousLanguageMarkdown={project.ubiquitousLanguageMarkdown}
         />
       </SiteHeader>
 
@@ -106,6 +109,34 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
               {getDescription(project.description)}
             </p>
           </div>
+        </section>
+
+        <section className="space-y-3">
+          <div className="space-y-1">
+            <h2 className="text-lg font-semibold tracking-tight text-foreground">
+              Ubiquitous Language
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              This glossary is seeded during graduation and can be refined as the project language
+              hardens.
+            </p>
+          </div>
+
+          {project.ubiquitousLanguageMarkdown ? (
+            <div className="rounded-2xl border border-border bg-muted/30 px-4 py-4">
+              <MarkdownContent
+                className="space-y-4 text-sm leading-6 text-foreground"
+                text={project.ubiquitousLanguageMarkdown}
+              />
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                No ubiquitous language has been recorded yet.
+              </p>
+              <ProjectGenerateUbiquitousLanguageButton projectId={project.id} />
+            </div>
+          )}
         </section>
       </main>
     </>

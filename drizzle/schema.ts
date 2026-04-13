@@ -132,6 +132,7 @@ export const projects = pgTable(
     id: uuid("id").primaryKey(),
     name: text("name").notNull(),
     description: text("description"),
+    ubiquitousLanguageMarkdown: text("ubiquitous_language_markdown"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     roadmapId: uuid("roadmap_id").references(() => roadmaps.id, { onDelete: "set null" }),
     conceptProjectId: uuid("concept_project_id").references(() => conceptProjects.id, {

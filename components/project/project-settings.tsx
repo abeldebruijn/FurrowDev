@@ -20,12 +20,21 @@ type ProjectSettingsProps = {
   description: string | null;
   name: string;
   projectId: string;
+  ubiquitousLanguageMarkdown: string | null;
 };
 
-export function ProjectSettings({ description, name, projectId }: ProjectSettingsProps) {
+export function ProjectSettings({
+  description,
+  name,
+  projectId,
+  ubiquitousLanguageMarkdown,
+}: ProjectSettingsProps) {
   const router = useRouter();
   const [draftDescription, setDraftDescription] = useState(description ?? "");
   const [draftName, setDraftName] = useState(name);
+  const [draftUbiquitousLanguageMarkdown, setDraftUbiquitousLanguageMarkdown] = useState(
+    ubiquitousLanguageMarkdown ?? "",
+  );
   const [error, setError] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -34,9 +43,10 @@ export function ProjectSettings({ description, name, projectId }: ProjectSetting
     if (!isOpen) {
       setDraftDescription(description ?? "");
       setDraftName(name);
+      setDraftUbiquitousLanguageMarkdown(ubiquitousLanguageMarkdown ?? "");
       setError(null);
     }
-  }, [description, isOpen, name]);
+  }, [description, isOpen, name, ubiquitousLanguageMarkdown]);
 
   async function handleSave() {
     if (!draftName.trim()) {
@@ -52,6 +62,7 @@ export function ProjectSettings({ description, name, projectId }: ProjectSetting
         body: JSON.stringify({
           description: draftDescription,
           name: draftName,
+          ubiquitousLanguageMarkdown: draftUbiquitousLanguageMarkdown,
         }),
         headers: {
           "content-type": "application/json",
@@ -106,6 +117,21 @@ export function ProjectSettings({ description, name, projectId }: ProjectSetting
               id="project-description"
               onChange={(event) => setDraftDescription(event.target.value)}
               value={draftDescription}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label
+              className="text-sm font-medium text-foreground"
+              htmlFor="project-ubiquitous-language"
+            >
+              Ubiquitous language
+            </label>
+            <textarea
+              className="min-h-80 w-full rounded-xl border bg-background px-3 py-2 font-mono text-sm outline-none focus:border-foreground"
+              id="project-ubiquitous-language"
+              onChange={(event) => setDraftUbiquitousLanguageMarkdown(event.target.value)}
+              value={draftUbiquitousLanguageMarkdown}
             />
           </div>
 
