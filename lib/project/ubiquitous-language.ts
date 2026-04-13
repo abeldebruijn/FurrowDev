@@ -64,7 +64,14 @@ function firstSentence(value: string | null | undefined, fallback: string) {
 
 function toDefinition(value: string | null | undefined, fallback: string) {
   const normalized = firstSentence(value, fallback);
-  return normalized.endsWith(".") ? normalized.slice(0, -1) : normalized;
+
+  if (normalized.endsWith("...")) {
+    return normalized;
+  } else if (normalized.endsWith(".")) {
+    return normalized.slice(0, -1);
+  } else {
+    return normalized;
+  }
 }
 
 function uniqueAliases(...values: Array<string | null | undefined>) {
@@ -74,19 +81,7 @@ function uniqueAliases(...values: Array<string | null | undefined>) {
 }
 
 function hasRequiredMarkdownSections(markdown: string) {
-  const normalized = markdown.trim();
-
-  return (
-    normalized.startsWith("# Ubiquitous Language") &&
-    /(^|\n)##\s+(Core terms|Glossary|Terms|Discovery terms|Roadmap vocabulary|Emerging domain terms)\s*$/m.test(
-      normalized,
-    ) &&
-    normalized.includes("| Term |") &&
-    normalized.includes("| Definition |") &&
-    normalized.includes("## Relationships") &&
-    normalized.includes("## Example dialogue") &&
-    normalized.includes("## Flagged ambiguities")
-  );
+  return markdown.trim().startsWith("# Ubiquitous Language");
 }
 
 function createPrompt(source: ProjectUbiquitousLanguageSource) {

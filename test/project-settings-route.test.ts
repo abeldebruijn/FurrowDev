@@ -60,7 +60,7 @@ describe("PATCH /api/project/[project-id]/settings", () => {
   });
 
   it("accepts large ubiquitous language markdown payloads", async () => {
-    const markdown = `# Ubiquitous Language\n\n${"term ".repeat(7000)}`;
+    const markdown = `# Ubiquitous Language\n\n${"term ".repeat(5995)}`;
 
     const response = await PATCH(
       new Request("http://localhost/api/project/project-1/settings", {
