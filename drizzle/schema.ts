@@ -1,7 +1,9 @@
 import { relations, sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
+  boolean,
   check,
+  jsonb,
   integer,
   pgEnum,
   pgTable,
@@ -135,6 +137,9 @@ export const projects = pgTable(
     ubiquitousLanguageMarkdown: text("ubiquitous_language_markdown"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     roadmapId: uuid("roadmap_id").references(() => roadmaps.id, { onDelete: "set null" }),
+    widgetLayoutId: uuid("widget_layout_id").references(() => projectWidgetLayouts.id, {
+      onDelete: "set null",
+    }),
     conceptProjectId: uuid("concept_project_id").references(() => conceptProjects.id, {
       onDelete: "set null",
     }),
@@ -149,8 +154,29 @@ export const projects = pgTable(
     uniqueIndex("project_concept_project_unique")
       .on(table.conceptProjectId)
       .where(sql`${table.conceptProjectId} is not null`),
+    uniqueIndex("project_widget_layout_unique")
+      .on(table.widgetLayoutId)
+      .where(sql`${table.widgetLayoutId} is not null`),
   ],
 );
+
+export type ProjectWidgetLayoutItem = {
+  widgetName: string;
+  xPos: number;
+  yPos: number;
+  wSize: number;
+  hSize: number;
+};
+
+export const projectWidgetLayouts = pgTable("project_widget_layout", {
+  id: uuid("id").primaryKey(),
+  version: integer("version").notNull().default(1),
+  largeLayout: jsonb("large_layout").$type<ProjectWidgetLayoutItem[]>().notNull(),
+  mediumLayout: jsonb("medium_layout").$type<ProjectWidgetLayoutItem[] | null>(),
+  mediumAutoLayout: boolean("medium_auto_layout").notNull().default(true),
+  smallLayout: jsonb("small_layout").$type<ProjectWidgetLayoutItem[] | null>(),
+  smallAutoLayout: boolean("small_auto_layout").notNull().default(true),
+});
 
 export const admins = pgTable(
   "admins",
@@ -286,8 +312,19 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
     fields: [projects.orgOwner],
     references: [organisations.id],
   }),
+  widgetLayout: one(projectWidgetLayouts, {
+    fields: [projects.widgetLayoutId],
+    references: [projectWidgetLayouts.id],
+  }),
   admins: many(admins),
   maintainers: many(maintainers),
+}));
+
+export const projectWidgetLayoutsRelations = relations(projectWidgetLayouts, ({ one }) => ({
+  project: one(projects, {
+    fields: [projectWidgetLayouts.id],
+    references: [projects.widgetLayoutId],
+  }),
 }));
 
 export const adminsRelations = relations(admins, ({ one }) => ({
@@ -329,6 +366,8 @@ export const zeroDrizzleSchema = {
   conceptProjectChatMessagesRelations,
   projects,
   projectsRelations,
+  projectWidgetLayouts,
+  projectWidgetLayoutsRelations,
   admins,
   adminsRelations,
   maintainers,

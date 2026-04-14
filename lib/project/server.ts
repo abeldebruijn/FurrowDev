@@ -6,6 +6,7 @@ import {
   admins,
   conceptProjects,
   organisations,
+  projectWidgetLayouts,
   roadmapItems,
   roadmaps,
   projects,
@@ -40,6 +41,37 @@ export type ProjectAccess = AccessibleProject & {
   isAdmin: boolean;
   isOrganisationProject: boolean;
   isOwner: boolean;
+  layout: {
+    id: string;
+    largeLayout: {
+      hSize: number;
+      widgetName: string;
+      wSize: number;
+      xPos: number;
+      yPos: number;
+    }[];
+    mediumAutoLayout: boolean;
+    mediumLayout:
+      | {
+          hSize: number;
+          widgetName: string;
+          wSize: number;
+          xPos: number;
+          yPos: number;
+        }[]
+      | null;
+    smallAutoLayout: boolean;
+    smallLayout:
+      | {
+          hSize: number;
+          widgetName: string;
+          wSize: number;
+          xPos: number;
+          yPos: number;
+        }[]
+      | null;
+    version: number;
+  } | null;
 };
 
 export type ProjectRoadmap = Awaited<ReturnType<typeof getProjectRoadmap>>;
@@ -144,16 +176,24 @@ export async function getProjectAccess(
       createdAt: projects.createdAt,
       description: projects.description,
       id: projects.id,
+      largeLayout: projectWidgetLayouts.largeLayout,
       name: projects.name,
+      mediumAutoLayout: projectWidgetLayouts.mediumAutoLayout,
+      mediumLayout: projectWidgetLayouts.mediumLayout,
       organisationOwnerId: organisations.ownerId,
       orgOwner: projects.orgOwner,
       roadmapId: projects.roadmapId,
+      smallAutoLayout: projectWidgetLayouts.smallAutoLayout,
+      smallLayout: projectWidgetLayouts.smallLayout,
       ubiquitousLanguageMarkdown: projects.ubiquitousLanguageMarkdown,
       userOwner: projects.userOwner,
+      version: projectWidgetLayouts.version,
+      widgetLayoutId: projectWidgetLayouts.id,
     })
     .from(projects)
     .leftJoin(organisations, eq(projects.orgOwner, organisations.id))
     .leftJoin(conceptProjects, eq(projects.conceptProjectId, conceptProjects.id))
+    .leftJoin(projectWidgetLayouts, eq(projects.widgetLayoutId, projectWidgetLayouts.id))
     .leftJoin(admins, and(eq(admins.projectId, projects.id), eq(admins.userId, viewerId)))
     .where(
       and(
@@ -183,6 +223,18 @@ export async function getProjectAccess(
     createdAt: project.createdAt,
     description: project.description,
     id: project.id,
+    layout:
+      project.widgetLayoutId === null
+        ? null
+        : {
+            id: project.widgetLayoutId,
+            largeLayout: project.largeLayout ?? [],
+            mediumAutoLayout: project.mediumAutoLayout ?? true,
+            mediumLayout: project.mediumLayout,
+            smallAutoLayout: project.smallAutoLayout ?? true,
+            smallLayout: project.smallLayout,
+            version: project.version ?? 1,
+          },
     name: project.name,
     orgOwner: project.orgOwner,
     roadmapId: project.roadmapId,

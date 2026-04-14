@@ -29,5 +29,6 @@ export const getProjectPageData = cache(async (projectId: string) => {
 
   return {
     project,
+    widgetLayout: project.layout,
   };
 });
