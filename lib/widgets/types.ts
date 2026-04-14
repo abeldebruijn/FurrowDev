@@ -1,5 +1,29 @@
 import { JSX, ReactNode } from "react";
 
+export type WidgetSizeType = "short" | "medium" | "tall";
+
+export type WidgetSizeVariant = {
+  height: number;
+  key: string;
+  label: string;
+  type: WidgetSizeType;
+  width: number;
+  widgetName: string;
+};
+
+export type TemporaryWidgetItem = {
+  height: number;
+  id: string;
+  order: number;
+  widgetName: string;
+  width: number;
+};
+
+export type PackedWidgetItem = TemporaryWidgetItem & {
+  xPos: number;
+  yPos: number;
+};
+
 export class WidgetConfig {
   #name: string = "";
   #description: string = "";

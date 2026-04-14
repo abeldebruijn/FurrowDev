@@ -1,22 +1,30 @@
 "use client";
 
+import { motion, useReducedMotion } from "motion/react";
 import { useState } from "react";
 import Link from "next/link";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { widgetRegistry } from "@/components/widgets/registry";
 import { cn } from "@/lib/utils";
-import type { WidgetConfig } from "@/lib/widgets/types";
+import { getWidgetSizeVariants } from "@/lib/widgets/layout";
+import type { WidgetConfig, WidgetSizeVariant } from "@/lib/widgets/types";
 
 import { PreviewWidgetCard } from "./widget-card";
 
-type WidgetPreviewSize = {
-  type: "short" | "medium" | "tall";
-  length: number;
-};
-
-export function AddWidgetPanel({ projectId }: { projectId: string }) {
+export function AddWidgetPanel({
+  onPreviewDragEnd,
+  onPreviewDragMove,
+  onPreviewDragStart,
+  projectId,
+}: {
+  onPreviewDragEnd: (widget: WidgetSizeVariant, point: { x: number; y: number }) => void;
+  onPreviewDragMove: (widget: WidgetSizeVariant, point: { x: number; y: number }) => void;
+  onPreviewDragStart: (widget: WidgetSizeVariant) => void;
+  projectId: string;
+}) {
   const [filterWidget, setFilterWidget] = useState("");
+  const prefersReducedMotion = useReducedMotion() ?? false;
 
   const selectedWidget =
     filterWidget === ""
@@ -61,15 +69,27 @@ export function AddWidgetPanel({ projectId }: { projectId: string }) {
           </p>
 
           <Link className={cn(buttonVariants({ size: "sm" }))} href={`/project/${projectId}`}>
-            Gereed
+            Done
           </Link>
         </div>
 
         <div className="flex-1 overflow-y-auto p-5">
           {selectedWidget ? (
-            <Widgets widget={selectedWidget} />
+            <Widgets
+              onPreviewDragEnd={onPreviewDragEnd}
+              onPreviewDragMove={onPreviewDragMove}
+              onPreviewDragStart={onPreviewDragStart}
+              prefersReducedMotion={prefersReducedMotion}
+              widget={selectedWidget}
+            />
           ) : (
-            <AllWidgets widgets={widgetRegistry} />
+            <AllWidgets
+              onPreviewDragEnd={onPreviewDragEnd}
+              onPreviewDragMove={onPreviewDragMove}
+              onPreviewDragStart={onPreviewDragStart}
+              prefersReducedMotion={prefersReducedMotion}
+              widgets={widgetRegistry}
+            />
           )}
         </div>
 
@@ -83,42 +103,111 @@ export function AddWidgetPanel({ projectId }: { projectId: string }) {
   );
 }
 
-function AllWidgets({ widgets }: { widgets: WidgetConfig[] }) {
+function AllWidgets({
+  widgets,
+  onPreviewDragEnd,
+  onPreviewDragMove,
+  onPreviewDragStart,
+  prefersReducedMotion,
+}: {
+  widgets: WidgetConfig[];
+  onPreviewDragEnd: (widget: WidgetSizeVariant, point: { x: number; y: number }) => void;
+  onPreviewDragMove: (widget: WidgetSizeVariant, point: { x: number; y: number }) => void;
+  onPreviewDragStart: (widget: WidgetSizeVariant) => void;
+  prefersReducedMotion: boolean;
+}) {
   return (
     <div className="grid grid-cols-2 items-center gap-4 lg:grid-cols-2 xl:grid-cols-3">
       {widgets.flatMap((widget) =>
         getWidgetSizes(widget).map((size) => (
-          <WidgetPreview key={`${widget.options.name}-${size.type}`} widget={widget} size={size} />
+          <WidgetPreview
+            key={size.key}
+            onPreviewDragEnd={onPreviewDragEnd}
+            onPreviewDragMove={onPreviewDragMove}
+            onPreviewDragStart={onPreviewDragStart}
+            prefersReducedMotion={prefersReducedMotion}
+            size={size}
+            widget={widget}
+          />
         )),
       )}
     </div>
   );
 }
 
-function Widgets({ widget }: { widget: WidgetConfig }) {
+function Widgets({
+  widget,
+  onPreviewDragEnd,
+  onPreviewDragMove,
+  onPreviewDragStart,
+  prefersReducedMotion,
+}: {
+  widget: WidgetConfig;
+  onPreviewDragEnd: (widget: WidgetSizeVariant, point: { x: number; y: number }) => void;
+  onPreviewDragMove: (widget: WidgetSizeVariant, point: { x: number; y: number }) => void;
+  onPreviewDragStart: (widget: WidgetSizeVariant) => void;
+  prefersReducedMotion: boolean;
+}) {
   const sizes = getWidgetSizes(widget);
 
   return (
     <div className="grid grid-cols-2 items-center gap-4 lg:grid-cols-2 xl:grid-cols-3">
       {sizes.map((size) => (
-        <WidgetPreview key={`${widget.options.name}-${size.type}`} widget={widget} size={size} />
+        <WidgetPreview
+          key={size.key}
+          onPreviewDragEnd={onPreviewDragEnd}
+          onPreviewDragMove={onPreviewDragMove}
+          onPreviewDragStart={onPreviewDragStart}
+          prefersReducedMotion={prefersReducedMotion}
+          size={size}
+          widget={widget}
+        />
       ))}
     </div>
   );
 }
 
-function WidgetPreview({ widget, size }: { widget: WidgetConfig; size: WidgetPreviewSize }) {
-  const height = size.type === "tall" ? 3 : size.type === "medium" ? 2 : 1;
+function WidgetPreview({
+  widget,
+  size,
+  onPreviewDragEnd,
+  onPreviewDragMove,
+  onPreviewDragStart,
+  prefersReducedMotion,
+}: {
+  widget: WidgetConfig;
+  size: WidgetSizeVariant;
+  onPreviewDragEnd: (widget: WidgetSizeVariant, point: { x: number; y: number }) => void;
+  onPreviewDragMove: (widget: WidgetSizeVariant, point: { x: number; y: number }) => void;
+  onPreviewDragStart: (widget: WidgetSizeVariant) => void;
+  prefersReducedMotion: boolean;
+}) {
+  const transition = prefersReducedMotion
+    ? { duration: 0 }
+    : { damping: 28, mass: 0.8, stiffness: 280, type: "spring" as const };
 
-  return <PreviewWidgetCard size={size}>{widget.router({ width: 1, height })}</PreviewWidgetCard>;
+  return (
+    <motion.div
+      drag
+      dragMomentum={false}
+      dragSnapToOrigin
+      onDragEnd={(_, info) => onPreviewDragEnd(size, info.point)}
+      onDrag={(_, info) => onPreviewDragMove(size, info.point)}
+      onDragStart={() => onPreviewDragStart(size)}
+      transition={transition}
+      whileDrag={{
+        rotate: 1.5,
+        scale: 1.03,
+        zIndex: 60,
+      }}
+    >
+      <PreviewWidgetCard size={size}>
+        {widget.router({ width: size.width, height: size.height })}
+      </PreviewWidgetCard>
+    </motion.div>
+  );
 }
 
-function getWidgetSizes(widget: WidgetConfig): WidgetPreviewSize[] {
-  const { size } = widget.options;
-
-  return [
-    { length: size.short, type: "short" as const },
-    { length: size.medium, type: "medium" as const },
-    { length: size.tall, type: "tall" as const },
-  ].filter((entry): entry is WidgetPreviewSize => entry.length !== undefined);
+function getWidgetSizes(widget: WidgetConfig) {
+  return getWidgetSizeVariants(widget);
 }
