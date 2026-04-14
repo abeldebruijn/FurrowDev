@@ -3,6 +3,8 @@
 import { motion, useReducedMotion } from "motion/react";
 import { useState } from "react";
 import Link from "next/link";
+import type { RefObject } from "react";
+import { Trash2 } from "lucide-react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { widgetRegistry } from "@/components/widgets/registry";
@@ -13,11 +15,15 @@ import type { WidgetConfig, WidgetSizeVariant } from "@/lib/widgets/types";
 import { PreviewWidgetCard } from "./widget-card";
 
 export function AddWidgetPanel({
+  activeDeleteDrag,
+  deleteDropZoneRef,
   onPreviewDragEnd,
   onPreviewDragMove,
   onPreviewDragStart,
   projectId,
 }: {
+  activeDeleteDrag: boolean;
+  deleteDropZoneRef: RefObject<HTMLDivElement | null>;
   onPreviewDragEnd: (widget: WidgetSizeVariant, point: { x: number; y: number }) => void;
   onPreviewDragMove: (widget: WidgetSizeVariant, point: { x: number; y: number }) => void;
   onPreviewDragStart: (widget: WidgetSizeVariant) => void;
@@ -33,7 +39,7 @@ export function AddWidgetPanel({
 
   return (
     <div className="fixed inset-x-6 bottom-0 mx-auto grid h-1/2 max-h-128 max-w-6xl grid-cols-[200px_minmax(0,1fr)] overflow-hidden rounded-t-2xl border border-border bg-background shadow-2xl">
-      <aside className="flex flex-col border-r border-border/70 bg-muted/30">
+      <aside className="flex flex-col border-r border-border/70 bg-muted/30 overflow-y-auto">
         <div className="flex-1 overflow-y-auto p-3">
           <div className="flex flex-col gap-1">
             <Button
@@ -68,12 +74,27 @@ export function AddWidgetPanel({
             {filterWidget ? `${filterWidget} widgets` : "All widgets"}
           </p>
 
-          <Link className={cn(buttonVariants({ size: "sm" }))} href={`/project/${projectId}`}>
-            Done
-          </Link>
+          <div className="flex items-center gap-2">
+            {activeDeleteDrag ? (
+              <div
+                className="flex items-center gap-2 rounded border border-dashed border-destructive/50 bg-destructive/10 px-3 py-1.5 text-sm text-destructive"
+                ref={deleteDropZoneRef}
+              >
+                <Trash2 className="size-3" />
+                Drag here to delete widget
+              </div>
+            ) : null}
+
+            <Link
+              className={cn(buttonVariants({ size: "sm" }), "border")}
+              href={`/project/${projectId}`}
+            >
+              Done
+            </Link>
+          </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-5">
           {selectedWidget ? (
             <Widgets
               onPreviewDragEnd={onPreviewDragEnd}
@@ -93,9 +114,9 @@ export function AddWidgetPanel({
           )}
         </div>
 
-        <div className="flex items-center justify-between border-t border-border/70 bg-muted/25 px-5 py-4">
+        <div className="flex items-center justify-between border-t border-border/70 bg-muted/25 px-5 py-2">
           <p className="text-sm font-medium text-foreground">
-            Sleep een widget om deze op het bureaublad te zetten...
+            Drag a widget to place it on the board.
           </p>
         </div>
       </section>
@@ -117,7 +138,7 @@ function AllWidgets({
   prefersReducedMotion: boolean;
 }) {
   return (
-    <div className="grid grid-cols-2 items-center gap-4 lg:grid-cols-2 xl:grid-cols-3">
+    <div className="grid min-w-0 grid-cols-2 items-center gap-4 lg:grid-cols-2 xl:grid-cols-3">
       {widgets.flatMap((widget) =>
         getWidgetSizes(widget).map((size) => (
           <WidgetPreview
@@ -151,7 +172,7 @@ function Widgets({
   const sizes = getWidgetSizes(widget);
 
   return (
-    <div className="grid grid-cols-2 items-center gap-4 lg:grid-cols-2 xl:grid-cols-3">
+    <div className="grid min-w-0 grid-cols-2 items-center gap-4 lg:grid-cols-2 xl:grid-cols-3">
       {sizes.map((size) => (
         <WidgetPreview
           key={size.key}

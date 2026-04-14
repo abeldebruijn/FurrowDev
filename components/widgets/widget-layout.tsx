@@ -2,7 +2,7 @@
 
 import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useMemo, useRef, useState, type RefObject } from "react";
 
 import type { ProjectAccess } from "@/lib/project/server";
 import { buttonVariants } from "@/components/ui/button";
@@ -27,14 +27,16 @@ export function WidgetLayout({
   projectId: string;
   widgetEdit: boolean;
 }) {
-  const [hasHydrated, setHasHydrated] = useState(false);
   const [items, setItems] = useState<TemporaryWidgetItem[]>(() =>
     getInitialTemporaryWidgetItems(layout),
   );
+  const [activePlacedDragId, setActivePlacedDragId] = useState<string | null>(null);
+  const [isDeleteHovering, setIsDeleteHovering] = useState(false);
   const [activePreviewDrag, setActivePreviewDrag] = useState<WidgetSizeVariant | null>(null);
   const [activePreviewPoint, setActivePreviewPoint] = useState<{ x: number; y: number } | null>(
     null,
   );
+  const deleteDropZoneRef = useRef<HTMLDivElement | null>(null);
   const dropZoneRef = useRef<HTMLDivElement | null>(null);
   const prefersReducedMotion = useReducedMotion();
   const packedItems = useMemo(() => packWidgetItems(items), [items]);
@@ -60,23 +62,24 @@ export function WidgetLayout({
     return packWidgetItems(candidateItems).find((item) => item.id === previewItem.id) ?? null;
   }, [activePreviewDrag, activePreviewPoint, items]);
 
-  useEffect(() => {
-    setHasHydrated(true);
-  }, []);
-
   function handlePreviewDragStart(widget: WidgetSizeVariant) {
     setActivePreviewDrag(widget);
     setActivePreviewPoint(null);
+    setIsDeleteHovering(false);
   }
 
   function handlePreviewDragMove(widget: WidgetSizeVariant, point: { x: number; y: number }) {
     setActivePreviewDrag(widget);
     setActivePreviewPoint(point);
+    setIsDeleteHovering(
+      isPointInsideRect(point, deleteDropZoneRef.current?.getBoundingClientRect()),
+    );
   }
 
   function handlePreviewDragEnd(widget: WidgetSizeVariant, point: { x: number; y: number }) {
     setActivePreviewDrag(null);
     setActivePreviewPoint(null);
+    setIsDeleteHovering(false);
 
     if (!isPointInsideRect(point, dropZoneRef.current?.getBoundingClientRect())) {
       return;
@@ -88,6 +91,14 @@ export function WidgetLayout({
   }
 
   function handlePlacedWidgetDragEnd(itemId: string, point: { x: number; y: number }) {
+    setActivePlacedDragId(null);
+    setIsDeleteHovering(false);
+
+    if (isPointInsideRect(point, deleteDropZoneRef.current?.getBoundingClientRect())) {
+      setItems((current) => normalizeWidgetOrder(current.filter((item) => item.id !== itemId)));
+      return;
+    }
+
     const rect = dropZoneRef.current?.getBoundingClientRect();
 
     if (!rect) {
@@ -115,7 +126,9 @@ export function WidgetLayout({
     return (
       <OnBoardWidgetLayout
         activePreviewDrag={activePreviewDrag}
+        activeDeleteDrag={activePlacedDragId !== null}
         previewPackedItem={previewPackedItem}
+        deleteDropZoneRef={deleteDropZoneRef}
         dropZoneRef={dropZoneRef}
         onPreviewDragEnd={handlePreviewDragEnd}
         onPreviewDragMove={handlePreviewDragMove}
@@ -130,8 +143,9 @@ export function WidgetLayout({
     <>
       <section
         className={cn(
-          "rounded-2xl border border-border bg-muted/20 p-4 transition-colors",
+          "rounded-2xl border-border transition-all mb-12",
           activePreviewDrag ? "border-foreground/30 bg-muted/40" : undefined,
+          widgetEdit ? "p-4 border bg-muted/20" : "p-0 border-0 bg-muted/0",
         )}
       >
         <div className="grid auto-rows-[96px] grid-cols-3 gap-4" ref={dropZoneRef}>
@@ -162,38 +176,69 @@ export function WidgetLayout({
                 dragSnapToOrigin
                 key={item.id}
                 layout
+                onDrag={(_, info) =>
+                  setIsDeleteHovering(
+                    isPointInsideRect(
+                      info.point,
+                      deleteDropZoneRef.current?.getBoundingClientRect(),
+                    ),
+                  )
+                }
+                onDragStart={() => setActivePlacedDragId(item.id)}
                 onDragEnd={(_, info) => handlePlacedWidgetDragEnd(item.id, info.point)}
                 transition={transition}
                 whileDrag={{
+                  opacity: isDeleteHovering ? 0.45 : 1,
                   rotate: 1,
                   scale: 1.02,
                   zIndex: 50,
                 }}
-                className="rounded-2xl border border-border bg-background p-4 shadow-sm"
+                className="relative"
                 style={{
                   gridColumn: `${item.xPos + 1} / span ${item.width}`,
                   gridRow: `${item.yPos + 1} / span ${item.height}`,
                 }}
               >
-                <div className="flex h-full flex-col justify-between gap-3">
-                  <div className="text-sm font-medium text-foreground">{item.widgetName}</div>
-                  <div className="rounded-xl border border-dashed border-border/70 bg-muted/30 p-3 text-sm text-muted-foreground">
-                    {widget.router({ width: item.width, height: item.height })}
-                  </div>
-                  {widgetEdit ? (
-                    <p className="text-xs text-muted-foreground">
-                      {item.width}x{item.height}
-                    </p>
-                  ) : null}
+                <div
+                  className={cn(
+                    "rounded-xl h-full border-dashed border-border/70 text-muted-foreground transition-all",
+                    widgetEdit ? "border" : "border-0",
+                  )}
+                >
+                  {widget.router({ width: item.width, height: item.height })}
                 </div>
+                {widgetEdit ? (
+                  <p className="text-xs text-muted-foreground absolute bottom-2 left-2">
+                    {item.width}x{item.height}
+                  </p>
+                ) : null}
               </motion.div>
             );
           })}
+
+          {!widgetEdit ? (
+            <div className="w-full col-span-3">
+              <Link
+                aria-disabled={widgetEdit}
+                className={cn(
+                  buttonVariants({ size: "sm" }),
+                  widgetEdit ? "pointer-events-none opacity-50" : undefined,
+                )}
+                href={`/project/${projectId}?widgetEdit=true`}
+              >
+                Add Widgets
+              </Link>
+            </div>
+          ) : (
+            <div className="w-full col-span-3 row-span-5"></div>
+          )}
         </div>
       </section>
 
       {widgetEdit ? (
         <AddWidgetPanel
+          activeDeleteDrag={activePlacedDragId !== null}
+          deleteDropZoneRef={deleteDropZoneRef}
           onPreviewDragEnd={handlePreviewDragEnd}
           onPreviewDragMove={handlePreviewDragMove}
           onPreviewDragStart={handlePreviewDragStart}
@@ -206,7 +251,9 @@ export function WidgetLayout({
 
 export function OnBoardWidgetLayout({
   activePreviewDrag,
+  activeDeleteDrag,
   previewPackedItem,
+  deleteDropZoneRef,
   dropZoneRef,
   onPreviewDragEnd,
   onPreviewDragMove,
@@ -215,7 +262,9 @@ export function OnBoardWidgetLayout({
   widgetEdit,
 }: {
   activePreviewDrag: WidgetSizeVariant | null;
+  activeDeleteDrag: boolean;
   previewPackedItem: (TemporaryWidgetItem & { xPos: number; yPos: number }) | null;
+  deleteDropZoneRef: RefObject<HTMLDivElement | null>;
   dropZoneRef: RefObject<HTMLDivElement | null>;
   onPreviewDragEnd: (widget: WidgetSizeVariant, point: { x: number; y: number }) => void;
   onPreviewDragMove: (widget: WidgetSizeVariant, point: { x: number; y: number }) => void;
@@ -267,6 +316,8 @@ export function OnBoardWidgetLayout({
 
       {widgetEdit ? (
         <AddWidgetPanel
+          activeDeleteDrag={activeDeleteDrag}
+          deleteDropZoneRef={deleteDropZoneRef}
           onPreviewDragEnd={onPreviewDragEnd}
           onPreviewDragMove={onPreviewDragMove}
           onPreviewDragStart={onPreviewDragStart}
