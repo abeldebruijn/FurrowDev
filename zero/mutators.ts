@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { ApplicationError, defineMutatorWithType, defineMutators } from "@rocicorp/zero";
 import { z } from "zod";
 
@@ -11,6 +13,7 @@ import {
 import { conceptProjectStages } from "@/lib/concept-project/shared";
 import {
   assertCanAccessConceptProjectServer,
+  assertCanEditProjectServer,
   assertChatBelongsToConceptProjectServer,
   assertRoadmapBelongsToConceptProjectServer,
   assertViewerOwnsOrganisationServer,
@@ -162,6 +165,67 @@ export const mutators = defineMutators({
         await tx.mutate.conceptProjects.update({
           currentStage: args.currentStage,
           id: args.id,
+        } as any);
+      },
+    ),
+  },
+  projects: {
+    saveWidgetLayout: defineMutator(
+      z.object({
+        largeLayout: z.array(
+          z.object({
+            hSize: z.int().positive(),
+            wSize: z.int().positive(),
+            widgetName: z.string().trim().min(1),
+            xPos: z.int().min(0),
+            yPos: z.int().min(0),
+          }),
+        ),
+        projectId: z.uuid(),
+      }),
+      async ({ args, ctx, tx }) => {
+        if (tx.location !== "server") {
+          return;
+        }
+
+        await assertCanEditProjectServer(tx, ctx, args.projectId);
+
+        const project = (await tx.run(zqlAny.projects.where("id", args.projectId).one())) as {
+          widgetLayoutId?: string | null;
+        } | null;
+
+        if (!project) {
+          throw new ApplicationError("Project not found", {
+            details: {
+              projectId: args.projectId,
+            },
+          });
+        }
+
+        if (project.widgetLayoutId) {
+          await tx.mutate.projectWidgetLayouts.update({
+            id: project.widgetLayoutId,
+            largeLayout: args.largeLayout,
+          } as any);
+
+          return;
+        }
+
+        const widgetLayoutId = randomUUID();
+
+        await tx.mutate.projectWidgetLayouts.insert({
+          id: widgetLayoutId,
+          largeLayout: args.largeLayout,
+          mediumAutoLayout: true,
+          mediumLayout: null,
+          smallAutoLayout: true,
+          smallLayout: null,
+          version: 1,
+        } as any);
+
+        await tx.mutate.projects.update({
+          id: args.projectId,
+          widgetLayoutId,
         } as any);
       },
     ),

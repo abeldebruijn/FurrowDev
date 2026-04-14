@@ -2,7 +2,6 @@
 
 import { motion, useReducedMotion } from "motion/react";
 import { useState } from "react";
-import Link from "next/link";
 import type { RefObject } from "react";
 import { Trash2 } from "lucide-react";
 
@@ -21,7 +20,9 @@ export function AddWidgetPanel({
   onPreviewDragEnd,
   onPreviewDragMove,
   onPreviewDragStart,
-  projectId,
+  onDone,
+  isSaving,
+  saveError,
 }: {
   activeDeleteDrag: boolean;
   deleteDropZoneRef: RefObject<HTMLDivElement | null>;
@@ -29,7 +30,9 @@ export function AddWidgetPanel({
   onPreviewDragEnd: (widget: WidgetSizeVariant, point: { x: number; y: number }) => void;
   onPreviewDragMove: (widget: WidgetSizeVariant, point: { x: number; y: number }) => void;
   onPreviewDragStart: (widget: WidgetSizeVariant) => void;
-  projectId: string;
+  onDone: () => Promise<void>;
+  isSaving: boolean;
+  saveError?: string | null;
 }) {
   const [filterWidget, setFilterWidget] = useState("");
   const prefersReducedMotion = useReducedMotion() ?? false;
@@ -90,12 +93,14 @@ export function AddWidgetPanel({
               </div>
             ) : null}
 
-            <Link
+            <Button
               className={cn(buttonVariants({ size: "sm" }), "border")}
-              href={`/project/${projectId}`}
+              disabled={isSaving}
+              onClick={() => void onDone()}
+              type="button"
             >
-              Done
-            </Link>
+              {isSaving ? "Saving..." : "Done"}
+            </Button>
           </div>
         </div>
 
@@ -120,9 +125,12 @@ export function AddWidgetPanel({
         </div>
 
         <div className="flex items-center justify-between border-t border-border/70 bg-muted/25 px-5 py-2">
-          <p className="text-sm font-medium text-foreground">
-            Drag a widget to place it on the board.
-          </p>
+          <div className="flex min-w-0 flex-col gap-1">
+            <p className="text-sm font-medium text-foreground">
+              Drag a widget to place it on the board.
+            </p>
+            {saveError ? <p className="text-sm text-destructive">{saveError}</p> : null}
+          </div>
         </div>
       </section>
     </div>

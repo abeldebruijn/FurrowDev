@@ -19,6 +19,16 @@ export function visibleConceptProjectsQuery(ctx: ZeroContext) {
   return scopeConceptProjectsToViewer(zqlAny.conceptProjects, ctx);
 }
 
+export function editableProjectsQuery(ctx: ZeroContext) {
+  return zqlAny.projects.where(({ cmp, exists, or }: any) =>
+    or(
+      cmp("userOwner", ctx.viewerId),
+      exists("ownerOrganisation", (query: any) => query.where("ownerId", ctx.viewerId)),
+      exists("admins", (query: any) => query.where("userId", ctx.viewerId)),
+    ),
+  );
+}
+
 export async function assertCanAccessConceptProjectServer(
   tx: any,
   ctx: ZeroContext,
@@ -36,6 +46,22 @@ export async function assertCanAccessConceptProjectServer(
     throw new ApplicationError("Concept project not found or not accessible", {
       details: {
         conceptProjectId,
+      },
+    });
+  }
+}
+
+export async function assertCanEditProjectServer(tx: any, ctx: ZeroContext, projectId: string) {
+  if (tx.location !== "server") {
+    return;
+  }
+
+  const project = await tx.run(editableProjectsQuery(ctx).where("id", projectId).one());
+
+  if (!project) {
+    throw new ApplicationError("Project not found or not editable", {
+      details: {
+        projectId,
       },
     });
   }

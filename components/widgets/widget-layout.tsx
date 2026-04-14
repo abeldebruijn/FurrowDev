@@ -2,8 +2,11 @@
 
 import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
-import { useMemo, useRef, useState, type RefObject } from "react";
+import { useRouter } from "next/navigation";
+import { ZeroContext } from "@rocicorp/zero/react";
+import { useContext, useMemo, useRef, useState, type RefObject } from "react";
 import { X } from "lucide-react";
+import { toast } from "sonner";
 
 import type { ProjectAccess } from "@/lib/project/server";
 import { buttonVariants } from "@/components/ui/button";
@@ -18,6 +21,7 @@ import {
 } from "@/lib/widgets/layout";
 import type { TemporaryWidgetItem, WidgetSizeVariant } from "@/lib/widgets/types";
 import { widgetRegistry } from "./registry";
+import { mutators } from "@/zero/mutators";
 
 export function WidgetLayout({
   layout,
@@ -37,9 +41,13 @@ export function WidgetLayout({
   const [activePreviewPoint, setActivePreviewPoint] = useState<{ x: number; y: number } | null>(
     null,
   );
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const deleteDropZoneRef = useRef<HTMLDivElement | null>(null);
   const panelBoundaryRef = useRef<HTMLDivElement | null>(null);
   const dropZoneRef = useRef<HTMLElement | null>(null);
+  const router = useRouter();
+  const zero = useContext(ZeroContext) as any;
   const prefersReducedMotion = useReducedMotion();
   const packedItems = useMemo(() => packWidgetItems(items), [items]);
   const widgetsByName = useMemo(
@@ -72,6 +80,7 @@ export function WidgetLayout({
     setActivePreviewDrag(widget);
     setActivePreviewPoint(null);
     setIsDeleteHovering(false);
+    setSaveError(null);
   }
 
   function handlePreviewDragMove(widget: WidgetSizeVariant, point: { x: number; y: number }) {
@@ -86,6 +95,7 @@ export function WidgetLayout({
     setActivePreviewDrag(null);
     setActivePreviewPoint(null);
     setIsDeleteHovering(false);
+    setSaveError(null);
 
     if (isPointInsideRect(point, panelBoundaryRef.current?.getBoundingClientRect())) {
       return;
@@ -103,6 +113,7 @@ export function WidgetLayout({
   function handlePlacedWidgetDragEnd(itemId: string, point: { x: number; y: number }) {
     setActivePlacedDragId(null);
     setIsDeleteHovering(false);
+    setSaveError(null);
 
     if (isPointInsideRect(point, deleteDropZoneRef.current?.getBoundingClientRect())) {
       setItems((current) => normalizeWidgetOrder(current.filter((item) => item.id !== itemId)));
@@ -133,7 +144,64 @@ export function WidgetLayout({
   }
 
   function handleDeleteWidget(itemId: string) {
+    setSaveError(null);
     setItems((current) => normalizeWidgetOrder(current.filter((item) => item.id !== itemId)));
+  }
+
+  async function handleDone() {
+    if (isSaving) {
+      return;
+    }
+
+    setIsSaving(true);
+    setSaveError(null);
+
+    const largeLayout = packedItems.map((item) => ({
+      hSize: item.height,
+      wSize: item.width,
+      widgetName: item.widgetName,
+      xPos: item.xPos,
+      yPos: item.yPos,
+    }));
+
+    try {
+      if (zero) {
+        await zero.mutate(
+          mutators.projects.saveWidgetLayout({
+            largeLayout,
+            projectId,
+          }),
+        ).server;
+      } else {
+        const response = await fetch(`/api/project/${projectId}/widget-layout`, {
+          body: JSON.stringify({
+            largeLayout,
+          }),
+          headers: {
+            "content-type": "application/json",
+          },
+          method: "PUT",
+        });
+
+        if (!response.ok) {
+          const errorBody = (await response.json().catch(() => null)) as {
+            error?: string;
+          } | null;
+
+          throw new Error(errorBody?.error || "Failed to save widget layout.");
+        }
+      }
+
+      router.push(`/project/${projectId}`);
+      router.refresh();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to save widget layout.";
+
+      setSaveError(message);
+      toast.error(message);
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   if (packedItems.length === 0) {
@@ -141,6 +209,8 @@ export function WidgetLayout({
       <OnBoardWidgetLayout
         activePreviewDrag={activePreviewDrag}
         activeDeleteDrag={activePlacedDragId !== null}
+        isSaving={isSaving}
+        onDone={handleDone}
         previewPackedItem={previewPackedItem}
         deleteDropZoneRef={deleteDropZoneRef}
         dropZoneRef={dropZoneRef}
@@ -148,8 +218,9 @@ export function WidgetLayout({
         onPreviewDragEnd={handlePreviewDragEnd}
         onPreviewDragMove={handlePreviewDragMove}
         onPreviewDragStart={handlePreviewDragStart}
-        projectId={projectId}
+        saveError={saveError}
         widgetEdit={widgetEdit}
+        projectId={projectId}
       />
     );
   }
@@ -267,11 +338,13 @@ export function WidgetLayout({
         <AddWidgetPanel
           activeDeleteDrag={activePlacedDragId !== null}
           deleteDropZoneRef={deleteDropZoneRef}
+          isSaving={isSaving}
+          onDone={handleDone}
           panelBoundaryRef={panelBoundaryRef}
           onPreviewDragEnd={handlePreviewDragEnd}
           onPreviewDragMove={handlePreviewDragMove}
           onPreviewDragStart={handlePreviewDragStart}
-          projectId={projectId}
+          saveError={saveError}
         />
       ) : null}
     </>
@@ -281,6 +354,8 @@ export function WidgetLayout({
 export function OnBoardWidgetLayout({
   activePreviewDrag,
   activeDeleteDrag,
+  isSaving,
+  onDone,
   previewPackedItem,
   deleteDropZoneRef,
   dropZoneRef,
@@ -289,10 +364,13 @@ export function OnBoardWidgetLayout({
   onPreviewDragMove,
   onPreviewDragStart,
   projectId,
+  saveError,
   widgetEdit,
 }: {
   activePreviewDrag: WidgetSizeVariant | null;
   activeDeleteDrag: boolean;
+  isSaving: boolean;
+  onDone: () => Promise<void>;
   previewPackedItem: (TemporaryWidgetItem & { xPos: number; yPos: number }) | null;
   deleteDropZoneRef: RefObject<HTMLDivElement | null>;
   dropZoneRef: RefObject<HTMLElement | null>;
@@ -301,6 +379,7 @@ export function OnBoardWidgetLayout({
   onPreviewDragMove: (widget: WidgetSizeVariant, point: { x: number; y: number }) => void;
   onPreviewDragStart: (widget: WidgetSizeVariant) => void;
   projectId: string;
+  saveError: string | null;
   widgetEdit: boolean;
 }) {
   return (
@@ -349,11 +428,13 @@ export function OnBoardWidgetLayout({
         <AddWidgetPanel
           activeDeleteDrag={activeDeleteDrag}
           deleteDropZoneRef={deleteDropZoneRef}
+          isSaving={isSaving}
+          onDone={onDone}
           panelBoundaryRef={panelBoundaryRef}
           onPreviewDragEnd={onPreviewDragEnd}
           onPreviewDragMove={onPreviewDragMove}
           onPreviewDragStart={onPreviewDragStart}
-          projectId={projectId}
+          saveError={saveError}
         />
       ) : null}
     </>

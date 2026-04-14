@@ -6,6 +6,7 @@ import {
   admins,
   conceptProjects,
   organisations,
+  type ProjectWidgetLayoutItem,
   projectWidgetLayouts,
   roadmapItems,
   roadmaps,
@@ -472,4 +473,55 @@ export async function updateAccessibleProject(
   await db.update(projects).set(nextValues).where(eq(projects.id, projectId));
 
   return getAccessibleProject(viewerId, projectId, db);
+}
+
+export async function saveAccessibleProjectWidgetLayout(
+  viewerId: string,
+  projectId: string,
+  largeLayout: ProjectWidgetLayoutItem[],
+  db: Database = getDb(),
+) {
+  const project = await getProjectAccess(viewerId, projectId, db);
+
+  if (!project) {
+    return { error: "not_found" as const };
+  }
+
+  if (!project.canViewSettings) {
+    return { error: "forbidden" as const };
+  }
+
+  await db.transaction(async (tx) => {
+    if (project.layout?.id) {
+      await tx
+        .update(projectWidgetLayouts)
+        .set({
+          largeLayout,
+        })
+        .where(eq(projectWidgetLayouts.id, project.layout.id));
+
+      return;
+    }
+
+    const widgetLayoutId = randomUUID();
+
+    await tx.insert(projectWidgetLayouts).values({
+      id: widgetLayoutId,
+      largeLayout,
+      mediumAutoLayout: true,
+      mediumLayout: null,
+      smallAutoLayout: true,
+      smallLayout: null,
+      version: 1,
+    });
+
+    await tx
+      .update(projects)
+      .set({
+        widgetLayoutId,
+      })
+      .where(eq(projects.id, projectId));
+  });
+
+  return { error: null };
 }
