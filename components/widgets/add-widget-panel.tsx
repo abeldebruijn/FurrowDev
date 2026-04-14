@@ -17,6 +17,7 @@ import { PreviewWidgetCard } from "./widget-card";
 export function AddWidgetPanel({
   activeDeleteDrag,
   deleteDropZoneRef,
+  panelBoundaryRef,
   onPreviewDragEnd,
   onPreviewDragMove,
   onPreviewDragStart,
@@ -24,6 +25,7 @@ export function AddWidgetPanel({
 }: {
   activeDeleteDrag: boolean;
   deleteDropZoneRef: RefObject<HTMLDivElement | null>;
+  panelBoundaryRef: RefObject<HTMLDivElement | null>;
   onPreviewDragEnd: (widget: WidgetSizeVariant, point: { x: number; y: number }) => void;
   onPreviewDragMove: (widget: WidgetSizeVariant, point: { x: number; y: number }) => void;
   onPreviewDragStart: (widget: WidgetSizeVariant) => void;
@@ -38,7 +40,10 @@ export function AddWidgetPanel({
       : (widgetRegistry.find((widget) => widget.options.name === filterWidget) ?? null);
 
   return (
-    <div className="fixed inset-x-6 bottom-0 mx-auto grid h-1/2 max-h-128 max-w-6xl grid-cols-[200px_minmax(0,1fr)] overflow-hidden rounded-t-2xl border border-border bg-background shadow-2xl">
+    <div
+      className="fixed inset-x-6 bottom-0 mx-auto grid h-1/2 max-h-128 max-w-6xl grid-cols-[200px_minmax(0,1fr)] overflow-hidden rounded-t-2xl border border-border bg-background shadow-2xl"
+      ref={panelBoundaryRef}
+    >
       <aside className="flex flex-col border-r border-border/70 bg-muted/30 overflow-y-auto">
         <div className="flex-1 overflow-y-auto p-3">
           <div className="flex flex-col gap-1">
@@ -69,7 +74,7 @@ export function AddWidgetPanel({
       </aside>
 
       <section className="flex min-h-0 flex-col bg-background">
-        <div className="flex items-center justify-between border-b border-border/70 px-5 py-4">
+        <div className="flex items-center justify-between border-b border-border/70 px-5 py-2">
           <p className="text-sm font-medium text-muted-foreground">
             {filterWidget ? `${filterWidget} widgets` : "All widgets"}
           </p>
@@ -212,8 +217,8 @@ function WidgetPreview({
       drag
       dragMomentum={false}
       dragSnapToOrigin
-      onDragEnd={(_, info) => onPreviewDragEnd(size, info.point)}
-      onDrag={(_, info) => onPreviewDragMove(size, info.point)}
+      onDragEnd={(event, info) => onPreviewDragEnd(size, getClientPoint(event, info.point))}
+      onDrag={(event, info) => onPreviewDragMove(size, getClientPoint(event, info.point))}
       onDragStart={() => onPreviewDragStart(size)}
       transition={transition}
       whileDrag={{
@@ -231,4 +236,18 @@ function WidgetPreview({
 
 function getWidgetSizes(widget: WidgetConfig) {
   return getWidgetSizeVariants(widget);
+}
+
+function getClientPoint(
+  event: MouseEvent | PointerEvent | TouchEvent,
+  fallback: { x: number; y: number },
+) {
+  if ("clientX" in event && "clientY" in event) {
+    return {
+      x: event.clientX,
+      y: event.clientY,
+    };
+  }
+
+  return fallback;
 }

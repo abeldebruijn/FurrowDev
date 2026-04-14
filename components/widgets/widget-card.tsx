@@ -38,7 +38,7 @@ export function PreviewWidgetCard({
 
   return (
     <div className={cn("gap-0 rounded-xl border border-border/80 bg-background h-fit")}>
-      <div className={cn("px-2 py-3", sizeClass)}>{children}</div>
+      <div className={cn("p-0.5", sizeClass)}>{children}</div>
 
       <div className="px-2 py-1 border-t font-sans text-muted-foreground flex justify-between items-center">
         <p className="text-sm">{size.type}</p>

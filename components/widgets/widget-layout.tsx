@@ -3,6 +3,7 @@
 import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useMemo, useRef, useState, type RefObject } from "react";
+import { X } from "lucide-react";
 
 import type { ProjectAccess } from "@/lib/project/server";
 import { buttonVariants } from "@/components/ui/button";
@@ -37,7 +38,8 @@ export function WidgetLayout({
     null,
   );
   const deleteDropZoneRef = useRef<HTMLDivElement | null>(null);
-  const dropZoneRef = useRef<HTMLDivElement | null>(null);
+  const panelBoundaryRef = useRef<HTMLDivElement | null>(null);
+  const dropZoneRef = useRef<HTMLElement | null>(null);
   const prefersReducedMotion = useReducedMotion();
   const packedItems = useMemo(() => packWidgetItems(items), [items]);
   const widgetsByName = useMemo(
@@ -49,6 +51,10 @@ export function WidgetLayout({
     : { damping: 30, mass: 0.9, stiffness: 260, type: "spring" as const };
   const previewPackedItem = useMemo(() => {
     if (!activePreviewDrag) {
+      return null;
+    }
+
+    if (isPointInsideRect(activePreviewPoint, panelBoundaryRef.current?.getBoundingClientRect())) {
       return null;
     }
 
@@ -80,6 +86,10 @@ export function WidgetLayout({
     setActivePreviewDrag(null);
     setActivePreviewPoint(null);
     setIsDeleteHovering(false);
+
+    if (isPointInsideRect(point, panelBoundaryRef.current?.getBoundingClientRect())) {
+      return;
+    }
 
     if (!isPointInsideRect(point, dropZoneRef.current?.getBoundingClientRect())) {
       return;
@@ -122,6 +132,10 @@ export function WidgetLayout({
     );
   }
 
+  function handleDeleteWidget(itemId: string) {
+    setItems((current) => normalizeWidgetOrder(current.filter((item) => item.id !== itemId)));
+  }
+
   if (packedItems.length === 0) {
     return (
       <OnBoardWidgetLayout
@@ -130,6 +144,7 @@ export function WidgetLayout({
         previewPackedItem={previewPackedItem}
         deleteDropZoneRef={deleteDropZoneRef}
         dropZoneRef={dropZoneRef}
+        panelBoundaryRef={panelBoundaryRef}
         onPreviewDragEnd={handlePreviewDragEnd}
         onPreviewDragMove={handlePreviewDragMove}
         onPreviewDragStart={handlePreviewDragStart}
@@ -147,8 +162,9 @@ export function WidgetLayout({
           activePreviewDrag ? "border-foreground/30 bg-muted/40" : undefined,
           widgetEdit ? "p-4 border bg-muted/20" : "p-0 border-0 bg-muted/0",
         )}
+        ref={dropZoneRef}
       >
-        <div className="grid auto-rows-[96px] grid-cols-3 gap-4" ref={dropZoneRef}>
+        <div className="grid auto-rows-[96px] grid-cols-3 gap-4">
           {previewPackedItem ? (
             <div
               className="rounded-2xl border border-dashed border-foreground/40 bg-background/60 p-4"
@@ -176,16 +192,18 @@ export function WidgetLayout({
                 dragSnapToOrigin
                 key={item.id}
                 layout
-                onDrag={(_, info) =>
+                onDrag={(event, info) =>
                   setIsDeleteHovering(
                     isPointInsideRect(
-                      info.point,
+                      getClientPoint(event, info.point),
                       deleteDropZoneRef.current?.getBoundingClientRect(),
                     ),
                   )
                 }
                 onDragStart={() => setActivePlacedDragId(item.id)}
-                onDragEnd={(_, info) => handlePlacedWidgetDragEnd(item.id, info.point)}
+                onDragEnd={(event, info) =>
+                  handlePlacedWidgetDragEnd(item.id, getClientPoint(event, info.point))
+                }
                 transition={transition}
                 whileDrag={{
                   opacity: isDeleteHovering ? 0.45 : 1,
@@ -199,10 +217,20 @@ export function WidgetLayout({
                   gridRow: `${item.yPos + 1} / span ${item.height}`,
                 }}
               >
+                {widgetEdit ? (
+                  <button
+                    aria-label={`Delete ${item.widgetName}`}
+                    className="absolute top-2 right-2 z-10 flex size-6 items-center justify-center rounded-full border border-border bg-background/95 text-muted-foreground shadow-sm transition-colors hover:text-foreground"
+                    onClick={() => handleDeleteWidget(item.id)}
+                    type="button"
+                  >
+                    <X className="size-3" />
+                  </button>
+                ) : null}
                 <div
                   className={cn(
-                    "rounded-xl h-full border-dashed border-border/70 text-muted-foreground transition-all",
-                    widgetEdit ? "border" : "border-0",
+                    "rounded-xl h-full border-dashed border-border/70 transition-all",
+                    widgetEdit ? "border bg-muted/70 backdrop-blur-xs" : "border-0 bg-background",
                   )}
                 >
                   {widget.router({ width: item.width, height: item.height })}
@@ -226,11 +254,11 @@ export function WidgetLayout({
                 )}
                 href={`/project/${projectId}?widgetEdit=true`}
               >
-                Add Widgets
+                Edit Widgets
               </Link>
             </div>
           ) : (
-            <div className="w-full col-span-3 row-span-5"></div>
+            <div className="w-full col-span-3 row-span-6"></div>
           )}
         </div>
       </section>
@@ -239,6 +267,7 @@ export function WidgetLayout({
         <AddWidgetPanel
           activeDeleteDrag={activePlacedDragId !== null}
           deleteDropZoneRef={deleteDropZoneRef}
+          panelBoundaryRef={panelBoundaryRef}
           onPreviewDragEnd={handlePreviewDragEnd}
           onPreviewDragMove={handlePreviewDragMove}
           onPreviewDragStart={handlePreviewDragStart}
@@ -255,6 +284,7 @@ export function OnBoardWidgetLayout({
   previewPackedItem,
   deleteDropZoneRef,
   dropZoneRef,
+  panelBoundaryRef,
   onPreviewDragEnd,
   onPreviewDragMove,
   onPreviewDragStart,
@@ -265,7 +295,8 @@ export function OnBoardWidgetLayout({
   activeDeleteDrag: boolean;
   previewPackedItem: (TemporaryWidgetItem & { xPos: number; yPos: number }) | null;
   deleteDropZoneRef: RefObject<HTMLDivElement | null>;
-  dropZoneRef: RefObject<HTMLDivElement | null>;
+  dropZoneRef: RefObject<HTMLElement | null>;
+  panelBoundaryRef: RefObject<HTMLDivElement | null>;
   onPreviewDragEnd: (widget: WidgetSizeVariant, point: { x: number; y: number }) => void;
   onPreviewDragMove: (widget: WidgetSizeVariant, point: { x: number; y: number }) => void;
   onPreviewDragStart: (widget: WidgetSizeVariant) => void;
@@ -318,6 +349,7 @@ export function OnBoardWidgetLayout({
         <AddWidgetPanel
           activeDeleteDrag={activeDeleteDrag}
           deleteDropZoneRef={deleteDropZoneRef}
+          panelBoundaryRef={panelBoundaryRef}
           onPreviewDragEnd={onPreviewDragEnd}
           onPreviewDragMove={onPreviewDragMove}
           onPreviewDragStart={onPreviewDragStart}
@@ -380,4 +412,18 @@ function reorderWidgetItems(
     draggedItem,
     ...remainingItems.slice(bestIndex),
   ]);
+}
+
+function getClientPoint(
+  event: MouseEvent | PointerEvent | TouchEvent,
+  fallback: { x: number; y: number },
+) {
+  if ("clientX" in event && "clientY" in event) {
+    return {
+      x: event.clientX,
+      y: event.clientY,
+    };
+  }
+
+  return fallback;
 }
