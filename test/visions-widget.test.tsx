@@ -193,11 +193,10 @@ describe("VisionsWidget preview config", () => {
       <VisionsWidgetPreview height={2} project={baseProject} width={3} />,
     );
 
-    expect(compactMarkup).not.toContain("Owner");
-    expect(compactMarkup).not.toContain("Collaborators");
-    expect(compactMarkup).not.toContain("Last updated");
-    expect(fullMarkup).toContain("Owner");
-    expect(fullMarkup).toContain("Collaborators");
-    expect(fullMarkup).toContain("Last updated");
+    expect(compactMarkup).not.toContain("Private to owner");
+    expect(compactMarkup).not.toContain("Apr 15, 05:20 PM");
+    expect(fullMarkup).toContain("Abel");
+    expect(fullMarkup).toContain("Private to owner");
+    expect(fullMarkup).toContain("Apr 15, 05:20 PM");
   });
 });
