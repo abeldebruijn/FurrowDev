@@ -50,7 +50,7 @@ export function AddWidgetPanel({
 
   return (
     <div
-      className="fixed inset-x-6 bottom-0 mx-auto grid h-1/2 max-h-128 max-w-6xl grid-cols-[200px_minmax(0,1fr)] overflow-hidden rounded-t-2xl border border-border bg-background shadow-2xl"
+      className="fixed inset-x-6 bottom-0 mx-auto grid h-1/2 max-h-128 max-w-6xl grid-cols-[200px_minmax(0,1fr)] overflow-hidden rounded-t-2xl border border-border bg-background shadow-2xl z-20"
       ref={panelBoundaryRef}
     >
       <aside className="flex flex-col border-r border-border/70 bg-muted/30 overflow-y-auto">
