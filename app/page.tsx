@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { createConceptProject } from "@/app/actions/concept-projects";
 import { listAccessibleActiveConceptProjects } from "@/lib/concept-project/server";
+import { isDatabaseConnectionError } from "@/lib/db";
 import { listAccessibleProjects } from "@/lib/project/server";
 import { upsertViewerFromWorkOSSession } from "@/lib/zero/context";
 import { getWorkOSSession } from "@/lib/workos-session";
@@ -44,11 +45,23 @@ export default async function Home() {
     redirect("/login");
   }
 
-  const viewer = await upsertViewerFromWorkOSSession(session);
-  const [activeConceptRows, projectRows] = await Promise.all([
-    listAccessibleActiveConceptProjects(viewer.id),
-    listAccessibleProjects(viewer.id),
-  ]);
+  let activeConceptRows: Awaited<ReturnType<typeof listAccessibleActiveConceptProjects>> = [];
+  let projectRows: Awaited<ReturnType<typeof listAccessibleProjects>> = [];
+  let databaseUnavailable = false;
+
+  try {
+    const viewer = await upsertViewerFromWorkOSSession(session);
+    [activeConceptRows, projectRows] = await Promise.all([
+      listAccessibleActiveConceptProjects(viewer.id),
+      listAccessibleProjects(viewer.id),
+    ]);
+  } catch (error) {
+    if (!isDatabaseConnectionError(error)) {
+      throw error;
+    }
+
+    databaseUnavailable = true;
+  }
 
   const isEmpty = activeConceptRows.length === 0 && projectRows.length === 0;
 
@@ -57,15 +70,28 @@ export default async function Home() {
       <SiteHeader />
       <main className="mx-auto flex min-h-[calc(100vh-61px)] w-full max-w-6xl flex-col px-4 py-8 sm:px-6">
         <section className="flex flex-col gap-6">
+          {databaseUnavailable ? (
+            <Card className="border-amber-300 bg-amber-50/80 shadow-none dark:border-amber-800 dark:bg-amber-950/30">
+              <CardHeader>
+                <CardTitle>Database unavailable</CardTitle>
+                <CardDescription className="max-w-2xl leading-6 font-sans">
+                  FurrowDev could not reach Postgres at <code>DATABASE_URL</code>. Start the local
+                  database on <code>localhost:5432</code> or update your connection string, then
+                  refresh this page.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          ) : null}
+
           <div className="flex items-start justify-between gap-4">
-            {!isEmpty ? (
+            {!databaseUnavailable && !isEmpty ? (
               <form action={createConceptProject}>
                 <Button type="submit">New Concept Project</Button>
               </form>
             ) : null}
           </div>
 
-          {isEmpty ? (
+          {!databaseUnavailable && isEmpty ? (
             <Card className="bg-linear-to-br from-sky-100/30 via-sky-50 to-blue-100/70 shadow-none dark:from-background dark:via-blue-950/30 dark:to-sky-900/20">
               <CardHeader>
                 <CardTitle>Start with a Concept Project</CardTitle>
@@ -86,7 +112,7 @@ export default async function Home() {
                 </div>
               </CardContent>
             </Card>
-          ) : activeConceptRows.length > 0 ? (
+          ) : !databaseUnavailable && activeConceptRows.length > 0 ? (
             <Card className="p-0!">
               <CardContent className="px-0">
                 <Table>
@@ -125,7 +151,7 @@ export default async function Home() {
             </Card>
           ) : null}
 
-          {projectRows.length > 0 ? (
+          {!databaseUnavailable && projectRows.length > 0 ? (
             <Card>
               <CardHeader>
                 <CardTitle>Projects</CardTitle>

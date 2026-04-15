@@ -18,6 +18,40 @@ function getDatabaseUrl() {
   return databaseUrl;
 }
 
+type ErrorWithDetails = {
+  cause?: unknown;
+  code?: unknown;
+  errors?: unknown;
+};
+
+function isErrorWithDetails(error: unknown): error is ErrorWithDetails {
+  return typeof error === "object" && error !== null;
+}
+
+export function isDatabaseConnectionError(error: unknown): boolean {
+  if (!isErrorWithDetails(error)) {
+    return false;
+  }
+
+  if (
+    error.code === "ECONNREFUSED" ||
+    error.code === "ECONNRESET" ||
+    error.code === "ENOTFOUND" ||
+    error.code === "ETIMEDOUT"
+  ) {
+    return true;
+  }
+
+  if (
+    Array.isArray(error.errors) &&
+    error.errors.some((entry) => isDatabaseConnectionError(entry))
+  ) {
+    return true;
+  }
+
+  return isDatabaseConnectionError(error.cause);
+}
+
 export function getSql() {
   if (!globalThis.__furrowSql) {
     globalThis.__furrowSql = postgres(getDatabaseUrl(), {

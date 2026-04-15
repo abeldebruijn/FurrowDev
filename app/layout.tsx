@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/providers/theme-provider";
 import { ZeroProviderClient } from "@/components/providers/zero-provider-client";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { isDatabaseConnectionError } from "@/lib/db";
 import { isZeroEnabled } from "@/lib/zero/config";
 import { upsertViewerFromWorkOSUser } from "@/lib/zero/context";
 import "./globals.css";
@@ -37,7 +38,18 @@ export default async function RootLayout({
   const auth = await withAuth();
   const { accessToken, ...initialAuth } = auth;
   const userID = auth.user?.id ?? "anon";
-  const viewer = auth.user ? await upsertViewerFromWorkOSUser(auth.user) : null;
+  let viewer = null;
+
+  if (auth.user) {
+    try {
+      viewer = await upsertViewerFromWorkOSUser(auth.user);
+    } catch (error) {
+      if (!isDatabaseConnectionError(error)) {
+        throw error;
+      }
+    }
+  }
+
   const claims = accessToken ? await getTokenClaims<TokenClaims>(accessToken) : null;
   const zeroContext =
     auth.user && viewer
