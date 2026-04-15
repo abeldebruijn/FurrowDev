@@ -137,9 +137,9 @@ export function normalizeWidgetOrder(items: TemporaryWidgetItem[]): TemporaryWid
 export function getPackedItemCenter(
   item: Pick<PackedWidgetItem, "height" | "width" | "xPos" | "yPos">,
   containerWidth: number,
+  columns = WIDGET_LAYOUT_COLUMNS,
 ) {
-  const columnWidth =
-    (containerWidth - WIDGET_GRID_GAP_PX * (WIDGET_LAYOUT_COLUMNS - 1)) / WIDGET_LAYOUT_COLUMNS;
+  const columnWidth = (containerWidth - WIDGET_GRID_GAP_PX * (columns - 1)) / columns;
   const stepX = columnWidth + WIDGET_GRID_GAP_PX;
   const stepY = WIDGET_GRID_ROW_HEIGHT_PX + WIDGET_GRID_GAP_PX;
   const widthPx = columnWidth * item.width + WIDGET_GRID_GAP_PX * (item.width - 1);

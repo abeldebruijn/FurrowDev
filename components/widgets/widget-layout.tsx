@@ -17,6 +17,7 @@ import {
   getPackedItemCenter,
   packWidgetItems,
   normalizeWidgetOrder,
+  WIDGET_LAYOUT_COLUMNS,
 } from "@/lib/widgets/layout";
 import type {
   TemporaryWidgetItem,
@@ -453,6 +454,7 @@ function reorderWidgetItems(
   point: { x: number; y: number },
   containerWidth: number,
 ) {
+  const columns = WIDGET_LAYOUT_COLUMNS;
   const draggedItem = items.find((item) => item.id === itemId);
 
   if (!draggedItem) {
@@ -469,13 +471,15 @@ function reorderWidgetItems(
       draggedItem,
       ...remainingItems.slice(index),
     ]);
-    const candidatePackedItem = packWidgetItems(candidateItems).find((item) => item.id === itemId);
+    const candidatePackedItem = packWidgetItems(candidateItems, columns).find(
+      (item) => item.id === itemId,
+    );
 
     if (!candidatePackedItem) {
       continue;
     }
 
-    const center = getPackedItemCenter(candidatePackedItem, containerWidth);
+    const center = getPackedItemCenter(candidatePackedItem, containerWidth, columns);
     const distance = Math.hypot(point.x - center.x, point.y - center.y);
 
     if (distance < bestDistance) {
