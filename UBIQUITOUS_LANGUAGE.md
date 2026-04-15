@@ -128,7 +128,7 @@
 - **Generated Name Ideas** belong to **Concept Project Settings** and do not change the persisted **Name** until the **User** saves.
 - **Delete Concept Project** removes the **Concept Project**, its **Chat**, its **Transcript**, and its generated **Roadmap**.
 
-## Example dialogue
+## Example dialogue (Project workspace)
 
 > **Dev:** "After the **Setup Stage**, is the project ready for **Graduation**?"
 > **Domain expert:** "It can be, but the user may also enter the **Grill Me Stage** first to pressure-test the plan."

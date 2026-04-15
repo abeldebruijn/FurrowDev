@@ -98,7 +98,7 @@ export function packWidgetItems(
           continue;
         }
 
-        occupy(occupancy, xPos, yPos, width, item.height);
+        occupy(occupancy, xPos, yPos, width, item.height, columns);
 
         return {
           ...item,
@@ -160,9 +160,16 @@ function canPlace(
   return true;
 }
 
-function occupy(occupancy: boolean[][], xPos: number, yPos: number, width: number, height: number) {
+function occupy(
+  occupancy: boolean[][],
+  xPos: number,
+  yPos: number,
+  width: number,
+  height: number,
+  columns: number,
+) {
   for (let y = yPos; y < yPos + height; y += 1) {
-    occupancy[y] ??= Array.from({ length: WIDGET_LAYOUT_COLUMNS }, () => false);
+    occupancy[y] ??= Array.from({ length: columns }, () => false);
 
     for (let x = xPos; x < xPos + width; x += 1) {
       occupancy[y][x] = true;

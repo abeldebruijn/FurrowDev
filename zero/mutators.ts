@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-
 import { ApplicationError, defineMutatorWithType, defineMutators } from "@rocicorp/zero";
 import { z } from "zod";
 
@@ -23,6 +21,10 @@ import { schema, zql } from "@/zero/schema";
 
 const defineMutator = defineMutatorWithType<typeof schema, ZeroContext>();
 const zqlAny = zql as any;
+
+function createUuid() {
+  return globalThis.crypto.randomUUID();
+}
 
 async function pinConceptRoadmapVersion(tx: any, roadmapId: string) {
   const roadmap = await tx.run(zqlAny.roadmaps.where("id", roadmapId).one());
@@ -211,7 +213,7 @@ export const mutators = defineMutators({
           return;
         }
 
-        const widgetLayoutId = randomUUID();
+        const widgetLayoutId = createUuid();
 
         await tx.mutate.projectWidgetLayouts.insert({
           id: widgetLayoutId,

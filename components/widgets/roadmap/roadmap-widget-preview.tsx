@@ -51,6 +51,11 @@ export default function RoadmapWidgetPreview({ project }: WidgetProps) {
         <p className="line-clamp-2 text-sm font-medium text-foreground">
           Setup linting and formatting
         </p>
+
+        <p className="line-clamp-3 text-xs font-medium text-muted-foreground">
+          Add ESLint with a sensible JS config, configure Vite build output for production, and
+          verify a clean npm run build produces a deployable dist/ folder.
+        </p>
       </div>
 
       <div

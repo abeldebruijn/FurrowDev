@@ -51,7 +51,7 @@ export default function RoadmapWidget({ project }: WidgetProps) {
     getInitialRoadmapWidgetIndex(groupedVersions),
   );
   const activeVersion = groupedVersions[activeIndex] ?? null;
-  const roadmapHref = `/project/${project.projectId}/roadmap`;
+  const roadmapHref = `/project/${project.projectId}/roadmap#current-version`;
 
   useEffect(() => {
     setActiveIndex(getInitialRoadmapWidgetIndex(groupedVersions));
@@ -70,9 +70,11 @@ export default function RoadmapWidget({ project }: WidgetProps) {
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
-          <p className="mr-1 text-[11px] text-muted-foreground">
-            {activeIndex + 1} / {groupedVersions.length}
-          </p>
+          {groupedVersions.length > 0 ? (
+            <p className="mr-1 text-[11px] text-muted-foreground">
+              {activeIndex + 1} / {groupedVersions.length}
+            </p>
+          ) : null}
           <button
             aria-label="Previous roadmap item"
             className="inline-flex size-7 items-center justify-center rounded-full border border-border bg-background text-foreground transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-50"

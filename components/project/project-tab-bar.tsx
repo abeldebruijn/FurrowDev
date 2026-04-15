@@ -17,7 +17,8 @@ export function ProjectTabBar({ items }: ProjectTabBarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const fallbackValue = items[0]?.href ?? "";
-  const value = items.some((item) => item.href === pathname) ? pathname : fallbackValue;
+  const matchedItem = items.find((item) => item.href.split("#")[0] === pathname);
+  const value = matchedItem?.href ?? fallbackValue;
 
   if (items.length === 0) {
     return null;

@@ -61,7 +61,7 @@ export function AddWidgetPanel({
               className="justify-start py-5 font-serif text-sm font-medium"
               onClick={() => setFilterWidget("")}
             >
-              Alle widgets
+              All widgets
             </Button>
 
             {widgetRegistry.map((widget) => {
