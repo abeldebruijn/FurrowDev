@@ -85,7 +85,7 @@ export default async function ProjectIdeasPage({ params }: ProjectIdeasPageProps
                     </TableCell>
                     <TableCell>{formatUpdatedAt(vision.updatedAt)}</TableCell>
                     <TableCell className="text-right">
-                      <Link href={`/project/${project.id}/ideas/${vision.id}`}>
+                      <Link href={`/project/${project.id}/ideas/vision/${vision.id}`}>
                         <Button size="sm" variant="outline">
                           Open
                         </Button>

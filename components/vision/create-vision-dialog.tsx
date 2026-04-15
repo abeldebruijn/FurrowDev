@@ -61,7 +61,7 @@ export function CreateVisionDialog({ projectId, roadmapItems }: CreateVisionDial
 
       const data = (await response.json()) as { id: string };
       setOpen(false);
-      router.push(`/project/${projectId}/ideas/${data.id}`);
+      router.push(`/project/${projectId}/ideas/vision/${data.id}`);
       router.refresh();
     } catch (error) {
       setError(error instanceof Error ? error.message : "Failed to create vision.");
