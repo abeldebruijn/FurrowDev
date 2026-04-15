@@ -26,10 +26,24 @@ export type PackedWidgetItem = TemporaryWidgetItem & {
   yPos: number;
 };
 
+export type WidgetProjectVision = {
+  collaborators: Array<{
+    name: string;
+    userId: string;
+  }>;
+  createdAt: string;
+  id: string;
+  ownerName: string;
+  ownerUserId: string;
+  title: string;
+  updatedAt: string;
+};
+
 export type WidgetProjectContext = {
   projectId: string;
   roadmap: ProjectRoadmap;
   roadmapItems: ProjectRoadmapItem[];
+  visions: WidgetProjectVision[];
 };
 
 export class WidgetConfig {

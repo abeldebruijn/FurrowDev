@@ -17,6 +17,7 @@ const previewProjectContext: WidgetProjectContext = {
   projectId: "preview-project",
   roadmap: null,
   roadmapItems: [],
+  visions: [],
 };
 
 export function AddWidgetPanel({

@@ -5,6 +5,7 @@ const {
   getProjectAccess,
   getProjectRoadmap,
   getProjectRoadmapItems,
+  listVisibleProjectVisions,
   getWorkOSSession,
   upsertViewerFromWorkOSSession,
   withAuth,
@@ -13,6 +14,7 @@ const {
   getProjectAccess: vi.fn(),
   getProjectRoadmap: vi.fn(),
   getProjectRoadmapItems: vi.fn(),
+  listVisibleProjectVisions: vi.fn(),
   getWorkOSSession: vi.fn(),
   upsertViewerFromWorkOSSession: vi.fn(),
   withAuth: vi.fn(),
@@ -32,6 +34,10 @@ vi.mock("@/lib/project/server", () => ({
   getProjectRoadmapItems,
 }));
 
+vi.mock("@/lib/vision/server", () => ({
+  listVisibleProjectVisions,
+}));
+
 vi.mock("@/lib/workos-session", () => ({
   getWorkOSSession,
 }));
@@ -48,6 +54,7 @@ describe("getProjectPageData", () => {
     getProjectAccess.mockReset();
     getProjectRoadmap.mockReset();
     getProjectRoadmapItems.mockReset();
+    listVisibleProjectVisions.mockReset();
     getWorkOSSession.mockReset();
     upsertViewerFromWorkOSSession.mockReset();
     withAuth.mockReset();
@@ -98,6 +105,7 @@ describe("getProjectPageData", () => {
         name: "Beta launch",
       },
     ]);
+    listVisibleProjectVisions.mockResolvedValue([]);
   });
 
   it("returns the project plus roadmap data for widget rendering", async () => {
@@ -106,6 +114,7 @@ describe("getProjectPageData", () => {
     expect(getProjectAccess).toHaveBeenCalledWith("viewer-1", "project-1", "db");
     expect(getProjectRoadmap).toHaveBeenCalledWith("roadmap-1", "db");
     expect(getProjectRoadmapItems).toHaveBeenCalledWith("roadmap-1", "db");
+    expect(listVisibleProjectVisions).toHaveBeenCalledWith("viewer-1", "project-1", "db");
     expect(result).toMatchObject({
       project: {
         id: "project-1",
@@ -122,6 +131,7 @@ describe("getProjectPageData", () => {
           name: "Beta launch",
         },
       ],
+      projectVisions: [],
       viewer: {
         id: "viewer-1",
       },

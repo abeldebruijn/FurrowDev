@@ -101,6 +101,7 @@ describe("RoadmapWidget rendering", () => {
               name: "Public beta",
             },
           ],
+          visions: [],
         }}
         width={2}
       />,
@@ -119,6 +120,7 @@ describe("RoadmapWidget rendering", () => {
           projectId: "project-1",
           roadmap: null,
           roadmapItems: [],
+          visions: [],
         }}
         width={2}
       />,
