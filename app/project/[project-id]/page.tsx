@@ -23,7 +23,9 @@ function getDescription(description: string | null) {
 
 export default async function ProjectPage({ params, searchParams }: ProjectPageProps) {
   const routeParams = await params;
-  const { project } = await getProjectPageData(routeParams["project-id"]);
+  const { project, projectRoadmap, projectRoadmapItems } = await getProjectPageData(
+    routeParams["project-id"],
+  );
   const { widgetEdit } = await searchParams;
   const isWidgetEdit = widgetEdit === "true" || widgetEdit === "1";
 
@@ -33,7 +35,16 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
         <p className="text-base leading-7 text-foreground">{getDescription(project.description)}</p>
       </section>
 
-      <WidgetLayout layout={project.layout} projectId={project.id} widgetEdit={isWidgetEdit} />
+      <WidgetLayout
+        layout={project.layout}
+        project={{
+          projectId: project.id,
+          roadmap: projectRoadmap,
+          roadmapItems: projectRoadmapItems,
+        }}
+        projectId={project.id}
+        widgetEdit={isWidgetEdit}
+      />
     </>
   );
 }

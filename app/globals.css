@@ -129,6 +129,12 @@
     @apply bg-background text-foreground;
     font-family: var(--font-default-serif);
   }
+
+  html,
+  body {
+    scroll-behavior: smooth;
+    scroll-padding-top: 6rem;
+  }
 }
 
 @keyframes fade-in-up {

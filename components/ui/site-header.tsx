@@ -15,9 +15,11 @@ function getInitials(email: string, firstName?: string | null) {
 export async function SiteHeader({
   children,
   back,
+  backButton,
 }: {
   children?: React.ReactNode;
   back?: string;
+  backButton?: React.ReactNode;
 }) {
   const { user } = await withAuth();
 
@@ -25,18 +27,19 @@ export async function SiteHeader({
     <header className="border-b bg-background sticky top-0 z-10 w-full">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-2 sm:px-6">
         <div className="flex items-center gap-1">
-          {back && (
-            <Link
-              href={back}
-              className={buttonVariants({
-                variant: "outline",
-                size: "icon",
-              })}
-              aria-label="Go back"
-            >
-              <ChevronLeft />
-            </Link>
-          )}
+          {backButton ??
+            (back && (
+              <Link
+                href={back}
+                className={buttonVariants({
+                  variant: "outline",
+                  size: "icon",
+                })}
+                aria-label="Go back"
+              >
+                <ChevronLeft />
+              </Link>
+            ))}
 
           {children ? (
             <span className="font-heading text-xl font-semibold tracking-tight text-foreground flex items-center">

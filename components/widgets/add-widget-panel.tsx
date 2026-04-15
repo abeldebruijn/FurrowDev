@@ -9,9 +9,15 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { widgetRegistry } from "@/components/widgets/registry";
 import { cn } from "@/lib/utils";
 import { getWidgetSizeVariants } from "@/lib/widgets/layout";
-import type { WidgetConfig, WidgetSizeVariant } from "@/lib/widgets/types";
+import type { WidgetConfig, WidgetProjectContext, WidgetSizeVariant } from "@/lib/widgets/types";
 
 import { PreviewWidgetCard } from "./widget-card";
+
+const previewProjectContext: WidgetProjectContext = {
+  projectId: "preview-project",
+  roadmap: null,
+  roadmapItems: [],
+};
 
 export function AddWidgetPanel({
   activeDeleteDrag,
@@ -219,6 +225,7 @@ function WidgetPreview({
   const transition = prefersReducedMotion
     ? { duration: 0 }
     : { damping: 28, mass: 0.8, stiffness: 280, type: "spring" as const };
+  const WidgetPreviewComponent = widget.preview;
 
   return (
     <motion.div
@@ -236,7 +243,11 @@ function WidgetPreview({
       }}
     >
       <PreviewWidgetCard size={size}>
-        {widget.router({ width: size.width, height: size.height })}
+        <WidgetPreviewComponent
+          height={size.height}
+          project={previewProjectContext}
+          width={size.width}
+        />
       </PreviewWidgetCard>
     </motion.div>
   );

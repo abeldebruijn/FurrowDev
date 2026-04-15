@@ -1,5 +1,7 @@
 import { JSX, ReactNode } from "react";
 
+import type { ProjectRoadmap, ProjectRoadmapItem } from "@/lib/project/server";
+
 export type WidgetSizeType = "short" | "medium" | "tall";
 
 export type WidgetSizeVariant = {
@@ -24,6 +26,12 @@ export type PackedWidgetItem = TemporaryWidgetItem & {
   yPos: number;
 };
 
+export type WidgetProjectContext = {
+  projectId: string;
+  roadmap: ProjectRoadmap;
+  roadmapItems: ProjectRoadmapItem[];
+};
+
 export class WidgetConfig {
   #name: string = "";
   #description: string = "";
@@ -32,10 +40,12 @@ export class WidgetConfig {
     medium?: number;
     short?: number;
   } = {};
-  #router: ({ width, height }: WidgetProps) => ReactNode;
+  #router: ({ width, height, project }: WidgetProps) => ReactNode;
+  #preview: ({ width, height, project }: WidgetProps) => ReactNode;
 
-  constructor(defaultWidget: ({ width, height }: WidgetProps) => JSX.Element) {
+  constructor(defaultWidget: ({ width, height, project }: WidgetProps) => JSX.Element) {
     this.#router = defaultWidget;
+    this.#preview = defaultWidget;
   }
 
   name(name: string) {
@@ -65,8 +75,17 @@ export class WidgetConfig {
     return this.#router;
   }
 
-  setRouter(router: ({ width, height }: WidgetProps) => JSX.Element) {
+  setRouter(router: ({ width, height, project }: WidgetProps) => JSX.Element) {
     this.#router = router;
+    return this;
+  }
+
+  get preview() {
+    return this.#preview;
+  }
+
+  setPreview(preview: ({ width, height, project }: WidgetProps) => JSX.Element) {
+    this.#preview = preview;
     return this;
   }
 }
@@ -74,4 +93,5 @@ export class WidgetConfig {
 export type WidgetProps = {
   width: number;
   height: number;
+  project: WidgetProjectContext;
 };

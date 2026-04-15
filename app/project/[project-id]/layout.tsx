@@ -1,6 +1,7 @@
 import { SiteHeader } from "@/components/ui/site-header";
 import { ProjectTabBar } from "@/components/project/project-tab-bar";
 
+import { ProjectHeaderBackButton } from "./project-header-back-button";
 import { getProjectPageData } from "./project-page-data";
 
 type ProjectLayoutProps = {
@@ -28,6 +29,10 @@ export default async function ProjectLayout({ children, params }: ProjectLayoutP
       label: "ideas",
     },
     {
+      href: `/project/${projectId}/roadmap#current-version`,
+      label: "roadmap",
+    },
+    {
       href: `/project/${projectId}/merges`,
       label: "merges",
     },
@@ -51,7 +56,9 @@ export default async function ProjectLayout({ children, params }: ProjectLayoutP
 
   return (
     <>
-      <SiteHeader back="/">{project.name.trim() || "Untitled project"}</SiteHeader>
+      <SiteHeader backButton={<ProjectHeaderBackButton projectId={projectId} />}>
+        {project.name.trim() || "Untitled project"}
+      </SiteHeader>
 
       <main className="mx-auto flex min-h-[calc(100vh-61px)] w-full max-w-350 flex-col gap-6 px-4 py-1 sm:px-6">
         <ProjectTabBar items={items} />

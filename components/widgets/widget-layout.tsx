@@ -19,16 +19,22 @@ import {
   packWidgetItems,
   normalizeWidgetOrder,
 } from "@/lib/widgets/layout";
-import type { TemporaryWidgetItem, WidgetSizeVariant } from "@/lib/widgets/types";
+import type {
+  TemporaryWidgetItem,
+  WidgetProjectContext,
+  WidgetSizeVariant,
+} from "@/lib/widgets/types";
 import { widgetRegistry } from "./registry";
 import { mutators } from "@/zero/mutators";
 
 export function WidgetLayout({
   layout,
+  project,
   projectId,
   widgetEdit,
 }: {
   layout: ProjectAccess["layout"];
+  project: WidgetProjectContext;
   projectId: string;
   widgetEdit: boolean;
 }) {
@@ -256,6 +262,8 @@ export function WidgetLayout({
               return null;
             }
 
+            const Widget = widget.router;
+
             return (
               <motion.div
                 drag={widgetEdit}
@@ -291,7 +299,7 @@ export function WidgetLayout({
                 {widgetEdit ? (
                   <button
                     aria-label={`Delete ${item.widgetName}`}
-                    className="absolute top-2 right-2 z-10 flex size-6 items-center justify-center rounded-full border border-border bg-background/95 text-muted-foreground shadow-sm transition-colors hover:text-foreground"
+                    className="absolute -top-2 -right-2 z-10 flex size-6 items-center justify-center rounded-full border border-border bg-background/95 text-muted-foreground shadow-sm transition-colors hover:text-foreground"
                     onClick={() => handleDeleteWidget(item.id)}
                     type="button"
                   >
@@ -304,7 +312,7 @@ export function WidgetLayout({
                     widgetEdit ? "border bg-muted/70 backdrop-blur-xs" : "border-0 bg-background",
                   )}
                 >
-                  {widget.router({ width: item.width, height: item.height })}
+                  <Widget height={item.height} project={project} width={item.width} />
                 </div>
                 {widgetEdit ? (
                   <p className="text-xs text-muted-foreground absolute bottom-2 left-2">

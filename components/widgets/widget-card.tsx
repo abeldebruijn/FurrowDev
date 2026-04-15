@@ -18,9 +18,9 @@ export function PreviewWidgetCard({
   children: React.ReactNode;
 }) {
   const sizeClasses = {
-    short: "h-12",
-    medium: "h-28",
-    tall: "h-40",
+    short: "h-30",
+    medium: "h-50",
+    tall: "h-70",
   };
 
   const sizeHeight = {

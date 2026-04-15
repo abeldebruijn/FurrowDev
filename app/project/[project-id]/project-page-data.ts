@@ -3,7 +3,7 @@ import { withAuth } from "@workos-inc/authkit-nextjs";
 import { notFound, redirect } from "next/navigation";
 
 import { getDb } from "@/lib/db";
-import { getProjectAccess } from "@/lib/project/server";
+import { getProjectAccess, getProjectRoadmap, getProjectRoadmapItems } from "@/lib/project/server";
 import { getWorkOSSession } from "@/lib/workos-session";
 import { upsertViewerFromWorkOSSession } from "@/lib/zero/context";
 
@@ -21,14 +21,22 @@ export const getProjectPageData = cache(async (projectId: string) => {
   }
 
   const viewer = await upsertViewerFromWorkOSSession(session);
-  const project = await getProjectAccess(viewer.id, projectId, getDb());
+  const db = getDb();
+  const project = await getProjectAccess(viewer.id, projectId, db);
 
   if (!project) {
     notFound();
   }
 
+  const [projectRoadmap, projectRoadmapItems] = await Promise.all([
+    getProjectRoadmap(project.roadmapId, db),
+    getProjectRoadmapItems(project.roadmapId, db),
+  ]);
+
   return {
     project,
+    projectRoadmap,
+    projectRoadmapItems,
     widgetLayout: project.layout,
   };
 });
