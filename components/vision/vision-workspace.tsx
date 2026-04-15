@@ -532,31 +532,6 @@ export function VisionWorkspace({
   return (
     <>
       <section className="grid gap-6" ref={contentShellRef}>
-        <div className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-muted/30 p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-muted-foreground/80">
-                Private vision
-              </p>
-              <h1 className="mt-1 text-xl font-semibold text-foreground">{title}</h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                Explore what this project should build next. This conversation stays private until a
-                future conversion step turns it into a shared idea.
-              </p>
-            </div>
-
-            <VisionCollaboratorsDialog
-              canManage={canManageCollaborators}
-              collaborators={collaborators}
-              eligibleCollaborators={eligibleCollaborators}
-              onAdd={(userId) => mutateCollaborator(userId, "POST")}
-              onRemove={(userId) => mutateCollaborator(userId, "DELETE")}
-              ownerName={ownerName}
-              ownerUserId={ownerUserId}
-            />
-          </div>
-        </div>
-
         <div className="flex-1 space-y-3 overflow-y-auto px-6 py-5">
           {messages.map((message) => {
             const isAssistant = message.role === "assistant";
@@ -627,15 +602,19 @@ export function VisionWorkspace({
 
           <form onSubmit={handleSubmit} ref={composerFormRef}>
             <div className="mb-2 flex items-center justify-between gap-3">
-              <div className="flex min-w-0 flex-1 sm:flex-none">
-                <Button
-                  className="w-full justify-start sm:w-auto sm:min-w-52"
-                  type="button"
-                  variant="outline"
-                >
-                  Private vision
-                </Button>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium text-foreground">{title}</div>
               </div>
+
+              <VisionCollaboratorsDialog
+                canManage={canManageCollaborators}
+                collaborators={collaborators}
+                eligibleCollaborators={eligibleCollaborators}
+                onAdd={(userId) => mutateCollaborator(userId, "POST")}
+                onRemove={(userId) => mutateCollaborator(userId, "DELETE")}
+                ownerName={ownerName}
+                ownerUserId={ownerUserId}
+              />
             </div>
 
             <div className="relative rounded-lg bg-background">
