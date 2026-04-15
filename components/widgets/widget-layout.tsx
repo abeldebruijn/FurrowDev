@@ -3,8 +3,7 @@
 import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ZeroContext } from "@rocicorp/zero/react";
-import { useContext, useMemo, useRef, useState, type RefObject } from "react";
+import { useMemo, useRef, useState, type RefObject } from "react";
 import { X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -25,7 +24,6 @@ import type {
   WidgetSizeVariant,
 } from "@/lib/widgets/types";
 import { widgetRegistry } from "./registry";
-import { mutators } from "@/zero/mutators";
 
 export function WidgetLayout({
   layout,
@@ -53,7 +51,6 @@ export function WidgetLayout({
   const panelBoundaryRef = useRef<HTMLDivElement | null>(null);
   const dropZoneRef = useRef<HTMLElement | null>(null);
   const router = useRouter();
-  const zero = useContext(ZeroContext) as any;
   const prefersReducedMotion = useReducedMotion();
   const packedItems = useMemo(() => packWidgetItems(items), [items]);
   const widgetsByName = useMemo(
@@ -171,31 +168,22 @@ export function WidgetLayout({
     }));
 
     try {
-      if (zero) {
-        await zero.mutate(
-          mutators.projects.saveWidgetLayout({
-            largeLayout,
-            projectId,
-          }),
-        ).server;
-      } else {
-        const response = await fetch(`/api/project/${projectId}/widget-layout`, {
-          body: JSON.stringify({
-            largeLayout,
-          }),
-          headers: {
-            "content-type": "application/json",
-          },
-          method: "PUT",
-        });
+      const response = await fetch(`/api/project/${projectId}/widget-layout`, {
+        body: JSON.stringify({
+          largeLayout,
+        }),
+        headers: {
+          "content-type": "application/json",
+        },
+        method: "PUT",
+      });
 
-        if (!response.ok) {
-          const errorBody = (await response.json().catch(() => null)) as {
-            error?: string;
-          } | null;
+      if (!response.ok) {
+        const errorBody = (await response.json().catch(() => null)) as {
+          error?: string;
+        } | null;
 
-          throw new Error(errorBody?.error || "Failed to save widget layout.");
-        }
+        throw new Error(errorBody?.error || "Failed to save widget layout.");
       }
 
       router.push(`/project/${projectId}`);

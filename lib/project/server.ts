@@ -504,23 +504,48 @@ export async function saveAccessibleProjectWidgetLayout(
     }
 
     const widgetLayoutId = randomUUID();
-
-    await tx.insert(projectWidgetLayouts).values({
-      id: widgetLayoutId,
-      largeLayout,
-      mediumAutoLayout: true,
-      mediumLayout: null,
-      smallAutoLayout: true,
-      smallLayout: null,
-      version: 1,
-    });
-
-    await tx
+    const [claimedProject] = await tx
       .update(projects)
       .set({
         widgetLayoutId,
       })
-      .where(eq(projects.id, projectId));
+      .where(and(eq(projects.id, projectId), isNull(projects.widgetLayoutId)))
+      .returning({
+        widgetLayoutId: projects.widgetLayoutId,
+      });
+
+    if (claimedProject) {
+      await tx.insert(projectWidgetLayouts).values({
+        id: widgetLayoutId,
+        largeLayout,
+        mediumAutoLayout: true,
+        mediumLayout: null,
+        smallAutoLayout: true,
+        smallLayout: null,
+        version: 1,
+      });
+
+      return;
+    }
+
+    const [existingProject] = await tx
+      .select({
+        widgetLayoutId: projects.widgetLayoutId,
+      })
+      .from(projects)
+      .where(eq(projects.id, projectId))
+      .limit(1);
+
+    if (!existingProject?.widgetLayoutId) {
+      throw new Error(`Project widget layout claim failed for ${projectId}`);
+    }
+
+    await tx
+      .update(projectWidgetLayouts)
+      .set({
+        largeLayout,
+      })
+      .where(eq(projectWidgetLayouts.id, existingProject.widgetLayoutId));
   });
 
   return { error: null };

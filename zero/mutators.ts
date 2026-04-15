@@ -191,7 +191,6 @@ export const mutators = defineMutators({
         }
 
         await assertCanEditProjectServer(tx, ctx, args.projectId);
-
         const project = (await tx.run(zqlAny.projects.where("id", args.projectId).one())) as {
           widgetLayoutId?: string | null;
         } | null;
