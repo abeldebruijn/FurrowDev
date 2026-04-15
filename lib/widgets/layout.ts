@@ -86,9 +86,23 @@ export function packWidgetItems(
   items: TemporaryWidgetItem[],
   columns = WIDGET_LAYOUT_COLUMNS,
 ): PackedWidgetItem[] {
+  if (!Number.isInteger(columns) || columns <= 0) {
+    throw new Error(`Invalid widget layout column count: ${columns}`);
+  }
+
   const occupancy: boolean[][] = [];
 
   return items.map((item) => {
+    if (!Number.isInteger(item.width) || item.width <= 0) {
+      throw new Error(`Invalid widget width for "${item.widgetName}" (${item.id}): ${item.width}`);
+    }
+
+    if (!Number.isInteger(item.height) || item.height <= 0) {
+      throw new Error(
+        `Invalid widget height for "${item.widgetName}" (${item.id}): ${item.height}`,
+      );
+    }
+
     const width = Math.min(item.width, columns);
     let yPos = 0;
 

@@ -1,36 +1,16 @@
 # Using Vite+, the Unified Toolchain for the Web
 
-This project is using Vite+, a unified toolchain built on top of Vite, Rolldown, Vitest, tsdown, Oxlint, Oxfmt, and Vite Task. Vite+ wraps runtime management, package management, and frontend tooling in a single global CLI called `vp`. Vite+ is distinct from Vite, but it invokes Vite through `vp dev` and `vp build`.
-
-## Vite+ Workflow
-
-`vp` is a global binary that handles the full development lifecycle. Run `vp help` to print a list of commands and `vp <command> --help` for information about a specific command.
-
 ### Develop
 
-- install (`i`) - Install dependencies
-- env - Manage Node.js versions
-- check - Run format, lint, and TypeScript type checks
-- lint - Lint code
-- fmt - Format code
-- test - Run tests
-- run - Run monorepo tasks
-- build - Build for production
+- vp env - Manage Node.js versions
+- vp check - Run format, lint, and TypeScript type checks
+- vp lint - Lint code
+- vp fmt - Format code
+- vp test - Run tests
+- vp run - Run monorepo tasks
+- vp build - Build for production
 
 do not run `vp build` instead run `vp run build`. Assume `vp run dev` is already running.
-
-### Manage Dependencies
-
-Vite+ automatically detects and wraps the underlying package manager such as pnpm through the `packageManager` field in `package.json` or package manager-specific lockfiles.
-
-- add - Add packages to dependencies
-- remove (`rm`, `un`, `uninstall`) - Remove packages from dependencies
-- update (`up`) - Update packages to latest versions
-- outdated - Check for outdated packages
-- why (`explain`) - Show why a package is installed
-- info (`view`, `show`) - View package information from the registry
-- link (`ln`) / unlink - Manage local package links
-- pm - Forward a command to the package manager
 
 ## Common Pitfalls
 
@@ -87,10 +67,6 @@ Recommended reading order for wiring a Zero app: Install -> Schema -> Queries ->
 - [ZQL on the Server](https://zero.rocicorp.dev/docs/server-zql)
 - [Connection Status](https://zero.rocicorp.dev/docs/connection)
 - [REST APIs](https://zero.rocicorp.dev/docs/rest): Creating REST APIs for Zero Applications
-
-## Integrations
-
-- [React](https://zero.rocicorp.dev/docs/react)
 
 ## Debugging
 
