@@ -129,6 +129,25 @@
     @apply bg-background text-foreground;
     font-family: var(--font-default-serif);
   }
+
+  html,
+  body {
+    scroll-padding-top: 6rem;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html,
+    body {
+      scroll-behavior: smooth;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html,
+    body {
+      scroll-behavior: auto;
+    }
+  }
 }
 
 @keyframes fade-in-up {

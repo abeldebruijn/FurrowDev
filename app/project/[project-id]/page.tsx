@@ -1,24 +1,14 @@
-import { withAuth } from "@workos-inc/authkit-nextjs";
 import type { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
 
-import { ConceptProjectRoadmapRail } from "@/components/concept-project/concept-project-roadmap-rail";
-import { ProjectGenerateUbiquitousLanguageButton } from "@/components/project/project-generate-ubiquitous-language-button";
-import { ProjectSettings } from "@/components/project/project-settings";
-import { MarkdownContent } from "@/components/ui/markdown-content";
-import { SiteHeader } from "@/components/ui/site-header";
-import { getDb } from "@/lib/db";
-import {
-  getAccessibleProject,
-  getProjectRoadmap,
-  getProjectRoadmapItems,
-} from "@/lib/project/server";
-import { getWorkOSSession } from "@/lib/workos-session";
-import { upsertViewerFromWorkOSSession } from "@/lib/zero/context";
+import { getProjectPageData } from "./project-page-data";
+import { WidgetLayout } from "@/components/widgets/widget-layout";
 
 type ProjectPageProps = {
   params: Promise<{
     "project-id": string;
+  }>;
+  searchParams: Promise<{
+    widgetEdit?: string;
   }>;
 };
 
@@ -27,118 +17,34 @@ export const metadata: Metadata = {
   description: "View a graduated FurrowDev project.",
 };
 
-function getName(name: string) {
-  return name.trim() || "Untitled project";
-}
-
 function getDescription(description: string | null) {
   return description?.trim() || "No description yet.";
 }
 
-export default async function ProjectPage({ params }: ProjectPageProps) {
-  const { user } = await withAuth();
-
-  if (!user) {
-    redirect("/login");
-  }
-
-  const session = await getWorkOSSession();
-
-  if (!session) {
-    notFound();
-  }
-
-  const viewer = await upsertViewerFromWorkOSSession(session);
+export default async function ProjectPage({ params, searchParams }: ProjectPageProps) {
   const routeParams = await params;
-  const projectId = routeParams["project-id"];
-  const db = getDb();
-  const project = await getAccessibleProject(viewer.id, projectId, db);
-
-  if (!project) {
-    notFound();
-  }
-
-  const [roadmap, roadmapState] = await Promise.all([
-    getProjectRoadmapItems(project.roadmapId, db),
-    getProjectRoadmap(project.roadmapId, db),
-  ]);
+  const { project, projectRoadmap, projectRoadmapItems } = await getProjectPageData(
+    routeParams["project-id"],
+  );
+  const { widgetEdit } = await searchParams;
+  const isWidgetEdit = widgetEdit === "true" || widgetEdit === "1";
 
   return (
     <>
-      <SiteHeader back="/">
-        {getName(project.name)}
-        <ProjectSettings
-          description={project.description}
-          name={project.name}
-          projectId={project.id}
-          ubiquitousLanguageMarkdown={project.ubiquitousLanguageMarkdown}
-        />
-      </SiteHeader>
+      <section className="flex flex-col gap-2">
+        <p className="text-base leading-7 text-foreground">{getDescription(project.description)}</p>
+      </section>
 
-      <main className="mx-auto flex min-h-[calc(100vh-61px)] w-full max-w-350 flex-col gap-6 px-4 py-8 sm:px-6">
-        <section className="space-y-4">
-          <div className="space-y-1">
-            <h2 className="text-lg font-semibold tracking-tight text-foreground">Roadmap</h2>
-            <p className="text-sm text-muted-foreground">
-              This roadmap is the project-owned snapshot created during graduation.
-            </p>
-          </div>
-
-          <ConceptProjectRoadmapRail
-            canEditVersions={false}
-            canInsertVersions={false}
-            currentVersion={
-              roadmapState
-                ? {
-                    currentMajor: roadmapState.currentMajor,
-                    currentMinor: roadmapState.currentMinor,
-                  }
-                : null
-            }
-            disableCollapse
-            scrollToCurrentVersion
-            roadmap={roadmap}
-            className="sticky"
-          />
-        </section>
-
-        <section className="space-y-3">
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-muted-foreground">Description</p>
-            <p className="text-base leading-7 text-foreground">
-              {getDescription(project.description)}
-            </p>
-          </div>
-        </section>
-
-        <section className="space-y-3">
-          <div className="space-y-1">
-            <h2 className="text-lg font-semibold tracking-tight text-foreground">
-              Ubiquitous Language
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              This glossary is seeded during graduation and can be refined as the project language
-              hardens.
-            </p>
-          </div>
-
-          {project.ubiquitousLanguageMarkdown ? (
-            <div className="rounded-2xl border border-border bg-muted/30 px-4 py-4">
-              <MarkdownContent
-                className="space-y-4 text-sm leading-6 text-foreground"
-                text={project.ubiquitousLanguageMarkdown}
-              />
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                No ubiquitous language has been recorded yet.
-              </p>
-              <ProjectGenerateUbiquitousLanguageButton projectId={project.id} />
-            </div>
-          )}
-        </section>
-      </main>
+      <WidgetLayout
+        layout={project.layout}
+        project={{
+          projectId: project.id,
+          roadmap: projectRoadmap,
+          roadmapItems: projectRoadmapItems,
+        }}
+        projectId={project.id}
+        widgetEdit={isWidgetEdit}
+      />
     </>
   );
 }

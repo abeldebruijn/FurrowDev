@@ -1,0 +1,49 @@
+import { cn } from "@/lib/utils";
+
+export function PreviewWidgetCard({
+  size,
+  children,
+}: {
+  size:
+    | {
+        type: "short" | "medium" | "tall";
+        length: number;
+      }
+    | {
+        height: number;
+        label: string;
+        type: "short" | "medium" | "tall";
+        width: number;
+      };
+  children: React.ReactNode;
+}) {
+  const sizeClasses = {
+    short: "h-30",
+    medium: "h-50",
+    tall: "h-70",
+  };
+
+  const sizeHeight = {
+    short: 1,
+    medium: 2,
+    tall: 3,
+  };
+
+  const sizeClass = sizeClasses[size.type];
+  const height = "height" in size ? size.height : sizeHeight[size.type];
+  const sizesLabel =
+    "label" in size
+      ? size.label
+      : Array.from({ length: size.length }, (_, i) => `${i + 1}x${height}`).join(", ");
+
+  return (
+    <div className={cn("gap-0 rounded-xl border border-border/80 bg-background h-fit")}>
+      <div className={cn("p-0.5", sizeClass)}>{children}</div>
+
+      <div className="px-2 py-1 border-t font-sans text-muted-foreground flex justify-between items-center">
+        <p className="text-sm">{size.type}</p>
+        <p className="text-xs">Size: {sizesLabel}</p>
+      </div>
+    </div>
+  );
+}

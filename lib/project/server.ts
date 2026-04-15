@@ -2,7 +2,16 @@ import { randomUUID } from "node:crypto";
 
 import { and, eq, isNull, or } from "drizzle-orm";
 
-import { conceptProjects, organisations, roadmapItems, roadmaps, projects } from "@/drizzle/schema";
+import {
+  admins,
+  conceptProjects,
+  organisations,
+  type ProjectWidgetLayoutItem,
+  projectWidgetLayouts,
+  roadmapItems,
+  roadmaps,
+  projects,
+} from "@/drizzle/schema";
 import { getDb, type Database } from "@/lib/db";
 import {
   getConceptProjectRoadmap,
@@ -25,6 +34,45 @@ export type AccessibleProject = {
   roadmapId: string | null;
   ubiquitousLanguageMarkdown: string | null;
   userOwner: string | null;
+};
+
+export type ProjectAccess = AccessibleProject & {
+  canViewModeration: boolean;
+  canViewSettings: boolean;
+  isAdmin: boolean;
+  isOrganisationProject: boolean;
+  isOwner: boolean;
+  layout: {
+    id: string;
+    largeLayout: {
+      hSize: number;
+      widgetName: string;
+      wSize: number;
+      xPos: number;
+      yPos: number;
+    }[];
+    mediumAutoLayout: boolean;
+    mediumLayout:
+      | {
+          hSize: number;
+          widgetName: string;
+          wSize: number;
+          xPos: number;
+          yPos: number;
+        }[]
+      | null;
+    smallAutoLayout: boolean;
+    smallLayout:
+      | {
+          hSize: number;
+          widgetName: string;
+          wSize: number;
+          xPos: number;
+          yPos: number;
+        }[]
+      | null;
+    version: number;
+  } | null;
 };
 
 export type ProjectRoadmap = Awaited<ReturnType<typeof getProjectRoadmap>>;
@@ -114,6 +162,91 @@ export async function getAccessibleProject(
     .limit(1);
 
   return (rows[0] ?? null) as AccessibleProject | null;
+}
+
+export async function getProjectAccess(
+  viewerId: string,
+  projectId: string,
+  db: Database = getDb(),
+): Promise<ProjectAccess | null> {
+  const rows = await db
+    .select({
+      adminUserId: admins.userId,
+      conceptProjectId: projects.conceptProjectId,
+      conceptProjectName: conceptProjects.name,
+      createdAt: projects.createdAt,
+      description: projects.description,
+      id: projects.id,
+      largeLayout: projectWidgetLayouts.largeLayout,
+      name: projects.name,
+      mediumAutoLayout: projectWidgetLayouts.mediumAutoLayout,
+      mediumLayout: projectWidgetLayouts.mediumLayout,
+      organisationOwnerId: organisations.ownerId,
+      orgOwner: projects.orgOwner,
+      roadmapId: projects.roadmapId,
+      smallAutoLayout: projectWidgetLayouts.smallAutoLayout,
+      smallLayout: projectWidgetLayouts.smallLayout,
+      ubiquitousLanguageMarkdown: projects.ubiquitousLanguageMarkdown,
+      userOwner: projects.userOwner,
+      version: projectWidgetLayouts.version,
+      widgetLayoutId: projectWidgetLayouts.id,
+    })
+    .from(projects)
+    .leftJoin(organisations, eq(projects.orgOwner, organisations.id))
+    .leftJoin(conceptProjects, eq(projects.conceptProjectId, conceptProjects.id))
+    .leftJoin(projectWidgetLayouts, eq(projects.widgetLayoutId, projectWidgetLayouts.id))
+    .leftJoin(admins, and(eq(admins.projectId, projects.id), eq(admins.userId, viewerId)))
+    .where(
+      and(
+        eq(projects.id, projectId),
+        or(
+          eq(projects.userOwner, viewerId),
+          eq(organisations.ownerId, viewerId),
+          eq(admins.userId, viewerId),
+        ),
+      ),
+    )
+    .limit(1);
+
+  const project = rows[0] ?? null;
+
+  if (!project) {
+    return null;
+  }
+
+  const isOwner = project.userOwner === viewerId || project.organisationOwnerId === viewerId;
+  const isAdmin = project.adminUserId === viewerId;
+  const isOrganisationProject = project.orgOwner !== null;
+
+  return {
+    conceptProjectId: project.conceptProjectId,
+    conceptProjectName: project.conceptProjectName,
+    createdAt: project.createdAt,
+    description: project.description,
+    id: project.id,
+    layout:
+      project.widgetLayoutId === null
+        ? null
+        : {
+            id: project.widgetLayoutId,
+            largeLayout: project.largeLayout ?? [],
+            mediumAutoLayout: project.mediumAutoLayout ?? true,
+            mediumLayout: project.mediumLayout,
+            smallAutoLayout: project.smallAutoLayout ?? true,
+            smallLayout: project.smallLayout,
+            version: project.version ?? 1,
+          },
+    name: project.name,
+    orgOwner: project.orgOwner,
+    roadmapId: project.roadmapId,
+    ubiquitousLanguageMarkdown: project.ubiquitousLanguageMarkdown,
+    userOwner: project.userOwner,
+    canViewModeration: isOrganisationProject && (isOwner || isAdmin),
+    canViewSettings: isOwner || isAdmin,
+    isAdmin,
+    isOrganisationProject,
+    isOwner,
+  };
 }
 
 export async function getAccessibleProjectByConceptProjectId(
@@ -340,4 +473,80 @@ export async function updateAccessibleProject(
   await db.update(projects).set(nextValues).where(eq(projects.id, projectId));
 
   return getAccessibleProject(viewerId, projectId, db);
+}
+
+export async function saveAccessibleProjectWidgetLayout(
+  viewerId: string,
+  projectId: string,
+  largeLayout: ProjectWidgetLayoutItem[],
+  db: Database = getDb(),
+) {
+  const project = await getProjectAccess(viewerId, projectId, db);
+
+  if (!project) {
+    return { error: "not_found" as const };
+  }
+
+  if (!project.canViewSettings) {
+    return { error: "forbidden" as const };
+  }
+
+  await db.transaction(async (tx) => {
+    if (project.layout?.id) {
+      await tx
+        .update(projectWidgetLayouts)
+        .set({
+          largeLayout,
+        })
+        .where(eq(projectWidgetLayouts.id, project.layout.id));
+
+      return;
+    }
+
+    const widgetLayoutId = randomUUID();
+    const [claimedProject] = await tx
+      .update(projects)
+      .set({
+        widgetLayoutId,
+      })
+      .where(and(eq(projects.id, projectId), isNull(projects.widgetLayoutId)))
+      .returning({
+        widgetLayoutId: projects.widgetLayoutId,
+      });
+
+    if (claimedProject) {
+      await tx.insert(projectWidgetLayouts).values({
+        id: widgetLayoutId,
+        largeLayout,
+        mediumAutoLayout: true,
+        mediumLayout: null,
+        smallAutoLayout: true,
+        smallLayout: null,
+        version: 1,
+      });
+
+      return;
+    }
+
+    const [existingProject] = await tx
+      .select({
+        widgetLayoutId: projects.widgetLayoutId,
+      })
+      .from(projects)
+      .where(eq(projects.id, projectId))
+      .limit(1);
+
+    if (!existingProject?.widgetLayoutId) {
+      throw new Error(`Project widget layout claim failed for ${projectId}`);
+    }
+
+    await tx
+      .update(projectWidgetLayouts)
+      .set({
+        largeLayout,
+      })
+      .where(eq(projectWidgetLayouts.id, existingProject.widgetLayoutId));
+  });
+
+  return { error: null };
 }
