@@ -1,0 +1,32 @@
+name: Post-merge DB Migrate
+
+on:
+  pull_request:
+    types:
+      - closed
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    if: ${{ github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+
+      - name: Set up Vite+
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version: lts
+          cache: true
+          run-install: true
+
+      - name: Apply database migrations
+        env:
+          DATABASE_URL: ${{ secrets.ZERO_UPSTREAM_DB || secrets.DATABASE_URL }}
+        run: vp run db:migrate
