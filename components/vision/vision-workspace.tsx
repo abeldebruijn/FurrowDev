@@ -3,7 +3,7 @@
 import { DefaultChatTransport } from "ai";
 import { useChat } from "@ai-sdk/react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Users } from "lucide-react";
+import { ArrowDownIcon, CommandIcon, CornerDownLeftIcon, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { MarkdownContent } from "@/components/ui/markdown-content";
 import type { VisionAgentUIMessage } from "@/lib/agents/vision";
+import { cn } from "@/lib/utils";
 
 type VisionWorkspaceProps = {
   eligibleCollaborators: Array<{
@@ -48,6 +49,9 @@ type RenderMessage = {
   isTransient: boolean;
   role: "assistant" | "user";
 };
+
+const AUTO_FOLLOW_BOTTOM_THRESHOLD_PX = 500;
+const AUTO_SCROLL_COMPOSER_GAP_PX = 16;
 
 function getTextFromUIMessage(message: VisionAgentUIMessage) {
   return message.parts
@@ -273,9 +277,18 @@ export function VisionWorkspace({
 }: VisionWorkspaceProps) {
   const router = useRouter();
   const [input, setInput] = useState("");
+  const [isAtBottom, setIsAtBottom] = useState(true);
   const [collaborators, setCollaborators] = useState(initialCollaborators);
   const [routeError, setRouteError] = useState<string | null>(null);
+  const contentShellRef = useRef<HTMLDivElement | null>(null);
+  const composerFormRef = useRef<HTMLFormElement | null>(null);
+  const composerShellRef = useRef<HTMLDivElement | null>(null);
+  const followCurrentTypingSessionRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const pendingFinishedAgentScrollRef = useRef(false);
+  const isAtBottomRef = useRef(true);
+  const latestFinishedAssistantMessageIdRef = useRef<string | null>(null);
+  const wasSubmittingRef = useRef(false);
   const canManageCollaborators = viewerId === ownerUserId;
 
   useEffect(() => {
@@ -307,13 +320,140 @@ export function VisionWorkspace({
     [initialMessages, transientMessages],
   );
   const isSubmitting = status === "submitted" || status === "streaming";
+  const latestTransientAssistantMessage = useMemo(
+    () =>
+      [...messages]
+        .reverse()
+        .find((message) => message.role === "assistant" && message.isTransient),
+    [messages],
+  );
+  const latestFinishedAssistantMessage = [...messages]
+    .reverse()
+    .find((message) => message.role === "assistant" && !message.isTransient);
+
+  function getComposerOffset() {
+    const composerHeight = composerShellRef.current?.offsetHeight ?? 0;
+
+    return composerHeight + AUTO_SCROLL_COMPOSER_GAP_PX;
+  }
+
+  function computeIsAtBottom() {
+    const scrollBottom = window.scrollY + window.innerHeight;
+    const pageBottom = document.documentElement.scrollHeight;
+
+    return pageBottom - scrollBottom <= AUTO_FOLLOW_BOTTOM_THRESHOLD_PX;
+  }
+
+  function scrollToBottom(options?: { resumeTypingFollow?: boolean }) {
+    if (options?.resumeTypingFollow && isSubmitting) {
+      followCurrentTypingSessionRef.current = true;
+    }
+
+    window.scrollTo({
+      behavior: "auto",
+      top: document.documentElement.scrollHeight,
+    });
+
+    isAtBottomRef.current = true;
+    setIsAtBottom(true);
+  }
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "end",
+    function syncComposerOffset() {
+      const nextOffset = getComposerOffset();
+
+      if (nextOffset > 0 && contentShellRef.current) {
+        contentShellRef.current.style.paddingBottom = `${nextOffset}px`;
+      }
+    }
+
+    syncComposerOffset();
+    window.addEventListener("resize", syncComposerOffset);
+
+    return () => {
+      window.removeEventListener("resize", syncComposerOffset);
+    };
+  }, [isAtBottom]);
+
+  useEffect(() => {
+    function handleScroll() {
+      const nextIsAtBottom = computeIsAtBottom();
+
+      if (isSubmitting && followCurrentTypingSessionRef.current && !nextIsAtBottom) {
+        followCurrentTypingSessionRef.current = false;
+        pendingFinishedAgentScrollRef.current = false;
+      }
+
+      isAtBottomRef.current = nextIsAtBottom;
+      setIsAtBottom(nextIsAtBottom);
+    }
+
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", handleScroll);
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", handleScroll);
+    };
+  }, [isSubmitting]);
+
+  useEffect(() => {
+    if (contentShellRef.current) {
+      contentShellRef.current.style.paddingBottom = `${getComposerOffset()}px`;
+    }
+
+    const nextIsAtBottom = computeIsAtBottom();
+
+    isAtBottomRef.current = nextIsAtBottom;
+    setIsAtBottom(nextIsAtBottom);
+  }, [messages.length]);
+
+  useEffect(() => {
+    if (isSubmitting && !wasSubmittingRef.current) {
+      const shouldFollowCurrentTypingSession =
+        followCurrentTypingSessionRef.current || computeIsAtBottom();
+
+      followCurrentTypingSessionRef.current = shouldFollowCurrentTypingSession;
+      pendingFinishedAgentScrollRef.current = shouldFollowCurrentTypingSession;
+    }
+
+    if (!isSubmitting) {
+      followCurrentTypingSessionRef.current = false;
+    }
+
+    wasSubmittingRef.current = isSubmitting;
+  }, [isSubmitting]);
+
+  useEffect(() => {
+    if (!isSubmitting || !followCurrentTypingSessionRef.current) {
+      return;
+    }
+
+    scrollToBottom();
+  }, [isSubmitting, latestTransientAssistantMessage?.content]);
+
+  useEffect(() => {
+    const nextLatestFinishedAssistantMessageId = latestFinishedAssistantMessage?.id ?? null;
+    const previousLatestFinishedAssistantMessageId = latestFinishedAssistantMessageIdRef.current;
+
+    latestFinishedAssistantMessageIdRef.current = nextLatestFinishedAssistantMessageId;
+
+    if (
+      !previousLatestFinishedAssistantMessageId ||
+      previousLatestFinishedAssistantMessageId === nextLatestFinishedAssistantMessageId ||
+      isSubmitting ||
+      !pendingFinishedAgentScrollRef.current
+    ) {
+      return;
+    }
+
+    pendingFinishedAgentScrollRef.current = false;
+
+    window.requestAnimationFrame(() => {
+      scrollToBottom();
     });
-  }, [messages, status]);
+  }, [isSubmitting, latestFinishedAssistantMessage?.id]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -326,8 +466,11 @@ export function VisionWorkspace({
 
     setRouteError(null);
     setInput("");
+    followCurrentTypingSessionRef.current = true;
+    pendingFinishedAgentScrollRef.current = true;
+    scrollToBottom();
 
-    await sendMessage({
+    const sendMessagePromise = sendMessage({
       id: crypto.randomUUID(),
       parts: [
         {
@@ -337,6 +480,21 @@ export function VisionWorkspace({
       ],
       role: "user",
     });
+
+    window.requestAnimationFrame(() => {
+      scrollToBottom();
+    });
+
+    await sendMessagePromise;
+  }
+
+  function handleComposerKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (!(event.metaKey || event.ctrlKey) || event.key !== "Enter") {
+      return;
+    }
+
+    event.preventDefault();
+    composerFormRef.current?.requestSubmit();
   }
 
   async function mutateCollaborator(userId: string, method: "DELETE" | "POST") {
@@ -372,109 +530,159 @@ export function VisionWorkspace({
   }
 
   return (
-    <section className="flex flex-col gap-4">
-      <div className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-muted/30 p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-muted-foreground/80">
-              Private vision
-            </p>
-            <h1 className="mt-1 text-xl font-semibold text-foreground">{title}</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Explore what this project should build next. This conversation stays private until a
-              future conversion step turns it into a project idea.
-            </p>
+    <>
+      <section className="grid gap-6" ref={contentShellRef}>
+        <div className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-muted/30 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-muted-foreground/80">
+                Private vision
+              </p>
+              <h1 className="mt-1 text-xl font-semibold text-foreground">{title}</h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                Explore what this project should build next. This conversation stays private until a
+                future conversion step turns it into a shared idea.
+              </p>
+            </div>
+
+            <VisionCollaboratorsDialog
+              canManage={canManageCollaborators}
+              collaborators={collaborators}
+              eligibleCollaborators={eligibleCollaborators}
+              onAdd={(userId) => mutateCollaborator(userId, "POST")}
+              onRemove={(userId) => mutateCollaborator(userId, "DELETE")}
+              ownerName={ownerName}
+              ownerUserId={ownerUserId}
+            />
           </div>
-
-          <VisionCollaboratorsDialog
-            canManage={canManageCollaborators}
-            collaborators={collaborators}
-            eligibleCollaborators={eligibleCollaborators}
-            onAdd={(userId) => mutateCollaborator(userId, "POST")}
-            onRemove={(userId) => mutateCollaborator(userId, "DELETE")}
-            ownerName={ownerName}
-            ownerUserId={ownerUserId}
-          />
         </div>
-      </div>
 
-      <div className="rounded-2xl border border-border/70 bg-background">
-        <div className="max-h-[60vh] min-h-[50vh] space-y-4 overflow-y-auto px-4 py-5 sm:px-6">
+        <div className="flex-1 space-y-3 overflow-y-auto px-6 py-5">
           {messages.map((message) => {
             const isAssistant = message.role === "assistant";
 
             return (
-              <div
-                className={isAssistant ? "mr-auto max-w-[85%]" : "ml-auto max-w-[65ch]"}
-                key={message.id}
-              >
-                <div
-                  className={
-                    isAssistant
-                      ? "rounded-2xl border border-border bg-muted/50 px-4 py-3"
-                      : "rounded-2xl border border-foreground bg-accent px-4 py-3 text-accent-foreground"
-                  }
-                >
-                  {isAssistant ? (
-                    <p className="text-xs font-semibold font-mono text-muted-foreground">
-                      Vision agent:
-                    </p>
-                  ) : null}
-                  <MarkdownContent
-                    className={
+              <div key={message.id} className="space-y-3">
+                <div className={isAssistant ? "mr-auto max-w-[85%]" : "ml-auto max-w-[60ch]"}>
+                  <div
+                    className={cn(
+                      "rounded-2xl border px-4 py-3",
                       isAssistant
-                        ? "mt-1 text-sm leading-6 text-muted-foreground"
-                        : "mt-1 text-sm leading-6 text-foreground/80"
-                    }
-                    text={message.content || "..."}
-                    tone={isAssistant ? "default" : "inverse"}
-                  />
+                        ? "border-border bg-muted/50"
+                        : "border-foreground bg-accent text-accent-foreground",
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      {isAssistant ? (
+                        <span className="text-xs font-semibold font-mono text-muted-foreground">
+                          Vision agent:
+                        </span>
+                      ) : null}
+                    </div>
+                    <MarkdownContent
+                      className={
+                        isAssistant
+                          ? "mt-1 text-sm leading-6 text-muted-foreground"
+                          : "mt-1 text-sm leading-6 text-foreground/80"
+                      }
+                      text={message.content || "..."}
+                      tone={isAssistant ? "default" : "inverse"}
+                    />
+                  </div>
                 </div>
               </div>
             );
           })}
 
           {isSubmitting ? (
-            <div className="mr-auto max-w-[85%] rounded-2xl border border-border bg-muted/50 px-4 py-3">
-              <p className="text-xs font-semibold font-mono text-muted-foreground">Vision agent:</p>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">Thinking...</p>
+            <div className="space-y-3">
+              <div className="mr-auto max-w-[85%] rounded-2xl border border-border bg-muted/50 px-4 py-3">
+                <p className="text-xs font-semibold font-mono text-muted-foreground">
+                  Vision agent:
+                </p>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">Thinking...</p>
+              </div>
             </div>
           ) : null}
 
-          <div ref={messagesEndRef} />
+          <div aria-hidden="true" ref={messagesEndRef} />
         </div>
+      </section>
 
-        <form className="border-t border-border/70 px-4 py-4 sm:px-6" onSubmit={handleSubmit}>
-          <label className="sr-only" htmlFor="vision-message-input">
-            Message the vision agent
-          </label>
-          <textarea
-            className="min-h-28 w-full rounded-xl border bg-background px-3 py-3 text-sm outline-none focus:border-foreground"
-            id="vision-message-input"
-            onChange={(event) => setInput(event.target.value)}
-            placeholder="Describe what you want to explore, change, or validate."
-            value={input}
-          />
-
-          <div className="mt-3 flex items-center justify-between gap-3">
-            <p className="text-xs text-muted-foreground">
-              The hidden summary document updates after each assistant response.
-            </p>
-            <Button disabled={!input.trim() || isSubmitting} type="submit">
-              {isSubmitting ? "Thinking..." : "Send"}
-            </Button>
+      <div className="fixed inset-x-0 bottom-0 z-20" ref={composerShellRef}>
+        <div className="mx-auto w-full max-w-240 px-4 pb-6 sm:px-6">
+          <div className="mb-3 flex h-14 justify-center">
+            {!isAtBottom ? (
+              <Button
+                aria-label="Scroll to latest message"
+                className="size-11 rounded-full shadow-md"
+                onClick={() => scrollToBottom({ resumeTypingFollow: true })}
+                size="icon"
+                type="button"
+              >
+                <ArrowDownIcon className="size-5" />
+              </Button>
+            ) : null}
           </div>
 
-          {routeError || error ? (
-            <Alert className="mt-3" variant="destructive">
-              <AlertTitle>Chat failed</AlertTitle>
-              <AlertDescription>
-                {routeError || error?.message || "Failed to send the message."}
-              </AlertDescription>
-            </Alert>
-          ) : null}
-        </form>
+          <form onSubmit={handleSubmit} ref={composerFormRef}>
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <div className="flex min-w-0 flex-1 sm:flex-none">
+                <Button
+                  className="w-full justify-start sm:w-auto sm:min-w-52"
+                  type="button"
+                  variant="outline"
+                >
+                  Private vision
+                </Button>
+              </div>
+            </div>
+
+            <div className="relative rounded-lg bg-background">
+              <label className="sr-only" htmlFor="vision-message-input">
+                Message the vision agent
+              </label>
+              <textarea
+                aria-label="Message the vision agent"
+                className="min-h-32 w-full rounded-lg border bg-background px-4 py-3 text-sm outline-none transition focus:border-foreground"
+                id="vision-message-input"
+                onChange={(event) => setInput(event.target.value)}
+                onKeyDown={handleComposerKeyDown}
+                placeholder="Answer the current question or add more detail."
+                value={input}
+              />
+
+              <Button
+                className="absolute right-2 bottom-4"
+                disabled={!input.trim() || isSubmitting}
+                type="submit"
+              >
+                {isSubmitting ? (
+                  "Thinking..."
+                ) : (
+                  <>
+                    Send
+                    <div className="flex">
+                      <CommandIcon className="size-2.5" />
+                      <CornerDownLeftIcon className="size-2.5" />
+                    </div>
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {(routeError || error) && (
+              <div className="flex items-center justify-between gap-3 bg-background p-2">
+                <div className="space-y-1">
+                  <p className="text-xs text-destructive">
+                    {routeError || error?.message || "Failed to send the message."}
+                  </p>
+                </div>
+              </div>
+            )}
+          </form>
+        </div>
       </div>
-    </section>
+    </>
   );
 }

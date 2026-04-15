@@ -76,7 +76,7 @@ describe("ProjectIdeasPage", () => {
       }),
     );
 
-    expect(markup).toContain("Vision discovery");
+    expect(markup).toContain("Visions");
     expect(markup).toContain("No visions yet");
     expect(markup).toContain("New vision");
   });
