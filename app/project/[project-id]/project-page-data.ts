@@ -37,6 +37,7 @@ export const getProjectPageData = cache(async (projectId: string) => {
     project,
     projectRoadmap,
     projectRoadmapItems,
+    viewer,
     widgetLayout: project.layout,
   };
 });

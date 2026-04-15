@@ -122,6 +122,9 @@ describe("getProjectPageData", () => {
           name: "Beta launch",
         },
       ],
+      viewer: {
+        id: "viewer-1",
+      },
       widgetLayout: null,
     });
   });

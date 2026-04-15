@@ -1,6 +1,6 @@
-# Using Vite+, the Unified Toolchain for the Web
+I have written an extensive document in ./UBIQUITOUS_LANGUAGE.md that notes what each ubiquitous term means in this project.
 
-### Develop
+## Develop
 
 - vp env - Manage Node.js versions
 - vp check - Run format, lint, and TypeScript type checks
