@@ -19,7 +19,7 @@ function MessageMarkdown({ isAgent, text }: { isAgent: boolean; text: string }) 
       className={
         isAgent
           ? "mt-1 text-sm leading-6 text-muted-foreground"
-          : "mt-1 text-sm leading-6 text-background/80"
+          : "mt-1 text-sm leading-6 text-foreground/80"
       }
       text={text || "..."}
       tone={isAgent ? "default" : "inverse"}
