@@ -5,10 +5,47 @@ import { useEffect, useRef, useState } from "react";
 const AUTO_FOLLOW_BOTTOM_THRESHOLD_PX = 500;
 const AUTO_SCROLL_COMPOSER_GAP_PX = 16;
 
-export function useVisionAutoScroll(args: {
+export function getComposerOffsetForAutoScroll(composerHeight: number) {
+  return composerHeight + AUTO_SCROLL_COMPOSER_GAP_PX;
+}
+
+export function isAtBottomForAutoScroll(args: {
+  innerHeight: number;
+  scrollHeight: number;
+  scrollY: number;
+}) {
+  const scrollBottom = args.scrollY + args.innerHeight;
+
+  return args.scrollHeight - scrollBottom <= AUTO_FOLLOW_BOTTOM_THRESHOLD_PX;
+}
+
+export function shouldStopAutoFollow(args: {
+  isFollowing: boolean;
   isSubmitting: boolean;
-  latestFinishedAssistantMessageId?: string;
-  latestTransientAssistantMessageContent?: string;
+  nextIsAtBottom: boolean;
+}) {
+  return args.isSubmitting && args.isFollowing && !args.nextIsAtBottom;
+}
+
+export function shouldScrollAfterFinishedMessage(args: {
+  hasPendingFinishedScroll: boolean;
+  isSubmitting: boolean;
+  nextLatestFinishedMessageId: string | null;
+  previousLatestFinishedMessageId: string | null;
+}) {
+  return !(
+    !args.previousLatestFinishedMessageId ||
+    args.previousLatestFinishedMessageId === args.nextLatestFinishedMessageId ||
+    args.isSubmitting ||
+    !args.hasPendingFinishedScroll
+  );
+}
+
+export function useChatAutoScroll(args: {
+  isSubmitting: boolean;
+  latestFinishedMessageId?: string;
+  latestTransientMessageContent?: string;
+  layoutVersion?: boolean | number | string | null;
   messageCount: number;
 }) {
   const [isAtBottom, setIsAtBottom] = useState(true);
@@ -17,22 +54,23 @@ export function useVisionAutoScroll(args: {
   const composerShellRef = useRef<HTMLDivElement | null>(null);
   const followCurrentTypingSessionRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  const pendingFinishedAgentScrollRef = useRef(false);
+  const pendingFinishedMessageScrollRef = useRef(false);
   const isAtBottomRef = useRef(true);
-  const latestFinishedAssistantMessageIdRef = useRef<string | null>(null);
+  const latestFinishedMessageIdRef = useRef<string | null>(null);
   const wasSubmittingRef = useRef(false);
 
   function getComposerOffset() {
     const composerHeight = composerShellRef.current?.offsetHeight ?? 0;
 
-    return composerHeight + AUTO_SCROLL_COMPOSER_GAP_PX;
+    return getComposerOffsetForAutoScroll(composerHeight);
   }
 
   function computeIsAtBottom() {
-    const scrollBottom = window.scrollY + window.innerHeight;
-    const pageBottom = document.documentElement.scrollHeight;
-
-    return pageBottom - scrollBottom <= AUTO_FOLLOW_BOTTOM_THRESHOLD_PX;
+    return isAtBottomForAutoScroll({
+      innerHeight: window.innerHeight,
+      scrollHeight: document.documentElement.scrollHeight,
+      scrollY: window.scrollY,
+    });
   }
 
   function scrollToBottom(options?: { resumeTypingFollow?: boolean }) {
@@ -64,15 +102,21 @@ export function useVisionAutoScroll(args: {
     return () => {
       window.removeEventListener("resize", syncComposerOffset);
     };
-  }, [isAtBottom]);
+  }, [args.layoutVersion, isAtBottom]);
 
   useEffect(() => {
     function handleScroll() {
       const nextIsAtBottom = computeIsAtBottom();
 
-      if (args.isSubmitting && followCurrentTypingSessionRef.current && !nextIsAtBottom) {
+      if (
+        shouldStopAutoFollow({
+          isFollowing: followCurrentTypingSessionRef.current,
+          isSubmitting: args.isSubmitting,
+          nextIsAtBottom,
+        })
+      ) {
         followCurrentTypingSessionRef.current = false;
-        pendingFinishedAgentScrollRef.current = false;
+        pendingFinishedMessageScrollRef.current = false;
       }
 
       isAtBottomRef.current = nextIsAtBottom;
@@ -98,7 +142,7 @@ export function useVisionAutoScroll(args: {
 
     isAtBottomRef.current = nextIsAtBottom;
     setIsAtBottom(nextIsAtBottom);
-  }, [args.messageCount]);
+  }, [args.layoutVersion, args.messageCount]);
 
   useEffect(() => {
     if (args.isSubmitting && !wasSubmittingRef.current) {
@@ -106,7 +150,7 @@ export function useVisionAutoScroll(args: {
         followCurrentTypingSessionRef.current || computeIsAtBottom();
 
       followCurrentTypingSessionRef.current = shouldFollowCurrentTypingSession;
-      pendingFinishedAgentScrollRef.current = shouldFollowCurrentTypingSession;
+      pendingFinishedMessageScrollRef.current = shouldFollowCurrentTypingSession;
     }
 
     if (!args.isSubmitting) {
@@ -122,29 +166,31 @@ export function useVisionAutoScroll(args: {
     }
 
     scrollToBottom();
-  }, [args.isSubmitting, args.latestTransientAssistantMessageContent]);
+  }, [args.isSubmitting, args.latestTransientMessageContent]);
 
   useEffect(() => {
-    const nextLatestFinishedAssistantMessageId = args.latestFinishedAssistantMessageId ?? null;
-    const previousLatestFinishedAssistantMessageId = latestFinishedAssistantMessageIdRef.current;
+    const nextLatestFinishedMessageId = args.latestFinishedMessageId ?? null;
+    const previousLatestFinishedMessageId = latestFinishedMessageIdRef.current;
 
-    latestFinishedAssistantMessageIdRef.current = nextLatestFinishedAssistantMessageId;
+    latestFinishedMessageIdRef.current = nextLatestFinishedMessageId;
 
     if (
-      !previousLatestFinishedAssistantMessageId ||
-      previousLatestFinishedAssistantMessageId === nextLatestFinishedAssistantMessageId ||
-      args.isSubmitting ||
-      !pendingFinishedAgentScrollRef.current
+      !shouldScrollAfterFinishedMessage({
+        hasPendingFinishedScroll: pendingFinishedMessageScrollRef.current,
+        isSubmitting: args.isSubmitting,
+        nextLatestFinishedMessageId,
+        previousLatestFinishedMessageId,
+      })
     ) {
       return;
     }
 
-    pendingFinishedAgentScrollRef.current = false;
+    pendingFinishedMessageScrollRef.current = false;
 
     window.requestAnimationFrame(() => {
       scrollToBottom();
     });
-  }, [args.isSubmitting, args.latestFinishedAssistantMessageId]);
+  }, [args.isSubmitting, args.latestFinishedMessageId]);
 
   return {
     composerFormRef,
@@ -153,7 +199,7 @@ export function useVisionAutoScroll(args: {
     followCurrentTypingSessionRef,
     isAtBottom,
     messagesEndRef,
-    pendingFinishedAgentScrollRef,
+    pendingFinishedMessageScrollRef,
     scrollToBottom,
   };
 }

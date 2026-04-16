@@ -1,26 +1,21 @@
+import type { ChatRenderMessage } from "@/components/chat/chat-types";
+import { getTextFromUIMessage } from "@/components/chat/chat-message-utils";
 import type { VisionAgentUIMessage } from "@/lib/agents/vision";
 
-import type { RenderMessage, VisionWorkspaceProps } from "./vision-workspace-types";
-
-function getTextFromUIMessage(message: VisionAgentUIMessage) {
-  return message.parts
-    .flatMap((part) => (part.type === "text" ? [part.text] : []))
-    .join("")
-    .trim();
-}
+import type { VisionWorkspaceProps } from "./vision-workspace-types";
 
 export function buildRenderMessages(args: {
   persistedMessages: VisionWorkspaceProps["initialMessages"];
   transientMessages: VisionAgentUIMessage[];
 }) {
   const persistedIds = new Set(args.persistedMessages.map((message) => message.id));
-  const persisted: RenderMessage[] = args.persistedMessages.map((message) => ({
+  const persisted: ChatRenderMessage[] = args.persistedMessages.map((message) => ({
     content: message.content,
     id: message.id,
     isTransient: false,
     role: message.role,
   }));
-  const pending: RenderMessage[] = args.transientMessages
+  const pending: ChatRenderMessage[] = args.transientMessages
     .filter(
       (
         message,

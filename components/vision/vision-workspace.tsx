@@ -5,12 +5,12 @@ import { useChat } from "@ai-sdk/react";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { useChatAutoScroll } from "@/components/chat/use-chat-auto-scroll";
 import type { VisionAgentUIMessage } from "@/lib/agents/vision";
 
 import { buildRenderMessages } from "./vision-workspace-messages";
 import type { VisionWorkspaceProps } from "./vision-workspace-types";
 import { VisionWorkspaceView } from "./vision-workspace-view";
-import { useVisionAutoScroll } from "./use-vision-auto-scroll";
 
 export function VisionWorkspace({
   eligibleCollaborators,
@@ -80,12 +80,13 @@ export function VisionWorkspace({
     followCurrentTypingSessionRef,
     isAtBottom,
     messagesEndRef,
-    pendingFinishedAgentScrollRef,
+    pendingFinishedMessageScrollRef,
     scrollToBottom,
-  } = useVisionAutoScroll({
+  } = useChatAutoScroll({
     isSubmitting,
-    latestFinishedAssistantMessageId: latestFinishedAssistantMessage?.id,
-    latestTransientAssistantMessageContent: latestTransientAssistantMessage?.content,
+    latestFinishedMessageId: latestFinishedAssistantMessage?.id,
+    latestTransientMessageContent: latestTransientAssistantMessage?.content,
+    layoutVersion: canManageCollaborators,
     messageCount: messages.length,
   });
 
@@ -101,7 +102,7 @@ export function VisionWorkspace({
     setRouteError(null);
     setInput("");
     followCurrentTypingSessionRef.current = true;
-    pendingFinishedAgentScrollRef.current = true;
+    pendingFinishedMessageScrollRef.current = true;
     scrollToBottom();
 
     const sendMessagePromise = sendMessage({

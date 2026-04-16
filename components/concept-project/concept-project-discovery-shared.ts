@@ -1,5 +1,7 @@
 "use client";
 
+import { getTextFromUIMessage } from "@/components/chat/chat-message-utils";
+import type { ChatRenderMessage } from "@/components/chat/chat-types";
 import type { ConceptProjectAgentUIMessage } from "@/lib/agents/concept-project";
 import type {
   ConceptProjectRoadmapCurrentVersion,
@@ -49,13 +51,9 @@ export type ConceptProjectDiscoveryProps = {
   zeroEnabled: boolean;
 };
 
-export type RenderMessage = {
-  id: string;
-  isTransient: boolean;
+export type RenderMessage = ChatRenderMessage<{
   stage: ConceptProjectStage;
-  text: string;
-  type: "agent" | "person";
-};
+}>;
 
 export type RoadmapVersionInsertArgs = {
   description?: string;
@@ -129,13 +127,6 @@ export function getMaxUnlockedStageIndex(conceptProject: ConceptProjectSnapshot)
   );
 }
 
-export function getTextFromUIMessage(message: ConceptProjectAgentUIMessage) {
-  return message.parts
-    .flatMap((part) => (part.type === "text" ? [part.text] : []))
-    .join("")
-    .trim();
-}
-
 export function buildRenderedMessages(args: {
   currentStage: ConceptProjectStage;
   messages: PersistedMessage[];
@@ -149,11 +140,13 @@ export function buildRenderedMessages(args: {
   const persisted: RenderMessage[] = args.messages
     .filter((message) => !(message.type === "person" && isHiddenKickoffMessage(message.message)))
     .map((message) => ({
+      content: message.message,
       id: message.id,
       isTransient: false,
-      stage: message.stage,
-      text: message.message,
-      type: message.type,
+      meta: {
+        stage: message.stage,
+      },
+      role: message.type === "agent" ? "assistant" : "user",
     }));
 
   const pending: RenderMessage[] = args.transientMessages
@@ -170,19 +163,21 @@ export function buildRenderedMessages(args: {
     })
     .map(
       (message): RenderMessage => ({
+        content: getTextFromUIMessage(message),
         id: message.id,
         isTransient: true,
-        stage: args.currentStage,
-        text: getTextFromUIMessage(message),
-        type: message.role === "user" ? "person" : "agent",
+        meta: {
+          stage: args.currentStage,
+        },
+        role: message.role === "user" ? "user" : "assistant",
       }),
     )
     .filter((message) => {
-      if (message.type === "person" && isHiddenKickoffMessage(message.text)) {
+      if (message.role === "user" && isHiddenKickoffMessage(message.content)) {
         return false;
       }
 
-      return message.text.length > 0 || message.type === "agent";
+      return message.content.length > 0 || message.role === "assistant";
     });
 
   return [...persisted, ...pending];

@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
+import { useChatAutoScroll } from "@/components/chat/use-chat-auto-scroll";
 import { ConceptProjectDiscoveryComposer } from "@/components/concept-project/concept-project-discovery-composer";
 import { ConceptProjectDiscoveryMessages } from "@/components/concept-project/concept-project-discovery-messages";
 import { ConceptProjectRoadmapRail } from "@/components/concept-project/concept-project-roadmap-rail";
@@ -32,14 +33,11 @@ import {
   getConceptProjectWordCount,
   type ConceptProjectStage,
 } from "@/lib/concept-project/shared";
-import { cn } from "@/lib/utils";
 import { mutators } from "@/zero/mutators";
 import { queries } from "@/zero/queries";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 
-const AUTO_FOLLOW_BOTTOM_THRESHOLD_PX = 500;
-const AUTO_SCROLL_COMPOSER_GAP_PX = 16;
 const SUGGEST_OPTIONS_PROMPT = "I don't know, suggest 5 options";
 
 function getTransientAgentActivity(stage: ConceptProjectStage, hasVisibleText: boolean) {
@@ -120,19 +118,9 @@ function ConceptProjectDiscoveryView({
 }: ConceptProjectDiscoveryViewProps) {
   const searchParams = useSearchParams();
   const [input, setInput] = useState("");
-  const [isAtBottom, setIsAtBottom] = useState(true);
   const [composerError, setComposerError] = useState<string | null>(null);
   const clearLocalMessagesTimeoutRef = useRef<number | null>(null);
   const autoKickoffMessageIdRef = useRef<string | null>(null);
-  const contentShellRef = useRef<HTMLDivElement | null>(null);
-  const composerFormRef = useRef<HTMLFormElement | null>(null);
-  const composerShellRef = useRef<HTMLDivElement | null>(null);
-  const followCurrentTypingSessionRef = useRef(false);
-  const pendingFinishedAgentScrollRef = useRef(false);
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  const isAtBottomRef = useRef(true);
-  const latestFinishedAgentMessageIdRef = useRef<string | null>(null);
-  const wasSubmittingRef = useRef(false);
   const didHandleInitialScrollRef = useRef(false);
   const currentStage = conceptProject.currentStage;
   const transientToastId = `concept-project-transient-agent-${conceptProjectId}`;
@@ -194,22 +182,39 @@ function ConceptProjectDiscoveryView({
     () =>
       [...renderedMessages]
         .reverse()
-        .find((message) => message.type === "agent" && message.isTransient),
+        .find((message) => message.role === "assistant" && message.isTransient),
     [renderedMessages],
   );
   const transientAgentActivity = getTransientAgentActivity(
     currentStage,
-    Boolean(latestTransientAgentMessage?.text.length),
+    Boolean(latestTransientAgentMessage?.content.length),
   );
 
-  const isSetupStage = currentStage === "setup" || currentStage === "grill_me";
   const isSubmitting = !isArchived && (status === "submitted" || status === "streaming");
   const latestFinishedAgentMessage = [...renderedMessages]
     .reverse()
-    .find((message) => message.type === "agent" && !message.isTransient);
+    .find((message) => message.role === "assistant" && !message.isTransient);
   const latestUserMessage = [...renderedMessages]
     .reverse()
-    .find((message) => message.type === "person");
+    .find((message) => message.role === "user");
+  const hasRoadmap = roadmap.length > 0;
+  const showGraduateAction = Boolean(conceptProject.understoodSetupAt);
+  const {
+    composerFormRef,
+    composerShellRef,
+    contentShellRef,
+    followCurrentTypingSessionRef,
+    isAtBottom,
+    messagesEndRef,
+    pendingFinishedMessageScrollRef,
+    scrollToBottom,
+  } = useChatAutoScroll({
+    isSubmitting,
+    latestFinishedMessageId: latestFinishedAgentMessage?.id,
+    latestTransientMessageContent: latestTransientAgentMessage?.content,
+    layoutVersion: `${currentStage}:${showGraduateAction}:${Boolean(composerError)}:${Boolean(error?.message)}:${hasAnsweredOpeningPrompt}`,
+    messageCount: renderedMessages.length,
+  });
 
   useEffect(() => {
     const latestPersistedMessage = messages.at(-1);
@@ -253,8 +258,6 @@ function ConceptProjectDiscoveryView({
       ? null
       : getNextConceptProjectStage(currentStage);
   const progressCard = canProgressToNextStage ? getStageProgressCard(currentStage) : null;
-  const hasRoadmap = roadmap.length > 0;
-  const showGraduateAction = Boolean(conceptProject.understoodSetupAt);
 
   useEffect(() => {
     if (!isSubmitting) {
@@ -277,130 +280,6 @@ function ConceptProjectDiscoveryView({
     [transientToastId],
   );
 
-  function getComposerOffset() {
-    const composerHeight = composerShellRef.current?.offsetHeight ?? 0;
-
-    return composerHeight + AUTO_SCROLL_COMPOSER_GAP_PX;
-  }
-
-  function computeIsAtBottom() {
-    const scrollBottom = window.scrollY + window.innerHeight;
-    const pageBottom = document.documentElement.scrollHeight;
-
-    return pageBottom - scrollBottom <= AUTO_FOLLOW_BOTTOM_THRESHOLD_PX;
-  }
-
-  function scrollToBottom(options?: { resumeTypingFollow?: boolean }) {
-    if (options?.resumeTypingFollow && isSubmitting) {
-      followCurrentTypingSessionRef.current = true;
-    }
-
-    window.scrollTo({
-      behavior: "auto",
-      top: document.documentElement.scrollHeight,
-    });
-
-    isAtBottomRef.current = true;
-    setIsAtBottom(true);
-  }
-
-  useEffect(() => {
-    function syncComposerOffset() {
-      const nextOffset = getComposerOffset();
-
-      if (nextOffset > 0 && contentShellRef.current) {
-        contentShellRef.current.style.paddingBottom = `${nextOffset}px`;
-      }
-    }
-
-    syncComposerOffset();
-    window.addEventListener("resize", syncComposerOffset);
-
-    return () => {
-      window.removeEventListener("resize", syncComposerOffset);
-    };
-  }, [isAtBottom, isSetupStage]);
-
-  useEffect(() => {
-    function handleScroll() {
-      const nextIsAtBottom = computeIsAtBottom();
-
-      if (isSubmitting && followCurrentTypingSessionRef.current && !nextIsAtBottom) {
-        followCurrentTypingSessionRef.current = false;
-        pendingFinishedAgentScrollRef.current = false;
-      }
-
-      isAtBottomRef.current = nextIsAtBottom;
-      setIsAtBottom(nextIsAtBottom);
-    }
-
-    handleScroll();
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    window.addEventListener("resize", handleScroll);
-
-    return () => {
-      window.removeEventListener("scroll", handleScroll);
-      window.removeEventListener("resize", handleScroll);
-    };
-  }, [isSubmitting]);
-
-  useEffect(() => {
-    if (contentShellRef.current) {
-      contentShellRef.current.style.paddingBottom = `${getComposerOffset()}px`;
-    }
-
-    const nextIsAtBottom = computeIsAtBottom();
-
-    isAtBottomRef.current = nextIsAtBottom;
-    setIsAtBottom(nextIsAtBottom);
-  }, [currentStage, renderedMessages.length]);
-
-  useEffect(() => {
-    if (isSubmitting && !wasSubmittingRef.current) {
-      const shouldFollowCurrentTypingSession =
-        followCurrentTypingSessionRef.current || computeIsAtBottom();
-
-      followCurrentTypingSessionRef.current = shouldFollowCurrentTypingSession;
-      pendingFinishedAgentScrollRef.current = shouldFollowCurrentTypingSession;
-    }
-
-    if (!isSubmitting) {
-      followCurrentTypingSessionRef.current = false;
-    }
-
-    wasSubmittingRef.current = isSubmitting;
-  }, [isSubmitting]);
-
-  useEffect(() => {
-    if (!isSubmitting || !followCurrentTypingSessionRef.current) {
-      return;
-    }
-
-    scrollToBottom();
-  }, [isSubmitting, latestTransientAgentMessage?.text]);
-
-  useEffect(() => {
-    const nextLatestFinishedAgentMessageId = latestFinishedAgentMessage?.id ?? null;
-    const previousLatestFinishedAgentMessageId = latestFinishedAgentMessageIdRef.current;
-
-    latestFinishedAgentMessageIdRef.current = nextLatestFinishedAgentMessageId;
-
-    if (
-      !previousLatestFinishedAgentMessageId ||
-      previousLatestFinishedAgentMessageId === nextLatestFinishedAgentMessageId ||
-      isSubmitting ||
-      !pendingFinishedAgentScrollRef.current
-    ) {
-      return;
-    }
-
-    pendingFinishedAgentScrollRef.current = false;
-
-    window.requestAnimationFrame(() => {
-      scrollToBottom();
-    });
-  }, [isSubmitting, latestFinishedAgentMessage?.id]);
-
   useEffect(() => {
     if (didHandleInitialScrollRef.current) {
       return;
@@ -414,10 +293,6 @@ function ConceptProjectDiscoveryView({
     didHandleInitialScrollRef.current = true;
 
     window.requestAnimationFrame(() => {
-      if (contentShellRef.current) {
-        contentShellRef.current.style.paddingBottom = `${getComposerOffset()}px`;
-      }
-
       scrollToBottom();
     });
   }, [searchParams]);
@@ -437,7 +312,7 @@ function ConceptProjectDiscoveryView({
     setInput("");
 
     followCurrentTypingSessionRef.current = true;
-    pendingFinishedAgentScrollRef.current = true;
+    pendingFinishedMessageScrollRef.current = true;
     scrollToBottom();
 
     const sendMessagePromise = sendMessage({
@@ -503,13 +378,14 @@ function ConceptProjectDiscoveryView({
 
         <ConceptProjectDiscoveryMessages
           canProgressToNextStage={canProgressToNextStage}
-          contentClassName={cn(hasRoadmap && "pt-44 sm:pt-48")}
+          contentClassName={hasRoadmap ? "pt-44 sm:pt-48" : undefined}
           hasRoadmap={hasRoadmap}
           isArchived={isArchived}
           isSubmitting={isSubmitting}
           latestFinishedAgentMessageId={latestFinishedAgentMessage?.id}
           latestUserMessageId={latestUserMessage?.id}
           messages={renderedMessages}
+          messagesEndRef={messagesEndRef}
           nextStage={nextStage}
           onProgressToNextStage={() =>
             nextStage
@@ -526,7 +402,6 @@ function ConceptProjectDiscoveryView({
           }
           progressCard={progressCard}
         />
-        <div aria-hidden="true" ref={messagesEndRef} />
       </div>
 
       {isArchived && projectId ? (

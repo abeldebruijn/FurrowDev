@@ -19,10 +19,3 @@ export type VisionWorkspaceProps = {
   viewerId: string;
   visionId: string;
 };
-
-export type RenderMessage = {
-  content: string;
-  id: string;
-  isTransient: boolean;
-  role: "assistant" | "user";
-};
