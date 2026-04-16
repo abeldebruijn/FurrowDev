@@ -23,7 +23,10 @@ vi.mock("../components/vision/create-vision-dialog", () => ({
 
 import VisionsWidgetPreview from "../components/widgets/visions/visions-widget-preview";
 import VisionsWidget from "../components/widgets/visions/visions-widget";
-import { getVisionWidgetLayout } from "../components/widgets/visions/visions-widget-shared";
+import {
+  formatVisionWidgetUpdatedAt,
+  getVisionWidgetLayout,
+} from "../components/widgets/visions/visions-widget-shared";
 import type { WidgetProjectContext } from "../lib/widgets/types";
 
 const baseProject: WidgetProjectContext = {
@@ -178,7 +181,7 @@ describe("VisionsWidget rendering", () => {
 describe("VisionsWidget preview config", () => {
   it("registers the preview component", () => {
     const configSource = readFileSync(
-      "/Users/abeldebruijn/Documents/GitHub/FurrowDev/components/widgets/visions/config.ts",
+      new URL("../components/widgets/visions/config.ts", import.meta.url),
       "utf8",
     );
 
@@ -186,6 +189,7 @@ describe("VisionsWidget preview config", () => {
   });
 
   it("uses the same column visibility rules in preview", () => {
+    const expectedPreviewTimestamp = formatVisionWidgetUpdatedAt("2026-04-15T15:20:00.000Z");
     const compactMarkup = renderToStaticMarkup(
       <VisionsWidgetPreview height={2} project={baseProject} width={1} />,
     );
@@ -194,9 +198,9 @@ describe("VisionsWidget preview config", () => {
     );
 
     expect(compactMarkup).not.toContain("Private to owner");
-    expect(compactMarkup).not.toContain("Apr 15, 05:20 PM");
+    expect(compactMarkup).not.toContain(expectedPreviewTimestamp);
     expect(fullMarkup).toContain("Abel");
     expect(fullMarkup).toContain("Private to owner");
-    expect(fullMarkup).toContain("Apr 15, 05:20 PM");
+    expect(fullMarkup).toContain(expectedPreviewTimestamp);
   });
 });
