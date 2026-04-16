@@ -37,6 +37,7 @@ export type AccessibleVision = {
 };
 
 export type VisionListItem = {
+  archivedAt: Date | null;
   collaborators: Array<{
     name: string;
     userId: string;
@@ -326,6 +327,9 @@ export async function listVisibleProjectVisions(
   viewerId: string,
   projectId: string,
   db: Database = getDb(),
+  options: {
+    includeArchived?: boolean;
+  } = {},
 ) {
   const project = await getProjectAccess(viewerId, projectId, db);
 
@@ -335,6 +339,7 @@ export async function listVisibleProjectVisions(
 
   const visibleRows = await db
     .select({
+      archivedAt: visions.archivedAt,
       createdAt: visions.createdAt,
       id: visions.id,
       ownerName: users.name,
@@ -349,11 +354,16 @@ export async function listVisibleProjectVisions(
       and(eq(visionCollaborators.visionId, visions.id), eq(visionCollaborators.userId, viewerId)),
     )
     .where(
-      and(
-        isNull(visions.archivedAt),
-        eq(visions.projectId, projectId),
-        or(eq(visions.ownerUserId, viewerId), eq(visionCollaborators.userId, viewerId)),
-      ),
+      options.includeArchived
+        ? and(
+            eq(visions.projectId, projectId),
+            or(eq(visions.ownerUserId, viewerId), eq(visionCollaborators.userId, viewerId)),
+          )
+        : and(
+            isNull(visions.archivedAt),
+            eq(visions.projectId, projectId),
+            or(eq(visions.ownerUserId, viewerId), eq(visionCollaborators.userId, viewerId)),
+          ),
     )
     .orderBy(desc(visions.updatedAt), visions.createdAt);
 
@@ -389,6 +399,7 @@ export async function listVisibleProjectVisions(
   }
 
   return visibleRows.map((row) => ({
+    archivedAt: row.archivedAt,
     collaborators: collaboratorsByVisionId.get(row.id) ?? [],
     createdAt: row.createdAt,
     id: row.id,
@@ -397,6 +408,38 @@ export async function listVisibleProjectVisions(
     title: row.title,
     updatedAt: row.updatedAt,
   })) satisfies VisionListItem[];
+}
+
+export async function hasArchivedProjectVisions(
+  viewerId: string,
+  projectId: string,
+  db: Database = getDb(),
+) {
+  const project = await getProjectAccess(viewerId, projectId, db);
+
+  if (!project) {
+    return false;
+  }
+
+  const archivedVision = await db
+    .select({
+      id: visions.id,
+    })
+    .from(visions)
+    .leftJoin(
+      visionCollaborators,
+      and(eq(visionCollaborators.visionId, visions.id), eq(visionCollaborators.userId, viewerId)),
+    )
+    .where(
+      and(
+        eq(visions.projectId, projectId),
+        or(eq(visions.ownerUserId, viewerId), eq(visionCollaborators.userId, viewerId)),
+        sql`${visions.archivedAt} is not null`,
+      ),
+    )
+    .limit(1);
+
+  return archivedVision.length > 0;
 }
 
 export async function listEligibleVisionCollaborators(
