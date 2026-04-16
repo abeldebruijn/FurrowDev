@@ -77,6 +77,33 @@ describe("vision collaborators route", () => {
     expect(response.status).toBe(200);
   });
 
+  it("returns the add-specific owner error", async () => {
+    addVisionCollaborator.mockResolvedValue({ error: "owner" });
+
+    const response = await POST(
+      new Request("http://localhost/api/project/project-1/ideas/vision-1/collaborators", {
+        body: JSON.stringify({
+          userId: "550e8400-e29b-41d4-a716-446655440000",
+        }),
+        headers: {
+          "content-type": "application/json",
+        },
+        method: "POST",
+      }) as any,
+      {
+        params: Promise.resolve({
+          "project-id": "project-1",
+          "vision-id": "vision-1",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "The vision owner is already a collaborator.",
+    });
+  });
+
   it("rejects removing the owner", async () => {
     removeVisionCollaborator.mockResolvedValue({ error: "owner" });
 
@@ -99,5 +126,8 @@ describe("vision collaborators route", () => {
     );
 
     expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "The vision owner cannot be removed.",
+    });
   });
 });

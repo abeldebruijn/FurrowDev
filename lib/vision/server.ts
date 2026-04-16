@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { generateText } from "ai";
-import { and, desc, eq, inArray, max, or } from "drizzle-orm";
+import { and, desc, eq, inArray, max, or, sql } from "drizzle-orm";
 
 import {
   admins,
@@ -169,20 +169,35 @@ async function getNextVisionMessageOrder(tx: Transaction, visionId: string) {
   return (rows[0]?.order ?? -1) + 1;
 }
 
+async function lockVisionRow(tx: Transaction, visionId: string) {
+  await tx.execute(
+    sql`select ${visions.id} from ${visions} where ${visions.id} = ${visionId} for update`,
+  );
+}
+
 export async function appendVisionMessage(
   tx: Transaction,
   { authorUserId, content, id = randomUUID(), role, visionId }: AppendVisionMessageArgs,
 ) {
+  await lockVisionRow(tx, visionId);
   const nextOrder = await getNextVisionMessageOrder(tx, visionId);
 
-  await tx.insert(visionMessages).values({
-    authorUserId: role === "user" ? (authorUserId ?? null) : null,
-    content,
-    id,
-    order: nextOrder,
-    role,
-    visionId,
-  });
+  const insertedRows = await tx
+    .insert(visionMessages)
+    .values({
+      authorUserId: role === "user" ? (authorUserId ?? null) : null,
+      content,
+      id,
+      order: nextOrder,
+      role,
+      visionId,
+    })
+    .onConflictDoNothing()
+    .returning({ id: visionMessages.id });
+
+  if (insertedRows.length === 0) {
+    return null;
+  }
 
   await tx.update(visions).set({ updatedAt: new Date() }).where(eq(visions.id, visionId));
 

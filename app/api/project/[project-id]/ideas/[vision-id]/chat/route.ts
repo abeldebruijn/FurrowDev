@@ -82,10 +82,19 @@ export async function POST(request: NextRequest, { params }: VisionChatRouteProp
 
   const viewer = await upsertViewerFromWorkOSSession(session);
   const { ["project-id"]: projectId, ["vision-id"]: visionId } = await params;
-  const body = (await request.json()) as {
-    messages?: unknown[];
-  };
-  const submittedMessage = getLastUserText(body.messages ?? []);
+  const rawBody = await request.json().catch(() => null);
+
+  if (!rawBody || typeof rawBody !== "object" || Array.isArray(rawBody)) {
+    return Response.json({ error: "Invalid JSON body." }, { status: 400 });
+  }
+
+  if ("messages" in rawBody && !Array.isArray(rawBody.messages)) {
+    return Response.json({ error: "Invalid messages payload." }, { status: 400 });
+  }
+
+  const submittedMessage = getLastUserText(
+    "messages" in rawBody && Array.isArray(rawBody.messages) ? rawBody.messages : [],
+  );
 
   if (!submittedMessage) {
     return Response.json({ error: "Missing user message." }, { status: 400 });
@@ -98,13 +107,12 @@ export async function POST(request: NextRequest, { params }: VisionChatRouteProp
     return Response.json({ error: "Vision not found." }, { status: 404 });
   }
 
-  const transcriptBeforePersist = await getVisionMessages(visionId, db);
-  const existingMessage = transcriptBeforePersist.find(
-    (message) => message.id === submittedMessage.id,
-  );
+  await db.transaction(async (tx) => {
+    const existingMessage = (await getVisionMessages(visionId, tx)).find(
+      (message) => message.id === submittedMessage.id,
+    );
 
-  if (!existingMessage) {
-    await db.transaction(async (tx) => {
+    if (!existingMessage) {
       await appendVisionMessage(tx, {
         authorUserId: viewer.id,
         content: submittedMessage.text,
@@ -112,8 +120,8 @@ export async function POST(request: NextRequest, { params }: VisionChatRouteProp
         role: "user",
         visionId,
       });
-    });
-  }
+    }
+  });
 
   const [freshVision, freshTranscript, project] = await Promise.all([
     getAccessibleVision(viewer.id, projectId, visionId, db),

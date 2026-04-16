@@ -16,6 +16,16 @@ const createVisionSchema = z.object({
   title: z.string().trim().max(120).optional(),
 });
 
+function getCreateVisionErrorResponse(error: unknown) {
+  if (error instanceof Error && error.message === "Roadmap item not found.") {
+    return Response.json({ error: error.message }, { status: 400 });
+  }
+
+  console.error("Failed to create vision", error);
+
+  return Response.json({ error: "Failed to create vision." }, { status: 500 });
+}
+
 export async function POST(request: NextRequest, { params }: ProjectIdeasRouteProps) {
   const session = await getWorkOSSession(request);
 
@@ -51,11 +61,6 @@ export async function POST(request: NextRequest, { params }: ProjectIdeasRoutePr
 
     return Response.json({ id: visionId, ok: true });
   } catch (error) {
-    return Response.json(
-      {
-        error: error instanceof Error ? error.message : "Failed to create vision.",
-      },
-      { status: 400 },
-    );
+    return getCreateVisionErrorResponse(error);
   }
 }

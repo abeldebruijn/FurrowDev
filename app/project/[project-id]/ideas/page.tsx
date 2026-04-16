@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { CreateVisionDialog } from "@/components/vision/create-vision-dialog";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/table";
 import { listVisibleProjectVisions } from "@/lib/vision/server";
 
+import { VisionUpdatedAt } from "./vision-updated-at";
 import { getProjectPageData } from "../project-page-data";
 
 type ProjectIdeasPageProps = {
@@ -20,15 +21,6 @@ type ProjectIdeasPageProps = {
     "project-id": string;
   }>;
 };
-
-function formatUpdatedAt(date: Date) {
-  return new Intl.DateTimeFormat("en", {
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    month: "short",
-  }).format(date);
-}
 
 export default async function ProjectIdeasPage({ params }: ProjectIdeasPageProps) {
   const routeParams = await params;
@@ -83,12 +75,15 @@ export default async function ProjectIdeasPage({ params }: ProjectIdeasPageProps
                         ? vision.collaborators.map((collaborator) => collaborator.name).join(", ")
                         : "Private to owner"}
                     </TableCell>
-                    <TableCell>{formatUpdatedAt(vision.updatedAt)}</TableCell>
+                    <TableCell>
+                      <VisionUpdatedAt isoString={vision.updatedAt.toISOString()} />
+                    </TableCell>
                     <TableCell className="text-right">
-                      <Link href={`/project/${project.id}/ideas/vision/${vision.id}`}>
-                        <Button size="sm" variant="outline">
-                          Open
-                        </Button>
+                      <Link
+                        className={buttonVariants({ size: "sm", variant: "outline" })}
+                        href={`/project/${project.id}/ideas/vision/${vision.id}`}
+                      >
+                        Open
                       </Link>
                     </TableCell>
                   </TableRow>

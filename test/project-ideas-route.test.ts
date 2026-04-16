@@ -106,4 +106,48 @@ describe("project ideas route", () => {
       viewerId: "viewer-1",
     });
   });
+
+  it("returns a safe 400 for known create errors", async () => {
+    createVision.mockRejectedValue(new Error("Roadmap item not found."));
+
+    const response = await POST(
+      new Request("http://localhost/api/project/project-1/ideas", {
+        body: JSON.stringify({}),
+        headers: {
+          "content-type": "application/json",
+        },
+        method: "POST",
+      }) as any,
+      {
+        params: Promise.resolve({
+          "project-id": "project-1",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: "Roadmap item not found." });
+  });
+
+  it("returns a generic 500 for unexpected create errors", async () => {
+    createVision.mockRejectedValue(new Error("database exploded"));
+
+    const response = await POST(
+      new Request("http://localhost/api/project/project-1/ideas", {
+        body: JSON.stringify({}),
+        headers: {
+          "content-type": "application/json",
+        },
+        method: "POST",
+      }) as any,
+      {
+        params: Promise.resolve({
+          "project-id": "project-1",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({ error: "Failed to create vision." });
+  });
 });

@@ -38,6 +38,13 @@ export function CreateVisionDialog({ projectId, roadmapItems }: CreateVisionDial
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  function resetForm() {
+    setError(null);
+    setIsSubmitting(false);
+    setRoadmapItemId("");
+    setTitle("");
+  }
+
   async function handleCreate() {
     setError(null);
     setIsSubmitting(true);
@@ -60,6 +67,7 @@ export function CreateVisionDialog({ projectId, roadmapItems }: CreateVisionDial
       }
 
       const data = (await response.json()) as { id: string };
+      resetForm();
       setOpen(false);
       router.push(`/project/${projectId}/ideas/vision/${data.id}`);
       router.refresh();
@@ -71,7 +79,16 @@ export function CreateVisionDialog({ projectId, roadmapItems }: CreateVisionDial
   }
 
   return (
-    <Dialog onOpenChange={setOpen} open={open}>
+    <Dialog
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+
+        if (!nextOpen) {
+          resetForm();
+        }
+      }}
+      open={open}
+    >
       <DialogTrigger render={<Button />}>New vision</DialogTrigger>
       <DialogContent>
         <DialogHeader>

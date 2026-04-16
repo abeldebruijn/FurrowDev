@@ -16,7 +16,10 @@ const collaboratorSchema = z.object({
   userId: z.uuid(),
 });
 
-function getErrorResponse(error: "forbidden" | "invalid_user" | "not_found" | "owner" | null) {
+function getErrorResponse(
+  error: "forbidden" | "invalid_user" | "not_found" | "owner" | null,
+  action: "add" | "remove",
+) {
   switch (error) {
     case "forbidden":
       return Response.json(
@@ -26,7 +29,15 @@ function getErrorResponse(error: "forbidden" | "invalid_user" | "not_found" | "o
     case "invalid_user":
       return Response.json({ error: "User is not eligible for this project." }, { status: 400 });
     case "owner":
-      return Response.json({ error: "The vision owner cannot be removed." }, { status: 400 });
+      return Response.json(
+        {
+          error:
+            action === "add"
+              ? "The vision owner is already a collaborator."
+              : "The vision owner cannot be removed.",
+        },
+        { status: 400 },
+      );
     case "not_found":
       return Response.json({ error: "Vision not found." }, { status: 404 });
     default:
@@ -56,7 +67,7 @@ export async function POST(request: NextRequest, { params }: VisionCollaborators
   }
 
   const result = await addVisionCollaborator(viewer.id, projectId, visionId, body.data.userId);
-  const errorResponse = getErrorResponse(result.error);
+  const errorResponse = getErrorResponse(result.error, "add");
 
   if (errorResponse) {
     return errorResponse;
@@ -87,7 +98,7 @@ export async function DELETE(request: NextRequest, { params }: VisionCollaborato
   }
 
   const result = await removeVisionCollaborator(viewer.id, projectId, visionId, body.data.userId);
-  const errorResponse = getErrorResponse(result.error);
+  const errorResponse = getErrorResponse(result.error, "remove");
 
   if (errorResponse) {
     return errorResponse;

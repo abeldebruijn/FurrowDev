@@ -190,6 +190,50 @@ describe("vision chat route", () => {
     expect(response.status).toBe(200);
   });
 
+  it("rejects invalid JSON bodies", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/project/project-1/ideas/vision-1/chat", {
+        body: "{",
+        headers: {
+          "content-type": "application/json",
+        },
+        method: "POST",
+      }) as any,
+      {
+        params: Promise.resolve({
+          "project-id": "project-1",
+          "vision-id": "vision-1",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: "Invalid JSON body." });
+  });
+
+  it("rejects non-array messages payloads", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/project/project-1/ideas/vision-1/chat", {
+        body: JSON.stringify({
+          messages: "not-an-array",
+        }),
+        headers: {
+          "content-type": "application/json",
+        },
+        method: "POST",
+      }) as any,
+      {
+        params: Promise.resolve({
+          "project-id": "project-1",
+          "vision-id": "vision-1",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: "Invalid messages payload." });
+  });
+
   it("refreshes the hidden summary document after the assistant finishes", async () => {
     await POST(
       new Request("http://localhost/api/project/project-1/ideas/vision-1/chat", {
