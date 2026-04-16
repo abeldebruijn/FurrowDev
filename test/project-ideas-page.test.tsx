@@ -20,6 +20,9 @@ vi.mock("@/components/vision/create-vision-dialog", () => ({
 
 vi.mock("@/components/ui/button", () => ({
   Button: ({ children }: { children: React.ReactNode }) => <button>{children}</button>,
+  LinkButton: ({ children, href }: { children: React.ReactNode; href: string }) => (
+    <a href={href}>{children}</a>
+  ),
   buttonVariants: () => "button",
 }));
 

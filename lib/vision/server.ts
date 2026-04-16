@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { generateText } from "ai";
-import { and, desc, eq, inArray, max, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, max, or, sql } from "drizzle-orm";
 
 import {
   admins,
@@ -68,6 +68,10 @@ type AppendVisionMessageArgs = {
   id?: string;
   role: "assistant" | "user";
   visionId: string;
+};
+
+type ManageVisionResult = {
+  error: "forbidden" | "not_found" | null;
 };
 
 const VISION_MODEL = "anthropic/claude-sonnet-4.6";
@@ -299,6 +303,7 @@ export async function getAccessibleVision(
     .where(
       and(
         eq(visions.id, visionId),
+        isNull(visions.archivedAt),
         eq(visions.projectId, projectId),
         or(eq(visions.ownerUserId, viewerId), eq(visionCollaborators.userId, viewerId)),
       ),
@@ -345,6 +350,7 @@ export async function listVisibleProjectVisions(
     )
     .where(
       and(
+        isNull(visions.archivedAt),
         eq(visions.projectId, projectId),
         or(eq(visions.ownerUserId, viewerId), eq(visionCollaborators.userId, viewerId)),
       ),
@@ -571,6 +577,111 @@ export async function removeVisionCollaborator(
         eq(visionCollaborators.userId, collaboratorUserId),
       ),
     );
+
+  return { error: null };
+}
+
+async function getManageableVision(
+  viewerId: string,
+  projectId: string,
+  visionId: string,
+  db: Database = getDb(),
+) {
+  const project = await getProjectAccess(viewerId, projectId, db);
+
+  if (!project) {
+    return { error: "not_found" as const, vision: null };
+  }
+
+  const vision = await db
+    .select({
+      id: visions.id,
+      ownerUserId: visions.ownerUserId,
+    })
+    .from(visions)
+    .where(and(eq(visions.id, visionId), eq(visions.projectId, projectId)))
+    .limit(1)
+    .then((rows) => rows[0] ?? null);
+
+  if (!vision) {
+    return { error: "not_found" as const, vision: null };
+  }
+
+  if (vision.ownerUserId !== viewerId) {
+    return { error: "forbidden" as const, vision: null };
+  }
+
+  return { error: null, vision };
+}
+
+export async function updateAccessibleVision(
+  viewerId: string,
+  projectId: string,
+  visionId: string,
+  values: {
+    title?: string;
+  },
+  db: Database = getDb(),
+): Promise<ManageVisionResult> {
+  const result = await getManageableVision(viewerId, projectId, visionId, db);
+
+  if (result.error) {
+    return { error: result.error };
+  }
+
+  const nextValues: Record<string, Date | string> = {};
+
+  if (values.title !== undefined) {
+    nextValues.title = values.title.trim();
+  }
+
+  if (Object.keys(nextValues).length === 0) {
+    return { error: null };
+  }
+
+  nextValues.updatedAt = new Date();
+
+  await db.update(visions).set(nextValues).where(eq(visions.id, visionId));
+
+  return { error: null };
+}
+
+export async function archiveAccessibleVision(
+  viewerId: string,
+  projectId: string,
+  visionId: string,
+  db: Database = getDb(),
+): Promise<ManageVisionResult> {
+  const result = await getManageableVision(viewerId, projectId, visionId, db);
+
+  if (result.error) {
+    return { error: result.error };
+  }
+
+  await db
+    .update(visions)
+    .set({
+      archivedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(visions.id, visionId));
+
+  return { error: null };
+}
+
+export async function deleteAccessibleVision(
+  viewerId: string,
+  projectId: string,
+  visionId: string,
+  db: Database = getDb(),
+): Promise<ManageVisionResult> {
+  const result = await getManageableVision(viewerId, projectId, visionId, db);
+
+  if (result.error) {
+    return { error: result.error };
+  }
+
+  await db.delete(visions).where(eq(visions.id, visionId));
 
   return { error: null };
 }
