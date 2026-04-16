@@ -138,9 +138,9 @@ export function VisionWorkspaceView({
           </div>
 
           <form onSubmit={onSubmit} ref={composerFormRef}>
-            <div className="mb-2 flex items-center justify-between gap-3">
+            <div className="mb-2 flex items-end justify-between gap-3">
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium text-foreground">{currentTitle}</div>
+                <div className="truncate font-medium text-muted-foreground">{currentTitle}</div>
               </div>
 
               <div className="flex items-center gap-2">
