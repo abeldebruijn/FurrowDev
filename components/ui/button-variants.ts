@@ -19,6 +19,7 @@ export const buttonVariants = cva(
         default:
           "h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
         sm: "h-9 gap-1 rounded-[min(var(--radius-md),12px)] px-3 text-[0.85rem]",
+        xs: "h-7 gap-1 rounded-[min(var(--radius-md),12px)] px-2 text-[0.7rem]",
         lg: "h-11 gap-2 px-5 text-sm",
         icon: "size-8",
       },

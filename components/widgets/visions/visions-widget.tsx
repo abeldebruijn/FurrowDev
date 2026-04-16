@@ -1,9 +1,29 @@
-import type { WidgetProps } from "@/lib/widgets/types";
+"use client";
 
-export default function VisionsWidget({ width: _width, height: _height }: WidgetProps) {
+import { CreateVisionDialog } from "../../vision/create-vision-dialog";
+import type { WidgetProps } from "../../../lib/widgets/types";
+
+import {
+  VisionWidgetActionButton,
+  VisionWidgetCard,
+  VisionWidgetFooterLink,
+} from "./visions-widget-shared";
+
+export default function VisionsWidget({ width, height, project }: WidgetProps) {
   return (
-    <div className="border h-full p-2 rounded bg-red-100">
-      <p>Visions widget</p>
-    </div>
+    <VisionWidgetCard
+      height={height}
+      renderHeaderAction={() => (
+        <CreateVisionDialog projectId={project.projectId} roadmapItems={project.roadmapItems} />
+      )}
+      renderAction={(vision) => (
+        <VisionWidgetActionButton
+          href={`/project/${project.projectId}/ideas/vision/${vision.id}`}
+        />
+      )}
+      renderFooter={() => <VisionWidgetFooterLink href={`/project/${project.projectId}/ideas`} />}
+      visions={project.visions}
+      width={width}
+    />
   );
 }

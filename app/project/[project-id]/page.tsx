@@ -23,7 +23,7 @@ function getDescription(description: string | null) {
 
 export default async function ProjectPage({ params, searchParams }: ProjectPageProps) {
   const routeParams = await params;
-  const { project, projectRoadmap, projectRoadmapItems } = await getProjectPageData(
+  const { project, projectRoadmap, projectRoadmapItems, projectVisions } = await getProjectPageData(
     routeParams["project-id"],
   );
   const { widgetEdit } = await searchParams;
@@ -41,6 +41,7 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
           projectId: project.id,
           roadmap: projectRoadmap,
           roadmapItems: projectRoadmapItems,
+          visions: projectVisions,
         }}
         projectId={project.id}
         widgetEdit={isWidgetEdit}

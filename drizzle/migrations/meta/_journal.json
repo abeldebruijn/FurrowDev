@@ -50,6 +50,20 @@
       "when": 1776090000000,
       "tag": "0006_project_widget_layout",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1776200000000,
+      "tag": "0007_vision_discovery",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1776300000000,
+      "tag": "0008_vision_settings",
+      "breakpoints": true
     }
   ]
 }

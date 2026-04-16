@@ -18,6 +18,7 @@ export const conceptProjectChatMessageType = pgEnum("concept_project_chat_messag
   "agent",
   "person",
 ]);
+export const visionMessageRole = pgEnum("vision_message_role", ["assistant", "user"]);
 export const conceptProjectStage = pgEnum("concept_project_stage", [
   "what",
   "for_whom",
@@ -204,6 +205,61 @@ export const maintainers = pgTable(
   (table) => [primaryKey({ columns: [table.userId, table.projectId] })],
 );
 
+export const visions = pgTable("vision", {
+  id: uuid("id").primaryKey(),
+  projectId: uuid("project_id")
+    .notNull()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  ownerUserId: uuid("owner_user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull().default("Untitled vision"),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const visionMessages = pgTable(
+  "vision_message",
+  {
+    id: uuid("id").primaryKey(),
+    visionId: uuid("vision_id")
+      .notNull()
+      .references(() => visions.id, { onDelete: "cascade" }),
+    role: visionMessageRole("role").notNull(),
+    content: text("content").notNull(),
+    order: integer("order").notNull(),
+    authorUserId: uuid("author_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("vision_message_order_unique").on(table.visionId, table.order)],
+);
+
+export const visionCollaborators = pgTable(
+  "vision_collaborator",
+  {
+    visionId: uuid("vision_id")
+      .notNull()
+      .references(() => visions.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    addedByUserId: uuid("added_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.visionId, table.userId] })],
+);
+
+export const visionSummaryDocuments = pgTable("vision_summary_document", {
+  visionId: uuid("vision_id")
+    .primaryKey()
+    .references(() => visions.id, { onDelete: "cascade" }),
+  content: text("content").notNull().default(""),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const usersRelations = relations(users, ({ many }) => ({
   ownedOrganisations: many(organisations),
   userOwnedConceptProjects: many(conceptProjects),
@@ -211,6 +267,16 @@ export const usersRelations = relations(users, ({ many }) => ({
   conceptProjectChatMessages: many(conceptProjectChatMessages),
   adminAssignments: many(admins),
   maintainerAssignments: many(maintainers),
+  ownedVisions: many(visions),
+  authoredVisionMessages: many(visionMessages, {
+    relationName: "visionMessageAuthor",
+  }),
+  visionCollaborations: many(visionCollaborators, {
+    relationName: "visionCollaboratorUser",
+  }),
+  addedVisionCollaborations: many(visionCollaborators, {
+    relationName: "visionCollaboratorAddedByUser",
+  }),
 }));
 
 export const organisationsRelations = relations(organisations, ({ one, many }) => ({
@@ -318,6 +384,7 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   }),
   admins: many(admins),
   maintainers: many(maintainers),
+  visions: many(visions),
 }));
 
 export const projectWidgetLayoutsRelations = relations(projectWidgetLayouts, ({ one }) => ({
@@ -349,6 +416,59 @@ export const maintainersRelations = relations(maintainers, ({ one }) => ({
   }),
 }));
 
+export const visionsRelations = relations(visions, ({ one, many }) => ({
+  project: one(projects, {
+    fields: [visions.projectId],
+    references: [projects.id],
+  }),
+  owner: one(users, {
+    fields: [visions.ownerUserId],
+    references: [users.id],
+  }),
+  messages: many(visionMessages),
+  collaborators: many(visionCollaborators),
+  summaryDocument: one(visionSummaryDocuments, {
+    fields: [visions.id],
+    references: [visionSummaryDocuments.visionId],
+  }),
+}));
+
+export const visionMessagesRelations = relations(visionMessages, ({ one }) => ({
+  vision: one(visions, {
+    fields: [visionMessages.visionId],
+    references: [visions.id],
+  }),
+  author: one(users, {
+    fields: [visionMessages.authorUserId],
+    references: [users.id],
+    relationName: "visionMessageAuthor",
+  }),
+}));
+
+export const visionCollaboratorsRelations = relations(visionCollaborators, ({ one }) => ({
+  vision: one(visions, {
+    fields: [visionCollaborators.visionId],
+    references: [visions.id],
+  }),
+  user: one(users, {
+    fields: [visionCollaborators.userId],
+    references: [users.id],
+    relationName: "visionCollaboratorUser",
+  }),
+  addedByUser: one(users, {
+    fields: [visionCollaborators.addedByUserId],
+    references: [users.id],
+    relationName: "visionCollaboratorAddedByUser",
+  }),
+}));
+
+export const visionSummaryDocumentsRelations = relations(visionSummaryDocuments, ({ one }) => ({
+  vision: one(visions, {
+    fields: [visionSummaryDocuments.visionId],
+    references: [visions.id],
+  }),
+}));
+
 export const zeroDrizzleSchema = {
   users,
   usersRelations,
@@ -372,4 +492,12 @@ export const zeroDrizzleSchema = {
   adminsRelations,
   maintainers,
   maintainersRelations,
+  visions,
+  visionsRelations,
+  visionMessages,
+  visionMessagesRelations,
+  visionCollaborators,
+  visionCollaboratorsRelations,
+  visionSummaryDocuments,
+  visionSummaryDocumentsRelations,
 };
