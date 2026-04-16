@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ZeroContext } from "@rocicorp/zero/react";
+import { useAccessToken } from "@workos-inc/authkit-nextjs/components";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -32,22 +34,36 @@ function getRoadmapOptionLabel(item: CreateVisionDialogProps["roadmapItems"][num
 
 export function CreateVisionDialog({ projectId, roadmapItems }: CreateVisionDialogProps) {
   const router = useRouter();
+  const zero = useContext(ZeroContext);
+  const { accessToken } = useAccessToken();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [roadmapItemId, setRoadmapItemId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const createRequestAbortRef = useRef<AbortController | null>(null);
 
   function resetForm() {
     setError(null);
-    setIsSubmitting(false);
     setRoadmapItemId("");
     setTitle("");
   }
 
+  useEffect(() => {
+    return () => {
+      createRequestAbortRef.current?.abort();
+    };
+  }, []);
+
   async function handleCreate() {
+    if (isSubmitting) {
+      return;
+    }
+
     setError(null);
     setIsSubmitting(true);
+    const abortController = new AbortController();
+    createRequestAbortRef.current = abortController;
 
     try {
       const response = await fetch(`/api/project/${projectId}/ideas`, {
@@ -59,21 +75,39 @@ export function CreateVisionDialog({ projectId, roadmapItems }: CreateVisionDial
           "content-type": "application/json",
         },
         method: "POST",
+        signal: abortController.signal,
       });
 
       if (!response.ok) {
+        if (response.status === 401 && accessToken && zero) {
+          await zero.connection.connect({ auth: accessToken });
+        }
+
         const data = (await response.json().catch(() => null)) as { error?: string } | null;
         throw new Error(data?.error || "Failed to create vision.");
       }
 
       const data = (await response.json()) as { id: string };
+
+      if (abortController.signal.aborted) {
+        return;
+      }
+
       resetForm();
       setOpen(false);
       router.push(`/project/${projectId}/ideas/vision/${data.id}`);
       router.refresh();
     } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        return;
+      }
+
       setError(error instanceof Error ? error.message : "Failed to create vision.");
     } finally {
+      if (createRequestAbortRef.current === abortController) {
+        createRequestAbortRef.current = null;
+      }
+
       setIsSubmitting(false);
     }
   }
@@ -84,6 +118,7 @@ export function CreateVisionDialog({ projectId, roadmapItems }: CreateVisionDial
         setOpen(nextOpen);
 
         if (!nextOpen) {
+          createRequestAbortRef.current?.abort();
           resetForm();
         }
       }}
@@ -114,7 +149,7 @@ export function CreateVisionDialog({ projectId, roadmapItems }: CreateVisionDial
 
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground" htmlFor="vision-roadmap-item">
-              Base on roadmap node
+              Based on roadmap node
             </label>
             <select
               className="w-full rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:border-foreground"

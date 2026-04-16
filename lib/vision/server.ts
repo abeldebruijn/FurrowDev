@@ -803,7 +803,14 @@ export async function refreshVisionSummaryDocument(visionId: string, db: Databas
     });
 
     summary = result.text.trim();
-  } catch {}
+  } catch (error) {
+    console.error("Failed to generate vision summary.", {
+      error,
+      model: VISION_MODEL,
+      title: visionRow.title,
+      visionId,
+    });
+  }
 
   if (!summary) {
     summary = buildFallbackVisionSummary({
