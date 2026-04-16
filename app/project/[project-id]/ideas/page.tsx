@@ -1,7 +1,4 @@
-import Link from "next/link";
-
-import { CreateVisionDialog } from "@/components/vision/create-vision-dialog";
-import { buttonVariants } from "@/components/ui/button";
+import { LinkButton } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -11,10 +8,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { CreateVisionDialog } from "@/components/vision/create-vision-dialog";
 import { listVisibleProjectVisions } from "@/lib/vision/server";
 
-import { VisionUpdatedAt } from "./vision-updated-at";
 import { getProjectPageData } from "../project-page-data";
+import { VisionUpdatedAt } from "./vision-updated-at";
 
 type ProjectIdeasPageProps = {
   params: Promise<{
@@ -79,12 +77,13 @@ export default async function ProjectIdeasPage({ params }: ProjectIdeasPageProps
                       <VisionUpdatedAt isoString={vision.updatedAt.toISOString()} />
                     </TableCell>
                     <TableCell className="text-right">
-                      <Link
-                        className={buttonVariants({ size: "sm", variant: "outline" })}
+                      <LinkButton
+                        size="sm"
+                        variant="outline"
                         href={`/project/${project.id}/ideas/vision/${vision.id}`}
                       >
                         Open
-                      </Link>
+                      </LinkButton>
                     </TableCell>
                   </TableRow>
                 ))}

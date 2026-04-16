@@ -5,6 +5,8 @@ import type { VariantProps } from "class-variance-authority";
 
 import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
+import type { ComponentPropsWithoutRef, PropsWithChildren } from "react";
+import Link from "next/link";
 
 function Button({
   className,
@@ -17,4 +19,19 @@ function Button({
   );
 }
 
-export { Button, buttonVariants };
+function LinkButton({
+  className,
+  variant,
+  size,
+  ...props
+}: PropsWithChildren<VariantProps<typeof buttonVariants> & ComponentPropsWithoutRef<typeof Link>>) {
+  const { href, children, ...linkProps } = props;
+
+  return (
+    <Link href={href} className={cn(buttonVariants({ variant, size, className }))} {...linkProps}>
+      {children}
+    </Link>
+  );
+}
+
+export { Button, buttonVariants, LinkButton };
