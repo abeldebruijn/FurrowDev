@@ -22,6 +22,7 @@ vi.mock("@/components/chat/chat-composer", () => ({
 vi.mock("@/components/chat/chat-messages", () => ({
   ChatMessages: ({
     renderAssistantLabel,
+    renderStreamingState,
   }: {
     renderAssistantLabel?: (message: {
       content: string;
@@ -29,6 +30,7 @@ vi.mock("@/components/chat/chat-messages", () => ({
       isTransient: boolean;
       role: "assistant" | "user";
     }) => React.ReactNode;
+    renderStreamingState?: React.ReactNode;
   }) => (
     <div>
       {renderAssistantLabel?.({
@@ -37,6 +39,7 @@ vi.mock("@/components/chat/chat-messages", () => ({
         isTransient: false,
         role: "assistant",
       })}
+      {renderStreamingState}
     </div>
   ),
 }));
@@ -89,5 +92,39 @@ describe("VisionWorkspaceView", () => {
     expect(markup).toContain("Collaborators dialog");
     expect(markup).toContain("Vision agent:");
     expect(markup).toContain("Route failed");
+  });
+
+  it("does not render a vision-specific thinking state while submitting", () => {
+    const markup = renderToStaticMarkup(
+      <VisionWorkspaceView
+        canManageCollaborators
+        collaborators={[]}
+        composerFormRef={{ current: null }}
+        composerShellRef={{ current: null }}
+        contentShellRef={{ current: null }}
+        currentTitle="Vision title"
+        eligibleCollaborators={[]}
+        input=""
+        isAtBottom
+        isSubmitting
+        messages={[]}
+        messagesEndRef={{ current: null }}
+        onAddCollaborator={async () => {}}
+        onComposerKeyDown={() => {}}
+        onInputChange={() => {}}
+        onRemoveCollaborator={async () => {}}
+        onSubmit={() => {}}
+        onTitleChange={() => {}}
+        ownerName="Abel"
+        ownerUserId="user-1"
+        projectId="project-1"
+        routeError={null}
+        scrollToBottom={() => {}}
+        sendError={undefined}
+        visionId="vision-1"
+      />,
+    );
+
+    expect(markup).not.toContain("Thinking...");
   });
 });

@@ -76,18 +76,6 @@ export function VisionWorkspaceView({
               Vision agent:
             </span>
           )}
-          renderStreamingState={
-            isSubmitting ? (
-              <div className="space-y-3">
-                <div className="mr-auto max-w-[85%] rounded-2xl border border-border bg-muted/50 px-4 py-3">
-                  <p className="text-xs font-semibold font-mono text-muted-foreground">
-                    Vision agent:
-                  </p>
-                  <p className="mt-1 text-sm leading-6 text-muted-foreground">Thinking...</p>
-                </div>
-              </div>
-            ) : null
-          }
         />
       </section>
 
