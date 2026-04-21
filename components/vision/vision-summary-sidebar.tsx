@@ -1,6 +1,6 @@
 "use client";
 
-import { PanelRightOpenIcon, XIcon } from "lucide-react";
+import { XIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {

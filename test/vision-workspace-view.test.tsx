@@ -52,6 +52,10 @@ vi.mock("@/components/ui/sidebar", () => ({
   }),
 }));
 
+vi.mock("../components/ui/button-group", () => ({
+  ButtonGroup: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
+
 vi.mock("../components/vision/vision-settings-dialog", () => ({
   VisionSettingsDialog: () => <div>Settings dialog</div>,
 }));
