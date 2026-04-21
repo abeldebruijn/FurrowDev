@@ -37,7 +37,6 @@ export function VisionSummarySidebarTrigger() {
       type="button"
       variant="outline"
     >
-      <PanelRightOpenIcon data-icon="inline-start" />
       Summary
     </Button>
   );

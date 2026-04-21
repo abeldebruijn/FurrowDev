@@ -7,9 +7,10 @@ import { ChatMessages } from "@/components/chat/chat-messages";
 import type { ChatRenderMessage } from "@/components/chat/chat-types";
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 
+import { ButtonGroup } from "../ui/button-group";
 import { VisionCollaboratorsDialog } from "./vision-collaborators-dialog";
-import { VisionSummarySidebar, VisionSummarySidebarTrigger } from "./vision-summary-sidebar";
 import { VisionSettingsDialog } from "./vision-settings-dialog";
+import { VisionSummarySidebar, VisionSummarySidebarTrigger } from "./vision-summary-sidebar";
 import type { VisionWorkspaceProps } from "./vision-workspace-types";
 
 type VisionWorkspaceViewProps = {
@@ -41,34 +42,7 @@ type VisionWorkspaceViewProps = {
   visionId: string;
 };
 
-export function VisionWorkspaceView({
-  canManageCollaborators,
-  collaborators,
-  composerFormRef,
-  composerShellRef,
-  contentShellRef,
-  currentTitle,
-  eligibleCollaborators,
-  input,
-  isAtBottom,
-  isSubmitting,
-  messages,
-  messagesEndRef,
-  onAddCollaborator,
-  onComposerKeyDown,
-  onInputChange,
-  onRemoveCollaborator,
-  onSubmit,
-  onTitleChange,
-  ownerName,
-  ownerUserId,
-  projectId,
-  routeError,
-  scrollToBottom,
-  sendError,
-  summary,
-  visionId,
-}: VisionWorkspaceViewProps) {
+export function VisionWorkspaceView(props: VisionWorkspaceViewProps) {
   return (
     <SidebarProvider
       className="min-h-0"
@@ -79,35 +53,9 @@ export function VisionWorkspaceView({
         } as CSSProperties
       }
     >
-      <VisionWorkspaceMain
-        canManageCollaborators={canManageCollaborators}
-        collaborators={collaborators}
-        composerFormRef={composerFormRef}
-        composerShellRef={composerShellRef}
-        contentShellRef={contentShellRef}
-        currentTitle={currentTitle}
-        eligibleCollaborators={eligibleCollaborators}
-        input={input}
-        isAtBottom={isAtBottom}
-        isSubmitting={isSubmitting}
-        messages={messages}
-        messagesEndRef={messagesEndRef}
-        onAddCollaborator={onAddCollaborator}
-        onComposerKeyDown={onComposerKeyDown}
-        onInputChange={onInputChange}
-        onRemoveCollaborator={onRemoveCollaborator}
-        onSubmit={onSubmit}
-        onTitleChange={onTitleChange}
-        ownerName={ownerName}
-        ownerUserId={ownerUserId}
-        projectId={projectId}
-        routeError={routeError}
-        scrollToBottom={scrollToBottom}
-        sendError={sendError}
-        visionId={visionId}
-      />
+      <VisionWorkspaceMain {...props} />
 
-      <VisionSummarySidebar summary={summary} />
+      <VisionSummarySidebar summary={props.summary} />
     </SidebarProvider>
   );
 }
@@ -165,25 +113,27 @@ function VisionWorkspaceMain({
             </div>
 
             <div className="flex items-center gap-2">
-              <VisionSettingsDialog
-                canManage={canManageCollaborators}
-                onTitleChange={onTitleChange}
-                projectId={projectId}
-                title={currentTitle}
-                visionId={visionId}
-              />
+              <ButtonGroup>
+                <VisionCollaboratorsDialog
+                  canManage={canManageCollaborators}
+                  collaborators={collaborators}
+                  eligibleCollaborators={eligibleCollaborators}
+                  onAdd={onAddCollaborator}
+                  onRemove={onRemoveCollaborator}
+                  ownerName={ownerName}
+                  ownerUserId={ownerUserId}
+                />
+
+                <VisionSettingsDialog
+                  canManage={canManageCollaborators}
+                  onTitleChange={onTitleChange}
+                  projectId={projectId}
+                  title={currentTitle}
+                  visionId={visionId}
+                />
+              </ButtonGroup>
 
               <VisionSummarySidebarTrigger />
-
-              <VisionCollaboratorsDialog
-                canManage={canManageCollaborators}
-                collaborators={collaborators}
-                eligibleCollaborators={eligibleCollaborators}
-                onAdd={onAddCollaborator}
-                onRemove={onRemoveCollaborator}
-                ownerName={ownerName}
-                ownerUserId={ownerUserId}
-              />
             </div>
           </div>
         }
