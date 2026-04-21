@@ -2,16 +2,16 @@
 
 ## Core lifecycle
 
-| Term                 | Definition                                                                                                              | Aliases to avoid                 |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
-| **FurrowDev**        | A cloud-hosted git platform built around realtime, agent-native project development.                                    | App, tool, dashboard             |
-| **Concept Project**  | The entry-point project state where a new idea is discovered and shaped with an agent.                                  | Draft project, idea, proposal    |
-| **Project**          | A full project that has graduated from a **Concept Project**.                                                           | Repo, final concept, workspace   |
-| **Vision**           | A private project-scoped discovery conversation used to explore what the project may build next.                        | Draft idea, private idea, thread |
-| **Idea**             | A project-visible artifact that captures a build direction after a **Vision** is ready to be shared.                    | Proposal, concept, ticket        |
-| **Graduation**       | The state change where a **Concept Project** becomes a **Project** and the original concept becomes a read-only record. | Promotion, conversion, publish   |
-| **Discovery Flow**   | The staged agent conversation that shapes a **Concept Project** before **Graduation**.                                  | Onboarding, intake, setup flow   |
-| **Discovery Record** | The archived read-only **Concept Project** preserved after **Graduation**.                                              | Archive, old draft, concept copy |
+| Term                 | Definition                                                                                                                                                             | Aliases to avoid                 |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| **FurrowDev**        | A cloud-hosted git platform built around realtime, agent-native project development.                                                                                   | App, tool, dashboard             |
+| **Concept Project**  | The entry-point project state where a new idea is discovered and shaped with an agent.                                                                                 | Draft project, idea, proposal    |
+| **Project**          | A full project that has graduated from a **Concept Project**.                                                                                                          | Repo, final concept, workspace   |
+| **Vision**           | A private project-scoped discovery conversation used to explore what the project may build next.                                                                       | Draft idea, private idea, thread |
+| **Idea**             | A project-visible work item created from a **Vision** that carries **Idea Context**, an optional **Roadmap Item** link, an **Idea Conversation**, and owned **Tasks**. | Proposal, concept, ticket        |
+| **Graduation**       | The state change where a **Concept Project** becomes a **Project** and the original concept becomes a read-only record.                                                | Promotion, conversion, publish   |
+| **Discovery Flow**   | The staged agent conversation that shapes a **Concept Project** before **Graduation**.                                                                                 | Onboarding, intake, setup flow   |
+| **Discovery Record** | The archived read-only **Concept Project** preserved after **Graduation**.                                                                                             | Archive, old draft, concept copy |
 
 ## Discovery flow
 
@@ -33,7 +33,7 @@
 
 | Term                        | Definition                                                                                                        | Aliases to avoid                    |
 | --------------------------- | ----------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
-| **Chat**                    | The conversation attached to one **Concept Project** or one **Vision**.                                           | Thread, prompt                      |
+| **Chat**                    | The conversation attached to one **Concept Project**, one **Vision**, or one **Idea**.                            | Thread, prompt                      |
 | **Transcript**              | The ordered history of all **Messages** in a **Chat**.                                                            | Chat log, history dump              |
 | **Message**                 | A single entry in a **Chat** written by a **User** or an **Agent**.                                               | Comment, line, event                |
 | **Name**                    | The canonical title of a **Concept Project** or **Project**.                                                      | Label, slug, heading                |
@@ -41,13 +41,26 @@
 | **Vision Summary Document** | The hidden rolling summary of a **Vision** that preserves current understanding and later feeds **Idea Context**. | Background file, memory file, notes |
 | **Idea Context**            | The summary text attached to an **Idea** when a **Vision** is converted into a shared artifact.                   | Summary, context field, recap       |
 | **Roadmap**                 | The structured plan attached to a **Concept Project** and organized into versioned milestones.                    | Plan, checklist, task list          |
-| **Roadmap Item**            | A single scoped item within a **Roadmap**.                                                                        | Task, step, ticket                  |
+| **Roadmap Item**            | A high-level scoped capability or milestone item within a **Roadmap**.                                            | Task, step, ticket                  |
 | **Roadmap Version**         | A numbered milestone inside a **Roadmap** identified by `major.minor`.                                            | Milestone number, version node      |
 | **Current Roadmap Version** | The persisted **Roadmap Version** that represents the latest active milestone in a **Roadmap**.                   | Latest version, active milestone    |
 | **Setup Roadmap**           | The `v0.0` slice of the **Roadmap** that contains bootstrap and tooling tasks rather than product features.       | Bootstrap plan, install checklist   |
 | **Version Trail**           | The ordered visual sequence of **Roadmap Versions** shown in the concept project experience.                      | Timeline, roadmap strip             |
 | **Generated Name Ideas**    | A temporary list of candidate **Names** proposed inside **Concept Project Settings**.                             | Suggestions, options, alternates    |
 | **Generated Description**   | The current persisted **Description** shown in **Concept Project Settings**.                                      | Summary text, project blurb         |
+
+## Idea execution
+
+| Term                   | Definition                                                                                                      | Aliases to avoid                      |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| **Idea Conversation**  | The **Chat** attached to one **Idea** after it becomes visible to the project.                                  | Vision chat, thread, comments         |
+| **Spec Sheet**         | The structured specification attached to an **Idea** that describes the intended behavior and constraints.      | Requirements doc, design doc, brief   |
+| **User Story**         | A user-centered requirement attached to an **Idea** that states who needs what outcome and why.                 | Requirement, acceptance note, feature |
+| **Task**               | A structured actionable unit of work inside one **Idea** that is completed through its **SubTasks**.            | Ticket, roadmap item, issue           |
+| **Task Dependency**    | A prerequisite relationship where one **Task** cannot begin or finish until another **Task** is complete.       | Blocker, linked task, dependency list |
+| **SubTask**            | An atomic implementation unit inside one **Task** assigned to a **User** or **Agent**.                          | Step, checklist item, mini task       |
+| **SubTask Dependency** | A prerequisite relationship where one **SubTask** cannot begin or finish until another **SubTask** is complete. | Blocker, linked subtask, step order   |
+| **Merge**              | The reviewable integration artifact created after a **Task** is done.                                           | Pull request, merge request, PR       |
 
 ## Actions
 
@@ -132,6 +145,20 @@
 - A **Vision Summary Document** is refreshed from the **Vision** conversation over time.
 - A **Vision** can later become one **Idea**.
 - An **Idea** receives its initial **Idea Context** from the **Vision Summary Document**.
+- An **Idea** may link to zero or one **Roadmap Item** for roadmap context.
+- An **Idea** has exactly one **Idea Conversation**.
+- An **Idea** may have one **Spec Sheet** and zero or more **User Stories**.
+- An **Idea** contains one or more **Tasks**.
+- A **Task** belongs to exactly one **Idea**.
+- A **Task** may depend on zero or more other **Tasks** in the same **Idea**.
+- A **Task** contains one or more **SubTasks**.
+- A **SubTask** belongs to exactly one **Task**.
+- A **SubTask** may depend on zero or more other **SubTasks** in the same **Task**.
+- A **Task** is done only when all of its **SubTasks** are done.
+- An **Idea** is done only when all of its **Tasks** are done.
+- A **Task** converts into at most one **Merge** after it is done.
+- A **Merge** belongs to exactly one completed **Task**.
+- **Task** completion is a rollup from **SubTask** completion, not a direct user-controlled state.
 - The **Setup Roadmap** is always the `v0.0` portion of a **Roadmap**.
 - The **Roadmap Rail** renders the **Version Trail** for a **Roadmap**.
 - Each **Roadmap Node** represents exactly one **Roadmap Version**.
@@ -162,7 +189,10 @@
 - "chat", "message", and "transcript" are related but distinct. A **Chat** is the container, a **Message** is one item, and a **Transcript** is the ordered history view.
 - "project member", "owner", and **Vision Collaborator** are not equivalent. Use **Vision Collaborator** only for users explicitly granted access to a private **Vision**.
 - "summary", "context", and "background file" can drift together. Use **Vision Summary Document** for the hidden rolling record during a **Vision** and **Idea Context** for the summary attached to an **Idea** later.
-- "roadmap" and "roadmap item" are related but distinct. A **Roadmap** is the whole plan; a **Roadmap Item** is one unit within that plan.
+- "roadmap" and "roadmap item" are related but distinct. A **Roadmap** is the whole plan; a **Roadmap Item** is high-level roadmap scope, not executable **Task** work.
+- "task", "ticket", and "roadmap item" can drift together. Use **Task** only for actionable work inside an **Idea** and **Roadmap Item** only for roadmap-level scope.
+- "`Idea.is_merge`" conflicts with the domain language if it implies an **Idea** converts into a **Merge**. Say a **Task** converts into a **Merge** unless the schema is changed to model **Idea** conversion directly.
+- "done" can mean different rollup levels. A **SubTask** is the atomic completion unit, a **Task** is done when all **SubTasks** are done, and an **Idea** is done when all **Tasks** are done.
 - "setup roadmap", "setup plan", and "v0.0 tasks" can drift together. Use **Setup Roadmap** for the bootstrap-focused `v0.0` roadmap slice.
 - "roadmap version", "stage", and "milestone" can drift together. Use **Stage** for discovery flow progress and **Roadmap Version** for numbered roadmap progression.
 - "rail", "trail", and "timeline" were used interchangeably. Use **Roadmap Rail** for the fixed UI container and **Version Trail** for the ordered version sequence it displays.
@@ -192,9 +222,11 @@
 
 ## Example dialogue
 
-> **Dev:** "If a user starts a **Vision** from the **Ideas Tab**, can every project member read it?"
-> **Domain expert:** "No. A **Vision** is private to its owner until specific **Vision Collaborators** are added."
-> **Dev:** "What do we keep while that **Vision** chat evolves?"
-> **Domain expert:** "The system keeps the **Chat**, its **Transcript**, and a hidden **Vision Summary Document**."
-> **Dev:** "When does it become an **Idea**?"
-> **Domain expert:** "Only after the user chooses to share it. At that point the **Idea** gets its initial **Idea Context** from the **Vision Summary Document**."
+> **Dev:** "When a private **Vision** is shared, what does the **Idea** keep?"
+> **Domain expert:** "The **Idea** keeps the **Idea Context**, may link to a **Roadmap Item**, and gets its own **Idea Conversation**."
+> **Dev:** "Where do implementation steps live?"
+> **Domain expert:** "The **Idea** owns **Tasks**, and each **Task** is broken into **SubTasks** for human or **Agent** execution."
+> **Dev:** "Can a user mark the **Task** done?"
+> **Domain expert:** "No. A **Task** is done only when all of its **SubTasks** are done."
+> **Dev:** "When do we create a **Merge**?"
+> **Domain expert:** "After the **Task** is done, that completed **Task** converts into a **Merge**."
