@@ -47,6 +47,7 @@ export default async function VisionPage({ params }: VisionPageProps) {
       ownerName={vision.ownerName}
       ownerUserId={vision.ownerUserId}
       projectId={project.id}
+      summary={vision.summary}
       title={vision.title}
       viewerId={viewer.id}
       visionId={vision.id}

@@ -44,12 +44,25 @@ vi.mock("@/components/chat/chat-messages", () => ({
   ),
 }));
 
+vi.mock("@/components/ui/sidebar", () => ({
+  SidebarProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  useSidebar: () => ({
+    isMobile: false,
+    open: false,
+  }),
+}));
+
 vi.mock("../components/vision/vision-settings-dialog", () => ({
   VisionSettingsDialog: () => <div>Settings dialog</div>,
 }));
 
 vi.mock("../components/vision/vision-collaborators-dialog", () => ({
   VisionCollaboratorsDialog: () => <div>Collaborators dialog</div>,
+}));
+
+vi.mock("../components/vision/vision-summary-sidebar", () => ({
+  VisionSummarySidebar: () => <div>Summary sidebar</div>,
+  VisionSummarySidebarTrigger: () => <div>Summary trigger</div>,
 }));
 
 import { VisionWorkspaceView } from "../components/vision/vision-workspace-view";
@@ -82,6 +95,7 @@ describe("VisionWorkspaceView", () => {
         routeError="Route failed"
         scrollToBottom={() => {}}
         sendError={undefined}
+        summary="## Current understanding"
         visionId="vision-1"
       />,
     );
@@ -89,6 +103,8 @@ describe("VisionWorkspaceView", () => {
     expect(markup).toContain("Message the vision agent");
     expect(markup).toContain("Vision title");
     expect(markup).toContain("Settings dialog");
+    expect(markup).toContain("Summary trigger");
+    expect(markup).toContain("Summary sidebar");
     expect(markup).toContain("Collaborators dialog");
     expect(markup).toContain("Vision agent:");
     expect(markup).toContain("Route failed");
@@ -121,6 +137,7 @@ describe("VisionWorkspaceView", () => {
         routeError={null}
         scrollToBottom={() => {}}
         sendError={undefined}
+        summary="## Current understanding"
         visionId="vision-1"
       />,
     );

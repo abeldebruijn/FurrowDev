@@ -1,6 +1,12 @@
 "use client";
 
-import type { FormEventHandler, KeyboardEventHandler, ReactNode, RefObject } from "react";
+import type {
+  CSSProperties,
+  FormEventHandler,
+  KeyboardEventHandler,
+  ReactNode,
+  RefObject,
+} from "react";
 import { ArrowDownIcon, CommandIcon, CornerDownLeftIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -22,6 +28,8 @@ type ChatComposerProps = {
   onScrollToBottom: () => void;
   onSubmit: FormEventHandler<HTMLFormElement>;
   placeholder: string;
+  shellClassName?: string;
+  shellStyle?: CSSProperties;
   submitLabel?: string;
   submittingLabel?: string;
 };
@@ -43,11 +51,17 @@ export function ChatComposer({
   onScrollToBottom,
   onSubmit,
   placeholder,
+  shellClassName,
+  shellStyle,
   submitLabel = "Send",
   submittingLabel = "Thinking...",
 }: ChatComposerProps) {
   return (
-    <div className="fixed inset-x-0 bottom-0 z-20" ref={composerShellRef}>
+    <div
+      className={["fixed inset-x-0 bottom-0 z-20", shellClassName].filter(Boolean).join(" ")}
+      ref={composerShellRef}
+      style={shellStyle}
+    >
       <div className="mx-auto w-full max-w-240 px-4 pb-6 sm:px-6">
         <div className="mb-3 flex h-14 justify-center">
           {!isAtBottom ? (

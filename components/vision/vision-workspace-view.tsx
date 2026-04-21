@@ -1,12 +1,14 @@
 "use client";
 
-import type { FormEventHandler, KeyboardEventHandler, RefObject } from "react";
+import type { CSSProperties, FormEventHandler, KeyboardEventHandler, RefObject } from "react";
 
 import { ChatComposer } from "@/components/chat/chat-composer";
 import { ChatMessages } from "@/components/chat/chat-messages";
 import type { ChatRenderMessage } from "@/components/chat/chat-types";
+import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 
 import { VisionCollaboratorsDialog } from "./vision-collaborators-dialog";
+import { VisionSummarySidebar, VisionSummarySidebarTrigger } from "./vision-summary-sidebar";
 import { VisionSettingsDialog } from "./vision-settings-dialog";
 import type { VisionWorkspaceProps } from "./vision-workspace-types";
 
@@ -35,6 +37,7 @@ type VisionWorkspaceViewProps = {
   routeError: string | null;
   scrollToBottom: (options?: { resumeTypingFollow?: boolean }) => void;
   sendError: Error | undefined;
+  summary: VisionWorkspaceProps["summary"];
   visionId: string;
 };
 
@@ -63,10 +66,83 @@ export function VisionWorkspaceView({
   routeError,
   scrollToBottom,
   sendError,
+  summary,
   visionId,
 }: VisionWorkspaceViewProps) {
   return (
-    <>
+    <SidebarProvider
+      className="min-h-0"
+      defaultOpen={false}
+      style={
+        {
+          "--sidebar-width": "30rem",
+        } as CSSProperties
+      }
+    >
+      <VisionWorkspaceMain
+        canManageCollaborators={canManageCollaborators}
+        collaborators={collaborators}
+        composerFormRef={composerFormRef}
+        composerShellRef={composerShellRef}
+        contentShellRef={contentShellRef}
+        currentTitle={currentTitle}
+        eligibleCollaborators={eligibleCollaborators}
+        input={input}
+        isAtBottom={isAtBottom}
+        isSubmitting={isSubmitting}
+        messages={messages}
+        messagesEndRef={messagesEndRef}
+        onAddCollaborator={onAddCollaborator}
+        onComposerKeyDown={onComposerKeyDown}
+        onInputChange={onInputChange}
+        onRemoveCollaborator={onRemoveCollaborator}
+        onSubmit={onSubmit}
+        onTitleChange={onTitleChange}
+        ownerName={ownerName}
+        ownerUserId={ownerUserId}
+        projectId={projectId}
+        routeError={routeError}
+        scrollToBottom={scrollToBottom}
+        sendError={sendError}
+        visionId={visionId}
+      />
+
+      <VisionSummarySidebar summary={summary} />
+    </SidebarProvider>
+  );
+}
+
+function VisionWorkspaceMain({
+  canManageCollaborators,
+  collaborators,
+  composerFormRef,
+  composerShellRef,
+  contentShellRef,
+  currentTitle,
+  eligibleCollaborators,
+  input,
+  isAtBottom,
+  isSubmitting,
+  messages,
+  messagesEndRef,
+  onAddCollaborator,
+  onComposerKeyDown,
+  onInputChange,
+  onRemoveCollaborator,
+  onSubmit,
+  onTitleChange,
+  ownerName,
+  ownerUserId,
+  projectId,
+  routeError,
+  scrollToBottom,
+  sendError,
+  visionId,
+}: Omit<VisionWorkspaceViewProps, "summary">) {
+  const { isMobile, open } = useSidebar();
+
+  return (
+    <div className="min-w-0 flex-1">
       <section className="grid gap-6" ref={contentShellRef}>
         <ChatMessages
           messages={messages}
@@ -96,6 +172,8 @@ export function VisionWorkspaceView({
                 title={currentTitle}
                 visionId={visionId}
               />
+
+              <VisionSummarySidebarTrigger />
 
               <VisionCollaboratorsDialog
                 canManage={canManageCollaborators}
@@ -129,7 +207,9 @@ export function VisionWorkspaceView({
         onScrollToBottom={() => scrollToBottom({ resumeTypingFollow: true })}
         onSubmit={onSubmit}
         placeholder="Answer the current question or add more detail."
+        shellClassName="transition-[right] duration-200 ease-linear"
+        shellStyle={!isMobile && open ? { right: "var(--sidebar-width)" } : undefined}
       />
-    </>
+    </div>
   );
 }
