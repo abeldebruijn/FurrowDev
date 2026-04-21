@@ -1,4 +1,4 @@
-I have written an extensive document in ./UBIQUITOUS_LANGUAGE.md that notes what each ubiquitous term means in this project.
+The root ./UBIQUITOUS_LANGUAGE.md indexes the split ubiquitous language glossary under ./docs/ubiquitous-language/.
 
 ## Develop
 
