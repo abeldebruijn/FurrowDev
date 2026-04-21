@@ -1,13 +1,16 @@
 "use client";
 
-import type { FormEventHandler, KeyboardEventHandler, RefObject } from "react";
+import type { CSSProperties, FormEventHandler, KeyboardEventHandler, RefObject } from "react";
 
 import { ChatComposer } from "@/components/chat/chat-composer";
 import { ChatMessages } from "@/components/chat/chat-messages";
 import type { ChatRenderMessage } from "@/components/chat/chat-types";
+import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 
+import { ButtonGroup } from "../ui/button-group";
 import { VisionCollaboratorsDialog } from "./vision-collaborators-dialog";
 import { VisionSettingsDialog } from "./vision-settings-dialog";
+import { VisionSummarySidebar, VisionSummarySidebarTrigger } from "./vision-summary-sidebar";
 import type { VisionWorkspaceProps } from "./vision-workspace-types";
 
 type VisionWorkspaceViewProps = {
@@ -35,10 +38,29 @@ type VisionWorkspaceViewProps = {
   routeError: string | null;
   scrollToBottom: (options?: { resumeTypingFollow?: boolean }) => void;
   sendError: Error | undefined;
+  summary: VisionWorkspaceProps["summary"];
   visionId: string;
 };
 
-export function VisionWorkspaceView({
+export function VisionWorkspaceView(props: VisionWorkspaceViewProps) {
+  return (
+    <SidebarProvider
+      className="min-h-0"
+      defaultOpen={false}
+      style={
+        {
+          "--sidebar-width": "30rem",
+        } as CSSProperties
+      }
+    >
+      <VisionWorkspaceMain {...props} />
+
+      <VisionSummarySidebar summary={props.summary} />
+    </SidebarProvider>
+  );
+}
+
+function VisionWorkspaceMain({
   canManageCollaborators,
   collaborators,
   composerFormRef,
@@ -64,9 +86,11 @@ export function VisionWorkspaceView({
   scrollToBottom,
   sendError,
   visionId,
-}: VisionWorkspaceViewProps) {
+}: Omit<VisionWorkspaceViewProps, "summary">) {
+  const { isMobile, open } = useSidebar();
+
   return (
-    <>
+    <div className="min-w-0 flex-1">
       <section className="grid gap-6" ref={contentShellRef}>
         <ChatMessages
           messages={messages}
@@ -89,23 +113,27 @@ export function VisionWorkspaceView({
             </div>
 
             <div className="flex items-center gap-2">
-              <VisionSettingsDialog
-                canManage={canManageCollaborators}
-                onTitleChange={onTitleChange}
-                projectId={projectId}
-                title={currentTitle}
-                visionId={visionId}
-              />
+              <ButtonGroup>
+                <VisionCollaboratorsDialog
+                  canManage={canManageCollaborators}
+                  collaborators={collaborators}
+                  eligibleCollaborators={eligibleCollaborators}
+                  onAdd={onAddCollaborator}
+                  onRemove={onRemoveCollaborator}
+                  ownerName={ownerName}
+                  ownerUserId={ownerUserId}
+                />
 
-              <VisionCollaboratorsDialog
-                canManage={canManageCollaborators}
-                collaborators={collaborators}
-                eligibleCollaborators={eligibleCollaborators}
-                onAdd={onAddCollaborator}
-                onRemove={onRemoveCollaborator}
-                ownerName={ownerName}
-                ownerUserId={ownerUserId}
-              />
+                <VisionSettingsDialog
+                  canManage={canManageCollaborators}
+                  onTitleChange={onTitleChange}
+                  projectId={projectId}
+                  title={currentTitle}
+                  visionId={visionId}
+                />
+              </ButtonGroup>
+
+              <VisionSummarySidebarTrigger />
             </div>
           </div>
         }
@@ -129,7 +157,9 @@ export function VisionWorkspaceView({
         onScrollToBottom={() => scrollToBottom({ resumeTypingFollow: true })}
         onSubmit={onSubmit}
         placeholder="Answer the current question or add more detail."
+        shellClassName="transition-[right] duration-200 ease-linear"
+        shellStyle={!isMobile && open ? { right: "var(--sidebar-width)" } : undefined}
       />
-    </>
+    </div>
   );
 }

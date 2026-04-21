@@ -15,6 +15,7 @@ export type VisionWorkspaceProps = {
   ownerName: string;
   ownerUserId: string;
   projectId: string;
+  summary: string;
   title: string;
   viewerId: string;
   visionId: string;

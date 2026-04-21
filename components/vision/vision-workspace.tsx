@@ -19,6 +19,7 @@ export function VisionWorkspace({
   ownerName,
   ownerUserId,
   projectId,
+  summary,
   title,
   viewerId,
   visionId,
@@ -190,6 +191,7 @@ export function VisionWorkspace({
       routeError={routeError}
       scrollToBottom={scrollToBottom}
       sendError={error}
+      summary={summary}
       visionId={visionId}
     />
   );
