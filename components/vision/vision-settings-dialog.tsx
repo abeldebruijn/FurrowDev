@@ -80,7 +80,7 @@ export function VisionSettingsDialog({
     setIsSaving(true);
 
     try {
-      const response = await fetch(`/api/project/${projectId}/ideas/${visionId}/settings`, {
+      const response = await fetch(`/api/project/${projectId}/visions/${visionId}/settings`, {
         body: JSON.stringify({
           title: trimmedTitle,
         }),
@@ -111,7 +111,7 @@ export function VisionSettingsDialog({
     setIsArchiving(true);
 
     try {
-      const response = await fetch(`/api/project/${projectId}/ideas/${visionId}/settings`, {
+      const response = await fetch(`/api/project/${projectId}/visions/${visionId}/settings`, {
         body: JSON.stringify({
           archive: true,
         }),
@@ -126,7 +126,7 @@ export function VisionSettingsDialog({
         throw new Error(data?.error || "Failed to archive the vision.");
       }
 
-      router.push(`/project/${projectId}/ideas`);
+      router.push(`/project/${projectId}/visions`);
       router.refresh();
     } catch (error) {
       setError(error instanceof Error ? error.message : "Failed to archive the vision.");
@@ -139,7 +139,7 @@ export function VisionSettingsDialog({
     setIsDeleting(true);
 
     try {
-      const response = await fetch(`/api/project/${projectId}/ideas/${visionId}/settings`, {
+      const response = await fetch(`/api/project/${projectId}/visions/${visionId}/settings`, {
         method: "DELETE",
       });
 
@@ -148,7 +148,7 @@ export function VisionSettingsDialog({
         throw new Error(data?.error || "Failed to delete the vision.");
       }
 
-      router.push(`/project/${projectId}/ideas`);
+      router.push(`/project/${projectId}/visions`);
       router.refresh();
     } catch (error) {
       setError(error instanceof Error ? error.message : "Failed to delete the vision.");

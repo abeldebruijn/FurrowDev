@@ -1,35 +1,23 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-const { getProjectPageData, hasArchivedProjectVisions, listVisibleProjectVisions } = vi.hoisted(
-  () => ({
-    getProjectPageData: vi.fn(),
-    hasArchivedProjectVisions: vi.fn(),
-    listVisibleProjectVisions: vi.fn(),
-  }),
-);
+const { getProjectPageData, listProjectIdeas } = vi.hoisted(() => ({
+  getProjectPageData: vi.fn(),
+  listProjectIdeas: vi.fn(),
+}));
 
 vi.mock("../app/project/[project-id]/project-page-data", () => ({
   getProjectPageData,
 }));
 
-vi.mock("@/lib/vision/server", () => ({
-  hasArchivedProjectVisions,
-  listVisibleProjectVisions,
-}));
-
-vi.mock("@/components/vision/create-vision-dialog", () => ({
-  CreateVisionDialog: () => <div>New vision</div>,
+vi.mock("@/lib/idea/server", () => ({
+  listProjectIdeas,
 }));
 
 vi.mock("@/components/ui/button", () => ({
-  Button: ({ children, disabled }: { children: React.ReactNode; disabled?: boolean }) => (
-    <button disabled={disabled}>{children}</button>
-  ),
   LinkButton: ({ children, href }: { children: React.ReactNode; href: string }) => (
     <a href={href}>{children}</a>
   ),
-  buttonVariants: () => "button",
 }));
 
 vi.mock("@/components/ui/card", () => ({
@@ -54,63 +42,52 @@ import ProjectIdeasPage from "../app/project/[project-id]/ideas/page";
 describe("ProjectIdeasPage", () => {
   beforeEach(() => {
     getProjectPageData.mockReset();
-    hasArchivedProjectVisions.mockReset();
-    listVisibleProjectVisions.mockReset();
-    hasArchivedProjectVisions.mockResolvedValue(false);
+    listProjectIdeas.mockReset();
 
     getProjectPageData.mockResolvedValue({
       project: {
         id: "project-1",
       },
-      projectRoadmapItems: [
-        {
-          description: "Ship a beta",
-          id: "roadmap-1",
-          majorVersion: 1,
-          minorVersion: 0,
-          name: "Beta",
-        },
-      ],
       viewer: {
         id: "viewer-1",
       },
     });
   });
 
-  it("renders an empty state when no visions are visible", async () => {
-    listVisibleProjectVisions.mockResolvedValue([]);
+  it("renders an empty state when no ideas exist", async () => {
+    listProjectIdeas.mockResolvedValue([]);
 
     const markup = renderToStaticMarkup(
       await ProjectIdeasPage({
         params: Promise.resolve({
           "project-id": "project-1",
         }),
-        searchParams: Promise.resolve({}),
       }),
     );
 
-    expect(markup).toContain("Visions");
-    expect(markup).toContain("No visions yet");
-    expect(markup).toContain("New vision");
-    expect(markup).not.toContain("Show archived");
+    expect(listProjectIdeas).toHaveBeenCalledWith("viewer-1", "project-1");
+    expect(markup).toContain("Ideas");
+    expect(markup).toContain("No ideas yet");
+    expect(markup).toContain("/project/project-1/visions");
   });
 
-  it("renders the visible visions table", async () => {
-    listVisibleProjectVisions.mockResolvedValue([
+  it("renders the project-visible ideas table", async () => {
+    listProjectIdeas.mockResolvedValue([
       {
-        collaborators: [
-          {
-            name: "Riley",
-            userId: "user-2",
-          },
-        ],
-        archivedAt: null,
+        context: "## Current understanding",
         createdAt: new Date("2026-04-15T10:00:00.000Z"),
-        id: "vision-1",
-        ownerName: "Abel",
-        ownerUserId: "viewer-1",
-        title: "Checkout rethink",
-        updatedAt: new Date("2026-04-15T12:30:00.000Z"),
+        createdByName: "Riley",
+        createdByUserId: "user-2",
+        id: "idea-1",
+        projectId: "project-1",
+        roadmapItemId: "roadmap-1",
+        roadmapItemMajorVersion: 1,
+        roadmapItemMinorVersion: 2,
+        roadmapItemName: "Checkout",
+        sourceVisionId: "vision-1",
+        sourceVisionTitle: "Checkout rethink",
+        title: "Shared checkout idea",
+        updatedAt: new Date("2026-04-15T10:00:00.000Z"),
       },
     ]);
 
@@ -119,76 +96,12 @@ describe("ProjectIdeasPage", () => {
         params: Promise.resolve({
           "project-id": "project-1",
         }),
-        searchParams: Promise.resolve({}),
       }),
     );
 
+    expect(markup).toContain("Shared checkout idea");
+    expect(markup).toContain("v1.2 - Checkout");
     expect(markup).toContain("Checkout rethink");
     expect(markup).toContain("Riley");
-    expect(markup).toContain("/project/project-1/ideas/vision/vision-1");
-    expect(markup).toContain("Show archived");
-    expect(markup).toContain("disabled");
-  });
-
-  it("renders an enabled archive toggle when archived visions exist", async () => {
-    hasArchivedProjectVisions.mockResolvedValue(true);
-    listVisibleProjectVisions.mockResolvedValue([
-      {
-        collaborators: [],
-        archivedAt: null,
-        createdAt: new Date("2026-04-15T10:00:00.000Z"),
-        id: "vision-1",
-        ownerName: "Abel",
-        ownerUserId: "viewer-1",
-        title: "Checkout rethink",
-        updatedAt: new Date("2026-04-15T12:30:00.000Z"),
-      },
-    ]);
-
-    const markup = renderToStaticMarkup(
-      await ProjectIdeasPage({
-        params: Promise.resolve({
-          "project-id": "project-1",
-        }),
-        searchParams: Promise.resolve({}),
-      }),
-    );
-
-    expect(markup).toContain("/project/project-1/ideas?archived=1");
-  });
-
-  it("includes archived visions when the archive toggle is enabled", async () => {
-    hasArchivedProjectVisions.mockResolvedValue(true);
-    listVisibleProjectVisions.mockResolvedValue([
-      {
-        collaborators: [],
-        archivedAt: new Date("2026-04-15T13:00:00.000Z"),
-        createdAt: new Date("2026-04-15T10:00:00.000Z"),
-        id: "vision-1",
-        ownerName: "Abel",
-        ownerUserId: "viewer-1",
-        title: "Archived direction",
-        updatedAt: new Date("2026-04-15T12:30:00.000Z"),
-      },
-    ]);
-
-    const markup = renderToStaticMarkup(
-      await ProjectIdeasPage({
-        params: Promise.resolve({
-          "project-id": "project-1",
-        }),
-        searchParams: Promise.resolve({
-          archived: "1",
-        }),
-      }),
-    );
-
-    expect(listVisibleProjectVisions).toHaveBeenCalledWith("viewer-1", "project-1", undefined, {
-      includeArchived: true,
-    });
-    expect(hasArchivedProjectVisions).toHaveBeenCalledWith("viewer-1", "project-1");
-    expect(markup).toContain("Hide archived");
-    expect(markup).toContain("Archived direction");
-    expect(markup).toContain("Archived");
   });
 });

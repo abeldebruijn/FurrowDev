@@ -15,6 +15,13 @@ export type VisionWorkspaceProps = {
   ownerName: string;
   ownerUserId: string;
   projectId: string;
+  roadmapItems: Array<{
+    description: string | null;
+    id: string;
+    majorVersion: number;
+    minorVersion: number;
+    name: string;
+  }>;
   summary: string;
   title: string;
   viewerId: string;

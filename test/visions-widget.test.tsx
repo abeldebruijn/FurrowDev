@@ -160,7 +160,7 @@ describe("VisionsWidget rendering", () => {
     );
 
     expect(markup).toContain("Private to owner");
-    expect(markup).toContain("/project/project-1/ideas/vision/vision-1");
+    expect(markup).toContain("/project/project-1/visions/vision/vision-1");
     expect(markup).toContain("Open");
   });
 
@@ -173,7 +173,7 @@ describe("VisionsWidget rendering", () => {
     );
 
     expect(truncatedMarkup).toContain("View all visions");
-    expect(truncatedMarkup).toContain("/project/project-1/ideas");
+    expect(truncatedMarkup).toContain("/project/project-1/visions");
     expect(fullMarkup).not.toContain("View all visions");
   });
 });

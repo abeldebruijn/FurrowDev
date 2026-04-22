@@ -29,6 +29,10 @@ export default async function ProjectLayout({ children, params }: ProjectLayoutP
       label: "ideas",
     },
     {
+      href: `/project/${projectId}/visions`,
+      label: "visions",
+    },
+    {
       href: `/project/${projectId}/roadmap#current-version`,
       label: "roadmap",
     },

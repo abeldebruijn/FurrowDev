@@ -260,6 +260,27 @@ export const visionSummaryDocuments = pgTable("vision_summary_document", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const ideas = pgTable("idea", {
+  id: uuid("id").primaryKey(),
+  projectId: uuid("project_id")
+    .notNull()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  sourceVisionId: uuid("source_vision_id")
+    .notNull()
+    .unique()
+    .references(() => visions.id),
+  roadmapItemId: uuid("roadmap_item_id").references(() => roadmapItems.id, {
+    onDelete: "set null",
+  }),
+  title: text("title").notNull(),
+  context: text("context").notNull().default(""),
+  createdByUserId: uuid("created_by_user_id")
+    .notNull()
+    .references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const usersRelations = relations(users, ({ many }) => ({
   ownedOrganisations: many(organisations),
   userOwnedConceptProjects: many(conceptProjects),
@@ -277,6 +298,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   addedVisionCollaborations: many(visionCollaborators, {
     relationName: "visionCollaboratorAddedByUser",
   }),
+  createdIdeas: many(ideas),
 }));
 
 export const organisationsRelations = relations(organisations, ({ one, many }) => ({
@@ -314,6 +336,7 @@ export const roadmapItemsRelations = relations(roadmapItems, ({ one, many }) => 
   children: many(roadmapItems, {
     relationName: "roadmapItemParent",
   }),
+  ideas: many(ideas),
 }));
 
 export const conceptProjectsRelations = relations(conceptProjects, ({ one }) => ({
@@ -385,6 +408,7 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   admins: many(admins),
   maintainers: many(maintainers),
   visions: many(visions),
+  ideas: many(ideas),
 }));
 
 export const projectWidgetLayoutsRelations = relations(projectWidgetLayouts, ({ one }) => ({
@@ -431,6 +455,10 @@ export const visionsRelations = relations(visions, ({ one, many }) => ({
     fields: [visions.id],
     references: [visionSummaryDocuments.visionId],
   }),
+  idea: one(ideas, {
+    fields: [visions.id],
+    references: [ideas.sourceVisionId],
+  }),
 }));
 
 export const visionMessagesRelations = relations(visionMessages, ({ one }) => ({
@@ -469,6 +497,25 @@ export const visionSummaryDocumentsRelations = relations(visionSummaryDocuments,
   }),
 }));
 
+export const ideasRelations = relations(ideas, ({ one }) => ({
+  project: one(projects, {
+    fields: [ideas.projectId],
+    references: [projects.id],
+  }),
+  sourceVision: one(visions, {
+    fields: [ideas.sourceVisionId],
+    references: [visions.id],
+  }),
+  roadmapItem: one(roadmapItems, {
+    fields: [ideas.roadmapItemId],
+    references: [roadmapItems.id],
+  }),
+  createdBy: one(users, {
+    fields: [ideas.createdByUserId],
+    references: [users.id],
+  }),
+}));
+
 export const zeroDrizzleSchema = {
   users,
   usersRelations,
@@ -500,4 +547,6 @@ export const zeroDrizzleSchema = {
   visionCollaboratorsRelations,
   visionSummaryDocuments,
   visionSummaryDocumentsRelations,
+  ideas,
+  ideasRelations,
 };

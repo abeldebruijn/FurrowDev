@@ -9,5 +9,5 @@ type VisionPageProps = {
 
 export default async function VisionPage({ params }: VisionPageProps) {
   const routeParams = await params;
-  redirect(`/project/${routeParams["project-id"]}/ideas/vision/${routeParams["vision-id"]}`);
+  redirect(`/project/${routeParams["project-id"]}/visions/vision/${routeParams["vision-id"]}`);
 }

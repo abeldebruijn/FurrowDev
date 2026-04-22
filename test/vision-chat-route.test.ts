@@ -108,6 +108,7 @@ describe("vision chat route", () => {
     ]);
     getProjectAccess.mockResolvedValue({
       description: "Internal tooling for planning and delivery.",
+      id: "project-1",
       roadmapId: "roadmap-1",
       ubiquitousLanguageMarkdown:
         "# Ubiquitous Language\n\n- Vision: a private discovery conversation.",
@@ -300,11 +301,16 @@ describe("vision chat route", () => {
 
     expect(createVisionAgent).toHaveBeenCalledWith(
       expect.objectContaining({
-        project: {
+        project: expect.objectContaining({
           description: "Internal tooling for planning and delivery.",
+          id: "project-1",
           ubiquitousLanguageMarkdown:
             "# Ubiquitous Language\n\n- Vision: a private discovery conversation.",
-        },
+        }),
+        viewerId: "viewer-1",
+        vision: expect.objectContaining({
+          id: "vision-1",
+        }),
       }),
     );
   });

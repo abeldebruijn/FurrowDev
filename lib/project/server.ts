@@ -504,6 +504,16 @@ export async function saveAccessibleProjectWidgetLayout(
     }
 
     const widgetLayoutId = randomUUID();
+    await tx.insert(projectWidgetLayouts).values({
+      id: widgetLayoutId,
+      largeLayout,
+      mediumAutoLayout: true,
+      mediumLayout: null,
+      smallAutoLayout: true,
+      smallLayout: null,
+      version: 1,
+    });
+
     const [claimedProject] = await tx
       .update(projects)
       .set({
@@ -515,18 +525,10 @@ export async function saveAccessibleProjectWidgetLayout(
       });
 
     if (claimedProject) {
-      await tx.insert(projectWidgetLayouts).values({
-        id: widgetLayoutId,
-        largeLayout,
-        mediumAutoLayout: true,
-        mediumLayout: null,
-        smallAutoLayout: true,
-        smallLayout: null,
-        version: 1,
-      });
-
       return;
     }
+
+    await tx.delete(projectWidgetLayouts).where(eq(projectWidgetLayouts.id, widgetLayoutId));
 
     const [existingProject] = await tx
       .select({

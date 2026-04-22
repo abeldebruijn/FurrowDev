@@ -8,6 +8,7 @@ import type { ChatRenderMessage } from "@/components/chat/chat-types";
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 
 import { ButtonGroup } from "../ui/button-group";
+import { CreateIdeaDialog } from "./create-idea-dialog";
 import { VisionCollaboratorsDialog } from "./vision-collaborators-dialog";
 import { VisionSettingsDialog } from "./vision-settings-dialog";
 import { VisionSummarySidebar, VisionSummarySidebarTrigger } from "./vision-summary-sidebar";
@@ -35,6 +36,7 @@ type VisionWorkspaceViewProps = {
   ownerName: string;
   ownerUserId: string;
   projectId: string;
+  roadmapItems: VisionWorkspaceProps["roadmapItems"];
   routeError: string | null;
   scrollToBottom: (options?: { resumeTypingFollow?: boolean }) => void;
   sendError: Error | undefined;
@@ -82,6 +84,7 @@ function VisionWorkspaceMain({
   ownerName,
   ownerUserId,
   projectId,
+  roadmapItems,
   routeError,
   scrollToBottom,
   sendError,
@@ -134,6 +137,13 @@ function VisionWorkspaceMain({
               </ButtonGroup>
 
               <VisionSummarySidebarTrigger />
+
+              <CreateIdeaDialog
+                projectId={projectId}
+                roadmapItems={roadmapItems}
+                title={currentTitle}
+                visionId={visionId}
+              />
             </div>
           </div>
         }

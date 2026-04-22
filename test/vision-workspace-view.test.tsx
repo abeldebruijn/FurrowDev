@@ -60,6 +60,10 @@ vi.mock("../components/vision/vision-settings-dialog", () => ({
   VisionSettingsDialog: () => <div>Settings dialog</div>,
 }));
 
+vi.mock("../components/vision/create-idea-dialog", () => ({
+  CreateIdeaDialog: () => <div>Create idea</div>,
+}));
+
 vi.mock("../components/vision/vision-collaborators-dialog", () => ({
   VisionCollaboratorsDialog: () => <div>Collaborators dialog</div>,
 }));
@@ -96,6 +100,7 @@ describe("VisionWorkspaceView", () => {
         ownerName="Abel"
         ownerUserId="user-1"
         projectId="project-1"
+        roadmapItems={[]}
         routeError="Route failed"
         scrollToBottom={() => {}}
         sendError={undefined}
@@ -107,6 +112,7 @@ describe("VisionWorkspaceView", () => {
     expect(markup).toContain("Message the vision agent");
     expect(markup).toContain("Vision title");
     expect(markup).toContain("Settings dialog");
+    expect(markup).toContain("Create idea");
     expect(markup).toContain("Summary trigger");
     expect(markup).toContain("Summary sidebar");
     expect(markup).toContain("Collaborators dialog");
@@ -138,6 +144,7 @@ describe("VisionWorkspaceView", () => {
         ownerName="Abel"
         ownerUserId="user-1"
         projectId="project-1"
+        roadmapItems={[]}
         routeError={null}
         scrollToBottom={() => {}}
         sendError={undefined}
