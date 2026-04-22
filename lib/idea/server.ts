@@ -130,7 +130,17 @@ export async function convertVisionToIdea(
   { roadmapItemId, title }: ConvertVisionToIdeaArgs = {},
   db: Database = getDb(),
 ) {
-  const existingIdea = await getIdeaBySourceVision(viewerId, projectId, visionId, db);
+  const project = await getProjectAccess(viewerId, projectId, db);
+
+  if (!project) {
+    return { error: "not_found" as const, idea: null };
+  }
+
+  if (!(project.isAdmin || project.isMaintainer)) {
+    return { error: "forbidden" as const, idea: null };
+  }
+
+  const existingIdea = await getIdeaBySourceVisionId(projectId, visionId, db);
 
   if (existingIdea) {
     return { error: null, idea: existingIdea };
@@ -139,12 +149,6 @@ export async function convertVisionToIdea(
   const vision = await getAccessibleVision(viewerId, projectId, visionId, db);
 
   if (!vision) {
-    return { error: "not_found" as const, idea: null };
-  }
-
-  const project = await getProjectAccess(viewerId, projectId, db);
-
-  if (!project) {
     return { error: "not_found" as const, idea: null };
   }
 

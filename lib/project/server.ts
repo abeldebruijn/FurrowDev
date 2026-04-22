@@ -5,6 +5,7 @@ import { and, eq, isNull, or } from "drizzle-orm";
 import {
   admins,
   conceptProjects,
+  maintainers,
   organisations,
   type ProjectWidgetLayoutItem,
   projectWidgetLayouts,
@@ -40,6 +41,7 @@ export type ProjectAccess = AccessibleProject & {
   canViewModeration: boolean;
   canViewSettings: boolean;
   isAdmin: boolean;
+  isMaintainer: boolean;
   isOrganisationProject: boolean;
   isOwner: boolean;
   layout: {
@@ -178,6 +180,7 @@ export async function getProjectAccess(
       description: projects.description,
       id: projects.id,
       largeLayout: projectWidgetLayouts.largeLayout,
+      maintainerUserId: maintainers.userId,
       name: projects.name,
       mediumAutoLayout: projectWidgetLayouts.mediumAutoLayout,
       mediumLayout: projectWidgetLayouts.mediumLayout,
@@ -196,6 +199,10 @@ export async function getProjectAccess(
     .leftJoin(conceptProjects, eq(projects.conceptProjectId, conceptProjects.id))
     .leftJoin(projectWidgetLayouts, eq(projects.widgetLayoutId, projectWidgetLayouts.id))
     .leftJoin(admins, and(eq(admins.projectId, projects.id), eq(admins.userId, viewerId)))
+    .leftJoin(
+      maintainers,
+      and(eq(maintainers.projectId, projects.id), eq(maintainers.userId, viewerId)),
+    )
     .where(
       and(
         eq(projects.id, projectId),
@@ -203,6 +210,7 @@ export async function getProjectAccess(
           eq(projects.userOwner, viewerId),
           eq(organisations.ownerId, viewerId),
           eq(admins.userId, viewerId),
+          eq(maintainers.userId, viewerId),
         ),
       ),
     )
@@ -216,6 +224,7 @@ export async function getProjectAccess(
 
   const isOwner = project.userOwner === viewerId || project.organisationOwnerId === viewerId;
   const isAdmin = project.adminUserId === viewerId;
+  const isMaintainer = project.maintainerUserId === viewerId;
   const isOrganisationProject = project.orgOwner !== null;
 
   return {
@@ -244,6 +253,7 @@ export async function getProjectAccess(
     canViewModeration: isOrganisationProject && (isOwner || isAdmin),
     canViewSettings: isOwner || isAdmin,
     isAdmin,
+    isMaintainer,
     isOrganisationProject,
     isOwner,
   };

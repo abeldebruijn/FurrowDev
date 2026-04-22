@@ -17,8 +17,15 @@ const convertVisionSchema = z.object({
   title: z.string().trim().max(120).optional(),
 });
 
-function getConversionErrorResponse(error: "invalid_roadmap_item" | "not_found" | null) {
+function getConversionErrorResponse(
+  error: "forbidden" | "invalid_roadmap_item" | "not_found" | null,
+) {
   switch (error) {
+    case "forbidden":
+      return Response.json(
+        { error: "Only project maintainers and admins can create ideas." },
+        { status: 403 },
+      );
     case "invalid_roadmap_item":
       return Response.json({ error: "Roadmap item not found." }, { status: 400 });
     case "not_found":

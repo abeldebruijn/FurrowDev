@@ -13,6 +13,7 @@ import type { VisionWorkspaceProps } from "./vision-workspace-types";
 import { VisionWorkspaceView } from "./vision-workspace-view";
 
 export function VisionWorkspace({
+  canConvertToIdea,
   eligibleCollaborators,
   initialCollaborators,
   initialMessages,
@@ -180,6 +181,7 @@ export function VisionWorkspace({
   return (
     <VisionWorkspaceView
       canManageCollaborators={canManageCollaborators}
+      canConvertToIdea={canConvertToIdea}
       collaborators={collaborators}
       composerFormRef={composerFormRef}
       composerShellRef={composerShellRef}

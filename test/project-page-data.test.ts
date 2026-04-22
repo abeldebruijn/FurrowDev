@@ -82,6 +82,7 @@ describe("getProjectPageData", () => {
       description: "project description",
       id: "project-1",
       isAdmin: false,
+      isMaintainer: false,
       isOrganisationProject: false,
       isOwner: true,
       layout: null,

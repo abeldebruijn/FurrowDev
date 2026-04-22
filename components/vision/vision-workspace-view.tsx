@@ -15,6 +15,7 @@ import { VisionSummarySidebar, VisionSummarySidebarTrigger } from "./vision-summ
 import type { VisionWorkspaceProps } from "./vision-workspace-types";
 
 type VisionWorkspaceViewProps = {
+  canConvertToIdea: boolean;
   canManageCollaborators: boolean;
   collaborators: VisionWorkspaceProps["initialCollaborators"];
   composerFormRef: RefObject<HTMLFormElement | null>;
@@ -63,6 +64,7 @@ export function VisionWorkspaceView(props: VisionWorkspaceViewProps) {
 }
 
 function VisionWorkspaceMain({
+  canConvertToIdea,
   canManageCollaborators,
   collaborators,
   composerFormRef,
@@ -138,12 +140,14 @@ function VisionWorkspaceMain({
 
               <VisionSummarySidebarTrigger />
 
-              <CreateIdeaDialog
-                projectId={projectId}
-                roadmapItems={roadmapItems}
-                title={currentTitle}
-                visionId={visionId}
-              />
+              {canConvertToIdea ? (
+                <CreateIdeaDialog
+                  projectId={projectId}
+                  roadmapItems={roadmapItems}
+                  title={currentTitle}
+                  visionId={visionId}
+                />
+              ) : null}
             </div>
           </div>
         }

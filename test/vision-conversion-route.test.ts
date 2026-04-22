@@ -127,6 +127,34 @@ describe("vision conversion routes", () => {
     expect(response.status).toBe(404);
   });
 
+  it("returns 403 when the viewer cannot convert ideas", async () => {
+    convertVisionToIdea.mockResolvedValue({
+      error: "forbidden",
+      idea: null,
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/project/project-1/visions/vision-1/convert", {
+        body: JSON.stringify({}),
+        headers: {
+          "content-type": "application/json",
+        },
+        method: "POST",
+      }) as any,
+      {
+        params: Promise.resolve({
+          "project-id": "project-1",
+          "vision-id": "vision-1",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({
+      error: "Only project maintainers and admins can create ideas.",
+    });
+  });
+
   it("returns 400 when the roadmap item is invalid", async () => {
     convertVisionToIdea.mockResolvedValue({
       error: "invalid_roadmap_item",

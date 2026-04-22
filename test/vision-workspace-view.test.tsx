@@ -79,6 +79,7 @@ describe("VisionWorkspaceView", () => {
   it("composes shared chat primitives with vision-specific controls", () => {
     const markup = renderToStaticMarkup(
       <VisionWorkspaceView
+        canConvertToIdea
         canManageCollaborators
         collaborators={[]}
         composerFormRef={{ current: null }}
@@ -123,6 +124,7 @@ describe("VisionWorkspaceView", () => {
   it("does not render a vision-specific thinking state while submitting", () => {
     const markup = renderToStaticMarkup(
       <VisionWorkspaceView
+        canConvertToIdea
         canManageCollaborators
         collaborators={[]}
         composerFormRef={{ current: null }}
@@ -154,5 +156,43 @@ describe("VisionWorkspaceView", () => {
     );
 
     expect(markup).not.toContain("Thinking...");
+  });
+
+  it("hides idea conversion when the viewer cannot convert ideas", () => {
+    const markup = renderToStaticMarkup(
+      <VisionWorkspaceView
+        canConvertToIdea={false}
+        canManageCollaborators
+        collaborators={[]}
+        composerFormRef={{ current: null }}
+        composerShellRef={{ current: null }}
+        contentShellRef={{ current: null }}
+        currentTitle="Vision title"
+        eligibleCollaborators={[]}
+        input=""
+        isAtBottom
+        isSubmitting={false}
+        messages={[]}
+        messagesEndRef={{ current: null }}
+        onAddCollaborator={async () => {}}
+        onComposerKeyDown={() => {}}
+        onInputChange={() => {}}
+        onRemoveCollaborator={async () => {}}
+        onSubmit={() => {}}
+        onTitleChange={() => {}}
+        ownerName="Abel"
+        ownerUserId="user-1"
+        projectId="project-1"
+        roadmapItems={[]}
+        routeError={null}
+        scrollToBottom={() => {}}
+        sendError={undefined}
+        summary="## Current understanding"
+        visionId="vision-1"
+      />,
+    );
+
+    expect(markup).not.toContain("Create idea");
+    expect(markup).toContain("Summary trigger");
   });
 });

@@ -112,6 +112,10 @@ function createVisionTools(context: VisionAgentContext) {
           throw new Error("Roadmap item not found.");
         }
 
+        if (result.error === "forbidden") {
+          throw new Error("Only project maintainers and admins can create ideas.");
+        }
+
         if (result.error) {
           throw new Error("Vision not found.");
         }

@@ -1,4 +1,5 @@
 export type VisionWorkspaceProps = {
+  canConvertToIdea: boolean;
   eligibleCollaborators: Array<{
     id: string;
     name: string;
