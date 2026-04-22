@@ -4,17 +4,20 @@ const {
   addProjectMaintainer,
   getWorkOSSession,
   removeProjectMaintainer,
+  searchProjectMaintainerCandidates,
   upsertViewerFromWorkOSSession,
 } = vi.hoisted(() => ({
   addProjectMaintainer: vi.fn(),
   getWorkOSSession: vi.fn(),
   removeProjectMaintainer: vi.fn(),
+  searchProjectMaintainerCandidates: vi.fn(),
   upsertViewerFromWorkOSSession: vi.fn(),
 }));
 
 vi.mock("@/lib/project/server", () => ({
   addProjectMaintainer,
   removeProjectMaintainer,
+  searchProjectMaintainerCandidates,
 }));
 
 vi.mock("@/lib/workos-session", () => ({
@@ -25,13 +28,14 @@ vi.mock("@/lib/zero/context", () => ({
   upsertViewerFromWorkOSSession,
 }));
 
-import { DELETE, POST } from "../app/api/project/[project-id]/maintainers/route";
+import { DELETE, GET, POST } from "../app/api/project/[project-id]/maintainers/route";
 
 describe("project maintainers route", () => {
   beforeEach(() => {
     addProjectMaintainer.mockReset();
     getWorkOSSession.mockReset();
     removeProjectMaintainer.mockReset();
+    searchProjectMaintainerCandidates.mockReset();
     upsertViewerFromWorkOSSession.mockReset();
 
     getWorkOSSession.mockResolvedValue({
@@ -42,6 +46,48 @@ describe("project maintainers route", () => {
     upsertViewerFromWorkOSSession.mockResolvedValue({
       id: "viewer-1",
     });
+  });
+
+  it("searches maintainer candidates by explicit query", async () => {
+    searchProjectMaintainerCandidates.mockResolvedValue([
+      {
+        id: "550e8400-e29b-41d4-a716-446655440000",
+        name: "Ada Lovelace",
+      },
+    ]);
+
+    const response = await GET(
+      new Request("http://localhost/api/project/project-1/maintainers?q=ada") as any,
+      {
+        params: Promise.resolve({
+          "project-id": "project-1",
+        }),
+      },
+    );
+
+    expect(searchProjectMaintainerCandidates).toHaveBeenCalledWith("viewer-1", "project-1", "ada");
+    await expect(response.json()).resolves.toEqual({
+      candidates: [
+        {
+          id: "550e8400-e29b-41d4-a716-446655440000",
+          name: "Ada Lovelace",
+        },
+      ],
+    });
+  });
+
+  it("does not search maintainer candidates without an explicit query", async () => {
+    const response = await GET(
+      new Request("http://localhost/api/project/project-1/maintainers?q=a") as any,
+      {
+        params: Promise.resolve({
+          "project-id": "project-1",
+        }),
+      },
+    );
+
+    expect(searchProjectMaintainerCandidates).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toEqual({ candidates: [] });
   });
 
   it("adds a maintainer", async () => {

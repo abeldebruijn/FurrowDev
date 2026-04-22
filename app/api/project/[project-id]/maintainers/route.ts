@@ -1,7 +1,11 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 
-import { addProjectMaintainer, removeProjectMaintainer } from "@/lib/project/server";
+import {
+  addProjectMaintainer,
+  removeProjectMaintainer,
+  searchProjectMaintainerCandidates,
+} from "@/lib/project/server";
 import { upsertViewerFromWorkOSSession } from "@/lib/zero/context";
 import { getWorkOSSession } from "@/lib/workos-session";
 
@@ -14,6 +18,8 @@ type ProjectMaintainersRouteProps = {
 const maintainerSchema = z.object({
   userId: z.uuid(),
 });
+
+const searchSchema = z.string().trim().min(2).max(80);
 
 function getErrorResponse(
   error: "forbidden" | "invalid_user" | "not_found" | "owner" | null,
@@ -42,6 +48,26 @@ function getErrorResponse(
     default:
       return null;
   }
+}
+
+export async function GET(request: NextRequest, { params }: ProjectMaintainersRouteProps) {
+  const session = await getWorkOSSession(request);
+
+  if (!session) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const viewer = await upsertViewerFromWorkOSSession(session);
+  const { ["project-id"]: projectId } = await params;
+  const search = searchSchema.safeParse(new URL(request.url).searchParams.get("q") ?? "");
+
+  if (!search.success) {
+    return Response.json({ candidates: [] });
+  }
+
+  const candidates = await searchProjectMaintainerCandidates(viewer.id, projectId, search.data);
+
+  return Response.json({ candidates });
 }
 
 export async function POST(request: NextRequest, { params }: ProjectMaintainersRouteProps) {

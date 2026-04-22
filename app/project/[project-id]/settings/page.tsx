@@ -1,11 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { ProjectSettingsPage as ProjectSettingsView } from "@/components/project/project-settings-page";
-import {
-  listProjectMaintainerCandidates,
-  listProjectMaintainers,
-  listViewerOwnedOrganisations,
-} from "@/lib/project/server";
+import { listProjectMaintainers, listViewerOwnedOrganisations } from "@/lib/project/server";
 
 import { getProjectPageData } from "../project-page-data";
 
@@ -23,15 +19,13 @@ export default async function ProjectSettingsPage({ params }: ProjectSettingsPag
     notFound();
   }
 
-  const [maintainers, maintainerCandidates, ownedOrganisations] = await Promise.all([
+  const [maintainers, ownedOrganisations] = await Promise.all([
     listProjectMaintainers(viewer.id, project.id),
-    listProjectMaintainerCandidates(viewer.id, project.id),
     project.isOwner ? listViewerOwnedOrganisations(viewer.id) : Promise.resolve([]),
   ]);
 
   return (
     <ProjectSettingsView
-      maintainerCandidates={maintainerCandidates}
       maintainers={maintainers}
       ownedOrganisations={ownedOrganisations}
       project={project}

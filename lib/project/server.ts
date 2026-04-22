@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { and, eq, isNull, or } from "drizzle-orm";
+import { and, eq, ilike, isNull, or } from "drizzle-orm";
 
 import {
   admins,
@@ -351,25 +351,34 @@ export async function listProjectMaintainers(
     .orderBy(users.name);
 }
 
-export async function listProjectMaintainerCandidates(
+export async function searchProjectMaintainerCandidates(
   viewerId: string,
   projectId: string,
+  searchTerm: string,
   db: Database = getDb(),
 ) {
+  const query = searchTerm.trim();
+
+  if (query.length < 2) {
+    return [];
+  }
+
   const project = await getProjectAccess(viewerId, projectId, db);
 
   if (!project?.isOwner) {
     return [];
   }
 
-  const [allUsers, currentMaintainers, projectRow] = await Promise.all([
+  const [matchedUsers, currentMaintainers, projectRow] = await Promise.all([
     db
       .select({
         id: users.id,
         name: users.name,
       })
       .from(users)
-      .orderBy(users.name),
+      .where(ilike(users.name, `%${query}%`))
+      .orderBy(users.name)
+      .limit(10),
     db
       .select({
         userId: maintainers.userId,
@@ -398,7 +407,7 @@ export async function listProjectMaintainerCandidates(
     excludedUserIds.add(projectRow.organisationOwnerId);
   }
 
-  return allUsers.filter((user) => !excludedUserIds.has(user.id));
+  return matchedUsers.filter((user) => !excludedUserIds.has(user.id));
 }
 
 export async function getProjectRoadmapItems(roadmapId: string | null, db: Database = getDb()) {

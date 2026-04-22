@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Building2, Save, Shield, Trash2, UserPlus, Users } from "lucide-react";
 
@@ -43,7 +43,6 @@ type SettingsProject = {
 };
 
 type ProjectSettingsPageProps = {
-  maintainerCandidates: UserOption[];
   maintainers: UserOption[];
   ownedOrganisations: OrganisationOption[];
   project: SettingsProject;
@@ -70,7 +69,6 @@ function getRoleSummary(project: SettingsProject) {
 }
 
 export function ProjectSettingsPage({
-  maintainerCandidates,
   maintainers,
   ownedOrganisations,
   project,
@@ -82,23 +80,15 @@ export function ProjectSettingsPage({
   const [isSavingLanguage, setIsSavingLanguage] = useState(false);
   const [isSavingMaintainer, setIsSavingMaintainer] = useState(false);
   const [isSavingOwnership, setIsSavingOwnership] = useState(false);
+  const [maintainerCandidates, setMaintainerCandidates] = useState<UserOption[]>([]);
   const [maintainerQuery, setMaintainerQuery] = useState("");
   const [name, setName] = useState(project.name);
+  const [isSearchingMaintainers, setIsSearchingMaintainers] = useState(false);
   const [selectedMaintainerId, setSelectedMaintainerId] = useState("");
   const [selectedOrgOwnerId, setSelectedOrgOwnerId] = useState(project.orgOwner ?? "");
   const [ubiquitousLanguageMarkdown, setUbiquitousLanguageMarkdown] = useState(
     project.ubiquitousLanguageMarkdown ?? "",
   );
-
-  const filteredMaintainerCandidates = useMemo(() => {
-    const query = maintainerQuery.trim().toLowerCase();
-
-    if (!query) {
-      return maintainerCandidates;
-    }
-
-    return maintainerCandidates.filter((candidate) => candidate.name.toLowerCase().includes(query));
-  }, [maintainerCandidates, maintainerQuery]);
 
   async function saveSettings(body: Record<string, string>) {
     const response = await fetch(`/api/project/${project.id}/settings`, {
@@ -178,11 +168,43 @@ export function ProjectSettingsPage({
 
       setSelectedMaintainerId("");
       setMaintainerQuery("");
+      setMaintainerCandidates([]);
       router.refresh();
     } catch (error) {
       setError(getErrorMessage(error, "Failed to add maintainer."));
     } finally {
       setIsSavingMaintainer(false);
+    }
+  }
+
+  async function handleSearchMaintainers() {
+    const query = maintainerQuery.trim();
+
+    if (query.length < 2) {
+      setError("Search with at least 2 characters.");
+      return;
+    }
+
+    setError(null);
+    setIsSearchingMaintainers(true);
+
+    try {
+      const response = await fetch(
+        `/api/project/${project.id}/maintainers?q=${encodeURIComponent(query)}`,
+      );
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error || "Failed to search users.");
+      }
+
+      const data = (await response.json()) as { candidates?: UserOption[] };
+      setMaintainerCandidates(data.candidates ?? []);
+      setSelectedMaintainerId("");
+    } catch (error) {
+      setError(getErrorMessage(error, "Failed to search users."));
+    } finally {
+      setIsSearchingMaintainers(false);
     }
   }
 
@@ -333,8 +355,12 @@ export function ProjectSettingsPage({
             <div className="flex flex-col gap-3">
               <p className="text-sm font-medium text-foreground">Add maintainer</p>
               <Input
-                onChange={(event) => setMaintainerQuery(event.target.value)}
-                placeholder="Filter users"
+                onChange={(event) => {
+                  setMaintainerQuery(event.target.value);
+                  setMaintainerCandidates([]);
+                  setSelectedMaintainerId("");
+                }}
+                placeholder="Search by name"
                 value={maintainerQuery}
               />
               <select
@@ -343,14 +369,14 @@ export function ProjectSettingsPage({
                 value={selectedMaintainerId}
               >
                 <option value="">Choose a user</option>
-                {filteredMaintainerCandidates.map((candidate) => (
+                {maintainerCandidates.map((candidate) => (
                   <option key={candidate.id} value={candidate.id}>
                     {candidate.name}
                   </option>
                 ))}
               </select>
               <p className="text-xs text-muted-foreground">
-                Maintainers must already have a FurrowDev user account.
+                Search returns explicit matches for existing FurrowDev users.
               </p>
             </div>
           ) : (
@@ -361,6 +387,14 @@ export function ProjectSettingsPage({
         </CardContent>
         {project.isOwner ? (
           <CardFooter className="justify-end">
+            <Button
+              disabled={isSearchingMaintainers || isSavingMaintainer}
+              onClick={handleSearchMaintainers}
+              type="button"
+              variant="outline"
+            >
+              {isSearchingMaintainers ? "Searching..." : "Search users"}
+            </Button>
             <Button disabled={isSavingMaintainer} onClick={handleAddMaintainer} type="button">
               <UserPlus data-icon="inline-start" />
               {isSavingMaintainer ? "Saving..." : "Add maintainer"}
