@@ -74,7 +74,7 @@ export default async function RootLayout({
       : null;
 
   return (
-    <html lang="en" className="h-full" suppressHydrationWarning>
+    <html className="h-full" data-scroll-behavior="smooth" lang="en" suppressHydrationWarning>
       <body className="min-h-full antialiased">
         <AuthKitProvider initialAuth={initialAuth}>
           <ThemeProvider

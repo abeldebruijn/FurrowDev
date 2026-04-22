@@ -18,10 +18,10 @@ export default function VisionsWidget({ width, height, project }: WidgetProps) {
       )}
       renderAction={(vision) => (
         <VisionWidgetActionButton
-          href={`/project/${project.projectId}/ideas/vision/${vision.id}`}
+          href={`/project/${project.projectId}/visions/vision/${vision.id}`}
         />
       )}
-      renderFooter={() => <VisionWidgetFooterLink href={`/project/${project.projectId}/ideas`} />}
+      renderFooter={() => <VisionWidgetFooterLink href={`/project/${project.projectId}/visions`} />}
       visions={project.visions}
       width={width}
     />

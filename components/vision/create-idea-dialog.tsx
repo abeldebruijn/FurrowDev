@@ -1,9 +1,8 @@
 "use client";
 
-import { useContext, useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import { motion, useReducedMotion } from "motion/react";
 import { useRouter } from "next/navigation";
-import { ZeroContext } from "@rocicorp/zero/react";
-import { useAccessToken } from "@workos-inc/authkit-nextjs/components";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -16,8 +15,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-type CreateVisionDialogProps = {
+type CreateIdeaDialogProps = {
   projectId: string;
   roadmapItems: Array<{
     description: string | null;
@@ -26,88 +26,66 @@ type CreateVisionDialogProps = {
     minorVersion: number;
     name: string;
   }>;
+  title: string;
+  visionId: string;
 };
 
-function getRoadmapOptionLabel(item: CreateVisionDialogProps["roadmapItems"][number]) {
+function getRoadmapOptionLabel(item: CreateIdeaDialogProps["roadmapItems"][number]) {
   return `v${item.majorVersion}.${item.minorVersion} - ${item.name}`;
 }
 
-export function CreateVisionDialog({ projectId, roadmapItems }: CreateVisionDialogProps) {
+export function CreateIdeaDialog({
+  projectId,
+  roadmapItems,
+  title,
+  visionId,
+}: CreateIdeaDialogProps) {
+  const prefersReducedMotion = useReducedMotion();
   const router = useRouter();
-  const zero = useContext(ZeroContext);
-  const { accessToken } = useAccessToken();
   const [open, setOpen] = useState(false);
-  const [title, setTitle] = useState("");
+  const [ideaTitle, setIdeaTitle] = useState(title);
   const [roadmapItemId, setRoadmapItemId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const createRequestAbortRef = useRef<AbortController | null>(null);
 
   function resetForm() {
     setError(null);
+    setIdeaTitle(title);
     setRoadmapItemId("");
-    setTitle("");
   }
 
-  useEffect(() => {
-    return () => {
-      createRequestAbortRef.current?.abort();
-    };
-  }, []);
-
-  async function handleCreate() {
+  async function handleCreateIdea() {
     if (isSubmitting) {
       return;
     }
 
     setError(null);
     setIsSubmitting(true);
-    const abortController = new AbortController();
-    createRequestAbortRef.current = abortController;
 
     try {
-      const response = await fetch(`/api/project/${projectId}/visions`, {
+      const response = await fetch(`/api/project/${projectId}/visions/${visionId}/convert`, {
         body: JSON.stringify({
           roadmapItemId: roadmapItemId || undefined,
-          title: title.trim() || undefined,
+          title: ideaTitle.trim() || undefined,
         }),
         headers: {
           "content-type": "application/json",
         },
         method: "POST",
-        signal: abortController.signal,
       });
 
       if (!response.ok) {
-        if (response.status === 401 && accessToken && zero) {
-          await zero.connection.connect({ auth: accessToken });
-        }
-
         const data = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(data?.error || "Failed to create vision.");
-      }
-
-      const data = (await response.json()) as { id: string };
-
-      if (abortController.signal.aborted) {
-        return;
+        throw new Error(data?.error || "Failed to create idea.");
       }
 
       resetForm();
       setOpen(false);
-      router.push(`/project/${projectId}/visions/vision/${data.id}`);
+      router.push(`/project/${projectId}/ideas`);
       router.refresh();
     } catch (error) {
-      if (error instanceof Error && error.name === "AbortError") {
-        return;
-      }
-
-      setError(error instanceof Error ? error.message : "Failed to create vision.");
+      setError(error instanceof Error ? error.message : "Failed to create idea.");
     } finally {
-      if (createRequestAbortRef.current === abortController) {
-        createRequestAbortRef.current = null;
-      }
-
       setIsSubmitting(false);
     }
   }
@@ -117,43 +95,74 @@ export function CreateVisionDialog({ projectId, roadmapItems }: CreateVisionDial
       onOpenChange={(nextOpen) => {
         setOpen(nextOpen);
 
-        if (!nextOpen) {
-          createRequestAbortRef.current?.abort();
+        if (nextOpen) {
+          setIdeaTitle(title);
+        } else {
           resetForm();
         }
       }}
       open={open}
     >
-      <DialogTrigger render={<Button />}>New vision</DialogTrigger>
+      <Tooltip>
+        <TooltipTrigger render={<span className="inline-flex" />}>
+          <motion.div
+            animate={
+              prefersReducedMotion
+                ? undefined
+                : {
+                    boxShadow: [
+                      "0 0 10px rgba(16, 185, 129, 0.1)",
+                      "0 0 20px rgba(16, 185, 129, 0.38)",
+                      "0 0 10px rgba(16, 185, 129, 0.1)",
+                    ],
+                    scale: [1, 1.02, 1],
+                  }
+            }
+            className="rounded-md"
+            transition={{
+              duration: 2.2,
+              ease: "easeInOut",
+              repeat: Number.POSITIVE_INFINITY,
+              repeatDelay: 0.35,
+            }}
+          >
+            <DialogTrigger render={<Button type="button" variant="outline" />}>
+              Create idea
+            </DialogTrigger>
+          </motion.div>
+        </TooltipTrigger>
+        <TooltipContent>
+          Create a project-visible idea from this vision and archive the private workspace.
+        </TooltipContent>
+      </Tooltip>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Create vision</DialogTitle>
+          <DialogTitle>Create idea</DialogTitle>
           <DialogDescription>
-            Start a private AI conversation for exploring what this project should build next.
+            Turn this private vision into a project-visible idea and archive the source vision.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground" htmlFor="vision-title">
+            <label className="text-sm font-medium text-foreground" htmlFor="idea-title">
               Title
             </label>
             <input
               className="w-full rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:border-foreground"
-              id="vision-title"
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder="Untitled vision"
-              value={title}
+              id="idea-title"
+              onChange={(event) => setIdeaTitle(event.target.value)}
+              value={ideaTitle}
             />
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground" htmlFor="vision-roadmap-item">
-              Based on roadmap node
+            <label className="text-sm font-medium text-foreground" htmlFor="idea-roadmap-item">
+              Linked roadmap node
             </label>
             <select
               className="w-full rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:border-foreground"
-              id="vision-roadmap-item"
+              id="idea-roadmap-item"
               onChange={(event) => setRoadmapItemId(event.target.value)}
               value={roadmapItemId}
             >
@@ -164,9 +173,6 @@ export function CreateVisionDialog({ projectId, roadmapItems }: CreateVisionDial
                 </option>
               ))}
             </select>
-            <p className="text-xs text-muted-foreground">
-              This only seeds the initial discussion. It does not store a lasting roadmap link.
-            </p>
           </div>
 
           {error ? (
@@ -178,8 +184,8 @@ export function CreateVisionDialog({ projectId, roadmapItems }: CreateVisionDial
         </div>
 
         <DialogFooter>
-          <Button disabled={isSubmitting} onClick={handleCreate} type="button">
-            {isSubmitting ? "Creating..." : "Create vision"}
+          <Button disabled={isSubmitting} onClick={handleCreateIdea} type="button">
+            {isSubmitting ? "Creating..." : "Create idea"}
           </Button>
         </DialogFooter>
       </DialogContent>

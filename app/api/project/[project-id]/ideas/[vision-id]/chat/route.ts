@@ -152,11 +152,14 @@ export async function POST(request: NextRequest, { params }: VisionChatRouteProp
     },
     project: {
       description: project.description,
+      id: project.id,
       ubiquitousLanguageMarkdown: project.ubiquitousLanguageMarkdown,
     },
     roadmap,
     roadmapItems,
+    viewerId: viewer.id,
     vision: {
+      id: freshVision.id,
       summary: freshVision.summary,
       title: freshVision.title,
     },

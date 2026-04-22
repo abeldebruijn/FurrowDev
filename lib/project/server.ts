@@ -301,20 +301,27 @@ export async function listAccessibleProjects(viewerId: string, db: Database = ge
     })
     .from(projects)
     .leftJoin(organisations, eq(projects.orgOwner, organisations.id))
+    .where(or(eq(projects.userOwner, viewerId), eq(organisations.ownerId, viewerId)))
+    .orderBy(projects.createdAt);
+}
+
+export async function listCollaboratorProjects(viewerId: string, db: Database = getDb()) {
+  return db
+    .selectDistinct({
+      createdAt: projects.createdAt,
+      description: projects.description,
+      id: projects.id,
+      name: projects.name,
+    })
+    .from(projects)
     .leftJoin(admins, and(eq(admins.projectId, projects.id), eq(admins.userId, viewerId)))
     .leftJoin(
       maintainers,
       and(eq(maintainers.projectId, projects.id), eq(maintainers.userId, viewerId)),
     )
-    .where(
-      or(
-        eq(projects.userOwner, viewerId),
-        eq(organisations.ownerId, viewerId),
-        eq(admins.userId, viewerId),
-        eq(maintainers.userId, viewerId),
-      ),
-    )
-    .orderBy(projects.createdAt);
+    .where(or(eq(admins.userId, viewerId), eq(maintainers.userId, viewerId)))
+    .orderBy(projects.createdAt)
+    .then((rows) => rows.map(({ createdAt: _createdAt, ...project }) => project));
 }
 
 export async function listViewerOwnedOrganisations(viewerId: string, db: Database = getDb()) {
@@ -745,6 +752,16 @@ export async function saveAccessibleProjectWidgetLayout(
     }
 
     const widgetLayoutId = randomUUID();
+    await tx.insert(projectWidgetLayouts).values({
+      id: widgetLayoutId,
+      largeLayout,
+      mediumAutoLayout: true,
+      mediumLayout: null,
+      smallAutoLayout: true,
+      smallLayout: null,
+      version: 1,
+    });
+
     const [claimedProject] = await tx
       .update(projects)
       .set({
@@ -756,18 +773,10 @@ export async function saveAccessibleProjectWidgetLayout(
       });
 
     if (claimedProject) {
-      await tx.insert(projectWidgetLayouts).values({
-        id: widgetLayoutId,
-        largeLayout,
-        mediumAutoLayout: true,
-        mediumLayout: null,
-        smallAutoLayout: true,
-        smallLayout: null,
-        version: 1,
-      });
-
       return;
     }
+
+    await tx.delete(projectWidgetLayouts).where(eq(projectWidgetLayouts.id, widgetLayoutId));
 
     const [existingProject] = await tx
       .select({

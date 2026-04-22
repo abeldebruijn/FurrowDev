@@ -13,12 +13,14 @@ import type { VisionWorkspaceProps } from "./vision-workspace-types";
 import { VisionWorkspaceView } from "./vision-workspace-view";
 
 export function VisionWorkspace({
+  canConvertToIdea,
   eligibleCollaborators,
   initialCollaborators,
   initialMessages,
   ownerName,
   ownerUserId,
   projectId,
+  roadmapItems,
   summary,
   title,
   viewerId,
@@ -46,12 +48,23 @@ export function VisionWorkspace({
     setMessages,
     status,
   } = useChat<VisionAgentUIMessage>({
-    onFinish: () => {
+    onFinish: async () => {
       setMessages([]);
+      const response = await fetch(`/api/project/${projectId}/visions/${visionId}/conversion`);
+      const data = (await response.json().catch(() => null)) as {
+        converted?: boolean;
+      } | null;
+
+      if (data?.converted) {
+        router.push(`/project/${projectId}/ideas`);
+        router.refresh();
+        return;
+      }
+
       router.refresh();
     },
     transport: new DefaultChatTransport({
-      api: `/api/project/${projectId}/ideas/${visionId}/chat`,
+      api: `/api/project/${projectId}/visions/${visionId}/chat`,
     }),
   });
 
@@ -136,7 +149,7 @@ export function VisionWorkspace({
   async function mutateCollaborator(userId: string, method: "DELETE" | "POST") {
     setRouteError(null);
 
-    const response = await fetch(`/api/project/${projectId}/ideas/${visionId}/collaborators`, {
+    const response = await fetch(`/api/project/${projectId}/visions/${visionId}/collaborators`, {
       body: JSON.stringify({ userId }),
       headers: {
         "content-type": "application/json",
@@ -168,6 +181,7 @@ export function VisionWorkspace({
   return (
     <VisionWorkspaceView
       canManageCollaborators={canManageCollaborators}
+      canConvertToIdea={canConvertToIdea}
       collaborators={collaborators}
       composerFormRef={composerFormRef}
       composerShellRef={composerShellRef}
@@ -188,6 +202,7 @@ export function VisionWorkspace({
       ownerName={ownerName}
       ownerUserId={ownerUserId}
       projectId={projectId}
+      roadmapItems={roadmapItems}
       routeError={routeError}
       scrollToBottom={scrollToBottom}
       sendError={error}
