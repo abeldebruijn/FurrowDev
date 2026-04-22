@@ -307,6 +307,7 @@ export async function listAccessibleProjects(viewerId: string, db: Database = ge
 export async function listCollaboratorProjects(viewerId: string, db: Database = getDb()) {
   return db
     .selectDistinct({
+      createdAt: projects.createdAt,
       description: projects.description,
       id: projects.id,
       name: projects.name,
@@ -318,7 +319,8 @@ export async function listCollaboratorProjects(viewerId: string, db: Database = 
       and(eq(maintainers.projectId, projects.id), eq(maintainers.userId, viewerId)),
     )
     .where(or(eq(admins.userId, viewerId), eq(maintainers.userId, viewerId)))
-    .orderBy(projects.createdAt);
+    .orderBy(projects.createdAt)
+    .then((rows) => rows.map(({ createdAt: _createdAt, ...project }) => project));
 }
 
 export async function getProjectRoadmapItems(roadmapId: string | null, db: Database = getDb()) {

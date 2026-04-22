@@ -102,6 +102,34 @@ describe("vision conversion routes", () => {
     await expect(response.json()).resolves.toEqual({ id: "idea-1", ok: true });
   });
 
+  it("accepts conversion requests without a body", async () => {
+    convertVisionToIdea.mockResolvedValue({
+      error: null,
+      idea: {
+        id: "idea-1",
+      },
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/project/project-1/visions/vision-1/convert", {
+        method: "POST",
+      }) as any,
+      {
+        params: Promise.resolve({
+          "project-id": "project-1",
+          "vision-id": "vision-1",
+        }),
+      },
+    );
+
+    expect(convertVisionToIdea).toHaveBeenCalledWith("viewer-1", "project-1", "vision-1", {
+      roadmapItemId: undefined,
+      title: undefined,
+    });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ id: "idea-1", ok: true });
+  });
+
   it("returns 404 when the vision is inaccessible", async () => {
     convertVisionToIdea.mockResolvedValue({
       error: "not_found",

@@ -44,10 +44,15 @@ export async function POST(request: NextRequest, { params }: VisionConvertRouteP
 
   const viewer = await upsertViewerFromWorkOSSession(session);
   const { ["project-id"]: projectId, ["vision-id"]: visionId } = await params;
-  const rawBody = await request.json().catch(() => null);
+  const rawText = await request.text();
+  let rawBody: unknown = {};
 
-  if (rawBody === null) {
-    return Response.json({ error: "Invalid JSON body." }, { status: 400 });
+  if (rawText.trim().length > 0) {
+    try {
+      rawBody = JSON.parse(rawText);
+    } catch {
+      return Response.json({ error: "Invalid JSON body." }, { status: 400 });
+    }
   }
 
   const body = convertVisionSchema.safeParse(rawBody);
