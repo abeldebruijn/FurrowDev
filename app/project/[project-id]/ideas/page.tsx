@@ -25,8 +25,13 @@ function getRoadmapLabel(idea: {
   roadmapItemMinorVersion: number | null;
   roadmapItemName: string | null;
 }) {
-  if (!idea.roadmapItemId || !idea.roadmapItemName) {
-    return "None";
+  if (
+    !idea.roadmapItemId ||
+    !idea.roadmapItemName ||
+    idea.roadmapItemMajorVersion === null ||
+    idea.roadmapItemMinorVersion === null
+  ) {
+    return idea.roadmapItemName ?? "None";
   }
 
   return `v${idea.roadmapItemMajorVersion}.${idea.roadmapItemMinorVersion} - ${idea.roadmapItemName}`;
