@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { createConceptProject } from "@/app/actions/concept-projects";
 import { listAccessibleActiveConceptProjects } from "@/lib/concept-project/server";
 import { isDatabaseConnectionError } from "@/lib/db";
-import { listAccessibleProjects } from "@/lib/project/server";
+import { listAccessibleProjects, listMaintainerProjects } from "@/lib/project/server";
 import { upsertViewerFromWorkOSSession } from "@/lib/zero/context";
 import { getWorkOSSession } from "@/lib/workos-session";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,56 @@ function getRealProjectName(name: string) {
   return name.trim() || "Untitled project";
 }
 
+type ProjectTableCardProps = {
+  projects: Array<{
+    description: string | null;
+    id: string;
+    name: string;
+  }>;
+  status: string;
+  title: string;
+};
+
+function ProjectTableCard({ projects, status, title }: ProjectTableCardProps) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Description</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Action</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {projects.map((project) => (
+              <TableRow key={project.id}>
+                <TableCell className="font-medium">{getRealProjectName(project.name)}</TableCell>
+                <TableCell className="max-w-xl text-muted-foreground">
+                  <p className="line-clamp-2">{getProjectDescription(project.description)}</p>
+                </TableCell>
+                <TableCell>{status}</TableCell>
+                <TableCell className="text-right">
+                  <Link href={`/project/${project.id}`}>
+                    <Button size="sm" variant="outline">
+                      Open
+                    </Button>
+                  </Link>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default async function Home() {
   const { user } = await withAuth();
 
@@ -47,13 +97,15 @@ export default async function Home() {
 
   let activeConceptRows: Awaited<ReturnType<typeof listAccessibleActiveConceptProjects>> = [];
   let projectRows: Awaited<ReturnType<typeof listAccessibleProjects>> = [];
+  let maintainerProjectRows: Awaited<ReturnType<typeof listMaintainerProjects>> = [];
   let databaseUnavailable = false;
 
   try {
     const viewer = await upsertViewerFromWorkOSSession(session);
-    [activeConceptRows, projectRows] = await Promise.all([
+    [activeConceptRows, projectRows, maintainerProjectRows] = await Promise.all([
       listAccessibleActiveConceptProjects(viewer.id),
       listAccessibleProjects(viewer.id),
+      listMaintainerProjects(viewer.id),
     ]);
   } catch (error) {
     if (!isDatabaseConnectionError(error)) {
@@ -63,7 +115,14 @@ export default async function Home() {
     databaseUnavailable = true;
   }
 
-  const isEmpty = activeConceptRows.length === 0 && projectRows.length === 0;
+  const ownedProjectIds = new Set(projectRows.map((project) => project.id));
+  const collaboratorProjectRows = maintainerProjectRows.filter(
+    (project) => !ownedProjectIds.has(project.id),
+  );
+  const isEmpty =
+    activeConceptRows.length === 0 &&
+    projectRows.length === 0 &&
+    collaboratorProjectRows.length === 0;
 
   return (
     <>
@@ -152,45 +211,15 @@ export default async function Home() {
           ) : null}
 
           {!databaseUnavailable && projectRows.length > 0 ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Projects</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Action</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {projectRows.map((project) => (
-                      <TableRow key={project.id}>
-                        <TableCell className="font-medium">
-                          {getRealProjectName(project.name)}
-                        </TableCell>
-                        <TableCell className="max-w-xl text-muted-foreground">
-                          <p className="line-clamp-2">
-                            {getProjectDescription(project.description)}
-                          </p>
-                        </TableCell>
-                        <TableCell>Project</TableCell>
-                        <TableCell className="text-right">
-                          <Link href={`/project/${project.id}`}>
-                            <Button size="sm" variant="outline">
-                              Open
-                            </Button>
-                          </Link>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
+            <ProjectTableCard projects={projectRows} status="Project" title="Projects" />
+          ) : null}
+
+          {!databaseUnavailable && collaboratorProjectRows.length > 0 ? (
+            <ProjectTableCard
+              projects={collaboratorProjectRows}
+              status="Collaborator"
+              title="Collaborating projects"
+            />
           ) : null}
         </section>
       </main>

@@ -304,6 +304,19 @@ export async function listAccessibleProjects(viewerId: string, db: Database = ge
     .orderBy(projects.createdAt);
 }
 
+export async function listMaintainerProjects(viewerId: string, db: Database = getDb()) {
+  return db
+    .select({
+      description: projects.description,
+      id: projects.id,
+      name: projects.name,
+    })
+    .from(projects)
+    .innerJoin(maintainers, eq(maintainers.projectId, projects.id))
+    .where(eq(maintainers.userId, viewerId))
+    .orderBy(projects.createdAt);
+}
+
 export async function getProjectRoadmapItems(roadmapId: string | null, db: Database = getDb()) {
   return getConceptProjectRoadmapItems(roadmapId, db);
 }
