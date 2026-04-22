@@ -20,7 +20,7 @@ do not run `vp build` instead run `vp run build`. Assume `vp run dev` is already
 
 ## Review Checklist for Agents
 
-- [ ] Run `vp install` after pulling remote changes and before getting started.
+- [ ] Run `vp install` after pulling remote changes.
 - [ ] Run `vp check` and `vp test` to validate changes.
 
 <!-- ZERO -->
