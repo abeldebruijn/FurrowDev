@@ -4,6 +4,7 @@ import { useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import posthog from "posthog-js";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -62,6 +63,7 @@ export function ConceptProjectGraduate({
       router.push(`/project/${data.projectId}`);
       router.refresh();
     } catch (error) {
+      posthog.captureException(error, { concept_project_id: conceptProjectId });
       setError(error instanceof Error ? error.message : "Failed to graduate concept project.");
     } finally {
       setIsSubmitting(false);

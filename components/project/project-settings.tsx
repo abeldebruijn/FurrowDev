@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Settings } from "lucide-react";
+import posthog from "posthog-js";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -74,6 +75,10 @@ export function ProjectSettings({
         const data = (await response.json().catch(() => null)) as { error?: string } | null;
         throw new Error(data?.error || "Failed to save project.");
       }
+
+      posthog.capture("project_settings_saved", {
+        project_id: projectId,
+      });
 
       setIsOpen(false);
       router.refresh();

@@ -4,6 +4,7 @@ import { DefaultChatTransport } from "ai";
 import { useChat } from "@ai-sdk/react";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import posthog from "posthog-js";
 
 import { useChatAutoScroll } from "@/components/chat/use-chat-auto-scroll";
 import type { VisionAgentUIMessage } from "@/lib/agents/vision";
@@ -102,6 +103,12 @@ export function VisionWorkspace({
 
     setRouteError(null);
     setInput("");
+
+    posthog.capture("vision_message_sent", {
+      project_id: projectId,
+      vision_id: visionId,
+    });
+
     followCurrentTypingSessionRef.current = true;
     pendingFinishedMessageScrollRef.current = true;
     scrollToBottom();
@@ -157,6 +164,14 @@ export function VisionWorkspace({
       router.refresh();
       return;
     }
+
+    posthog.capture(
+      method === "POST" ? "vision_collaborator_added" : "vision_collaborator_removed",
+      {
+        project_id: projectId,
+        vision_id: visionId,
+      },
+    );
 
     setCollaborators((current) =>
       method === "POST"

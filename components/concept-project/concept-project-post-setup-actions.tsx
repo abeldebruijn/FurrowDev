@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import posthog from "posthog-js";
 import { toast } from "sonner";
 
 import { ConceptProjectGraduate } from "@/components/concept-project/concept-project-graduate";
@@ -53,6 +54,10 @@ export function ConceptProjectPostSetupActions({
 
         throw new Error(payload?.error || "Failed to enter grill me.");
       }
+
+      posthog.capture("concept_project_grill_me_entered", {
+        concept_project_id: conceptProjectId,
+      });
 
       router.refresh();
     } catch (error) {

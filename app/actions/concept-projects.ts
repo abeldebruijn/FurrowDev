@@ -11,6 +11,7 @@ import {
 } from "@/lib/concept-project/shared";
 import { getDb } from "@/lib/db";
 import { appendConceptProjectChatMessage } from "@/lib/concept-project/server";
+import { getPostHogClient } from "@/lib/posthog-server";
 import { upsertViewerFromWorkOSSession } from "@/lib/zero/context";
 import { getWorkOSSession } from "@/lib/workos-session";
 
@@ -46,6 +47,16 @@ export async function createConceptProject() {
       type: "agent",
     });
   });
+
+  const posthog = getPostHogClient();
+  posthog.capture({
+    distinctId: viewer.id,
+    event: "concept_project_created",
+    properties: {
+      concept_project_id: conceptProjectId,
+    },
+  });
+  await posthog.shutdown();
 
   redirect(`/concept-project/${conceptProjectId}`);
 }

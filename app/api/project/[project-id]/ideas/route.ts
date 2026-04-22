@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 
 import { createVision } from "@/lib/vision/server";
+import { getPostHogClient } from "@/lib/posthog-server";
 import { upsertViewerFromWorkOSSession } from "@/lib/zero/context";
 import { getWorkOSSession } from "@/lib/workos-session";
 
@@ -58,6 +59,19 @@ export async function POST(request: NextRequest, { params }: ProjectIdeasRoutePr
     if (!visionId) {
       return Response.json({ error: "Project not found." }, { status: 404 });
     }
+
+    const posthog = getPostHogClient();
+    posthog.capture({
+      distinctId: viewer.id,
+      event: "vision_created",
+      properties: {
+        project_id: projectId,
+        vision_id: visionId,
+        has_roadmap_item: Boolean(body.data.roadmapItemId),
+        has_title: Boolean(body.data.title),
+      },
+    });
+    await posthog.shutdown();
 
     return Response.json({ id: visionId, ok: true });
   } catch (error) {

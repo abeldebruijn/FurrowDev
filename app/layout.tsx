@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getTokenClaims, withAuth } from "@workos-inc/authkit-nextjs";
 import { AuthKitProvider } from "@workos-inc/authkit-nextjs/components";
 
+import { PostHogIdentify } from "@/components/providers/posthog-identify";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { ZeroProviderClient } from "@/components/providers/zero-provider-client";
 import { Toaster } from "@/components/ui/sonner";
@@ -91,6 +92,14 @@ export default async function RootLayout({
               >
                 {children}
               </ZeroProviderClient>
+              {viewer ? (
+                <PostHogIdentify
+                  email={auth.user?.email}
+                  firstName={auth.user?.firstName}
+                  lastName={auth.user?.lastName}
+                  viewerId={viewer.id}
+                />
+              ) : null}
               <Toaster />
             </TooltipProvider>
           </ThemeProvider>

@@ -6,6 +6,7 @@ import { useQuery, useZero } from "@rocicorp/zero/react";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import posthog from "posthog-js";
 import { toast } from "sonner";
 
 import { useChatAutoScroll } from "@/components/chat/use-chat-auto-scroll";
@@ -311,6 +312,12 @@ function ConceptProjectDiscoveryView({
     clearError();
     setInput("");
 
+    posthog.capture("concept_project_message_sent", {
+      concept_project_id: conceptProjectId,
+      stage: currentStage,
+      is_opening_message: !hasAnsweredOpeningPrompt,
+    });
+
     followCurrentTypingSessionRef.current = true;
     pendingFinishedMessageScrollRef.current = true;
     scrollToBottom();
@@ -350,6 +357,11 @@ function ConceptProjectDiscoveryView({
     ) {
       return;
     }
+
+    posthog.capture("concept_project_stage_changed", {
+      concept_project_id: conceptProjectId,
+      stage,
+    });
 
     onStageSelect?.(stage, options);
   }

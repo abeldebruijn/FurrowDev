@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 
 import { graduateConceptProjectToProject } from "@/lib/project/server";
+import { getPostHogClient } from "@/lib/posthog-server";
 import { upsertViewerFromWorkOSSession } from "@/lib/zero/context";
 import { getWorkOSSession } from "@/lib/workos-session";
 
@@ -22,6 +23,18 @@ export async function POST(request: NextRequest, { params }: ConceptProjectGradu
 
   try {
     const project = await graduateConceptProjectToProject(viewer.id, conceptProjectId);
+
+    const posthog = getPostHogClient();
+    posthog.capture({
+      distinctId: viewer.id,
+      event: "concept_project_graduated",
+      properties: {
+        concept_project_id: conceptProjectId,
+        project_id: project.id,
+      },
+    });
+    await posthog.shutdown();
+
     return Response.json({ ok: true, projectId: project.id });
   } catch (error) {
     return Response.json(
