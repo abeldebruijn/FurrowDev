@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Building2, Save, Shield, Trash2, UserPlus, Users } from "lucide-react";
 
@@ -89,6 +89,22 @@ export function ProjectSettingsPage({
   const [ubiquitousLanguageMarkdown, setUbiquitousLanguageMarkdown] = useState(
     project.ubiquitousLanguageMarkdown ?? "",
   );
+
+  useEffect(() => {
+    setName(project.name);
+    setDescription(project.description ?? "");
+    setSelectedOrgOwnerId(project.orgOwner ?? "");
+    setUbiquitousLanguageMarkdown(project.ubiquitousLanguageMarkdown ?? "");
+    setMaintainerCandidates([]);
+    setMaintainerQuery("");
+    setSelectedMaintainerId("");
+  }, [
+    project.id,
+    project.name,
+    project.description,
+    project.orgOwner,
+    project.ubiquitousLanguageMarkdown,
+  ]);
 
   async function saveSettings(body: Record<string, string>) {
     const response = await fetch(`/api/project/${project.id}/settings`, {
@@ -354,27 +370,35 @@ export function ProjectSettingsPage({
           {project.isOwner ? (
             <div className="flex flex-col gap-3">
               <p className="text-sm font-medium text-foreground">Add maintainer</p>
-              <Input
-                onChange={(event) => {
-                  setMaintainerQuery(event.target.value);
-                  setMaintainerCandidates([]);
-                  setSelectedMaintainerId("");
-                }}
-                placeholder="Search by name"
-                value={maintainerQuery}
-              />
-              <select
-                className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                onChange={(event) => setSelectedMaintainerId(event.target.value)}
-                value={selectedMaintainerId}
-              >
-                <option value="">Choose a user</option>
-                {maintainerCandidates.map((candidate) => (
-                  <option key={candidate.id} value={candidate.id}>
-                    {candidate.name}
-                  </option>
-                ))}
-              </select>
+              <label className="flex flex-col gap-2 text-sm font-medium text-foreground">
+                <span className="sr-only">Search maintainers</span>
+                <Input
+                  aria-label="Search maintainers"
+                  onChange={(event) => {
+                    setMaintainerQuery(event.target.value);
+                    setMaintainerCandidates([]);
+                    setSelectedMaintainerId("");
+                  }}
+                  placeholder="Search by name"
+                  value={maintainerQuery}
+                />
+              </label>
+              <label className="flex flex-col gap-2 text-sm font-medium text-foreground">
+                <span className="sr-only">Select maintainer</span>
+                <select
+                  aria-label="Select maintainer"
+                  className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  onChange={(event) => setSelectedMaintainerId(event.target.value)}
+                  value={selectedMaintainerId}
+                >
+                  <option value="">Choose a user</option>
+                  {maintainerCandidates.map((candidate) => (
+                    <option key={candidate.id} value={candidate.id}>
+                      {candidate.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <p className="text-xs text-muted-foreground">
                 Search returns explicit matches for existing FurrowDev users.
               </p>
