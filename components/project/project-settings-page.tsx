@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Building2, Save, Shield, Trash2, UserPlus, Users } from "lucide-react";
 
@@ -89,6 +89,19 @@ export function ProjectSettingsPage({
   const [ubiquitousLanguageMarkdown, setUbiquitousLanguageMarkdown] = useState(
     project.ubiquitousLanguageMarkdown ?? "",
   );
+
+  useEffect(() => {
+    setName(project.name);
+    setDescription(project.description ?? "");
+    setSelectedOrgOwnerId(project.orgOwner ?? "");
+    setUbiquitousLanguageMarkdown(project.ubiquitousLanguageMarkdown ?? "");
+  }, [
+    project.id,
+    project.name,
+    project.description,
+    project.orgOwner,
+    project.ubiquitousLanguageMarkdown,
+  ]);
 
   const filteredMaintainerCandidates = useMemo(() => {
     const query = maintainerQuery.trim().toLowerCase();
@@ -332,23 +345,31 @@ export function ProjectSettingsPage({
           {project.isOwner ? (
             <div className="flex flex-col gap-3">
               <p className="text-sm font-medium text-foreground">Add maintainer</p>
-              <Input
-                onChange={(event) => setMaintainerQuery(event.target.value)}
-                placeholder="Filter users"
-                value={maintainerQuery}
-              />
-              <select
-                className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                onChange={(event) => setSelectedMaintainerId(event.target.value)}
-                value={selectedMaintainerId}
-              >
-                <option value="">Choose a user</option>
-                {filteredMaintainerCandidates.map((candidate) => (
-                  <option key={candidate.id} value={candidate.id}>
-                    {candidate.name}
-                  </option>
-                ))}
-              </select>
+              <label className="flex flex-col gap-2 text-sm font-medium text-foreground">
+                <span className="sr-only">Filter maintainers</span>
+                <Input
+                  aria-label="Filter maintainers"
+                  onChange={(event) => setMaintainerQuery(event.target.value)}
+                  placeholder="Filter users"
+                  value={maintainerQuery}
+                />
+              </label>
+              <label className="flex flex-col gap-2 text-sm font-medium text-foreground">
+                <span className="sr-only">Select maintainer</span>
+                <select
+                  aria-label="Select maintainer"
+                  className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  onChange={(event) => setSelectedMaintainerId(event.target.value)}
+                  value={selectedMaintainerId}
+                >
+                  <option value="">Choose a user</option>
+                  {filteredMaintainerCandidates.map((candidate) => (
+                    <option key={candidate.id} value={candidate.id}>
+                      {candidate.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <p className="text-xs text-muted-foreground">
                 Maintainers must already have a FurrowDev user account.
               </p>

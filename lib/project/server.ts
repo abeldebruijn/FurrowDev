@@ -362,43 +362,7 @@ export async function listProjectMaintainerCandidates(
     return [];
   }
 
-  const [allUsers, currentMaintainers, projectRow] = await Promise.all([
-    db
-      .select({
-        id: users.id,
-        name: users.name,
-      })
-      .from(users)
-      .orderBy(users.name),
-    db
-      .select({
-        userId: maintainers.userId,
-      })
-      .from(maintainers)
-      .where(eq(maintainers.projectId, projectId)),
-    db
-      .select({
-        organisationOwnerId: organisations.ownerId,
-        userOwnerId: projects.userOwner,
-      })
-      .from(projects)
-      .leftJoin(organisations, eq(projects.orgOwner, organisations.id))
-      .where(eq(projects.id, projectId))
-      .limit(1)
-      .then((rows) => rows[0] ?? null),
-  ]);
-
-  const excludedUserIds = new Set(currentMaintainers.map((maintainer) => maintainer.userId));
-
-  if (projectRow?.userOwnerId) {
-    excludedUserIds.add(projectRow.userOwnerId);
-  }
-
-  if (projectRow?.organisationOwnerId) {
-    excludedUserIds.add(projectRow.organisationOwnerId);
-  }
-
-  return allUsers.filter((user) => !excludedUserIds.has(user.id));
+  return [];
 }
 
 export async function getProjectRoadmapItems(roadmapId: string | null, db: Database = getDb()) {
