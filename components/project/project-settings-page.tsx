@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, Save, Shield, Trash2, UserPlus, Users } from "lucide-react";
+import { Building2, Save, Shield, Users } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 
@@ -38,7 +46,6 @@ type SettingsProject = {
   isOwner: boolean;
   name: string;
   orgOwner: string | null;
-  ubiquitousLanguageMarkdown: string | null;
   userOwner: string | null;
 };
 
@@ -77,34 +84,69 @@ export function ProjectSettingsPage({
   const [description, setDescription] = useState(project.description ?? "");
   const [error, setError] = useState<string | null>(null);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const [isSavingLanguage, setIsSavingLanguage] = useState(false);
   const [isSavingMaintainer, setIsSavingMaintainer] = useState(false);
   const [isSavingOwnership, setIsSavingOwnership] = useState(false);
   const [maintainerCandidates, setMaintainerCandidates] = useState<UserOption[]>([]);
   const [maintainerQuery, setMaintainerQuery] = useState("");
   const [name, setName] = useState(project.name);
   const [isSearchingMaintainers, setIsSearchingMaintainers] = useState(false);
-  const [selectedMaintainerId, setSelectedMaintainerId] = useState("");
   const [selectedOrgOwnerId, setSelectedOrgOwnerId] = useState(project.orgOwner ?? "");
-  const [ubiquitousLanguageMarkdown, setUbiquitousLanguageMarkdown] = useState(
-    project.ubiquitousLanguageMarkdown ?? "",
-  );
 
   useEffect(() => {
     setName(project.name);
     setDescription(project.description ?? "");
     setSelectedOrgOwnerId(project.orgOwner ?? "");
-    setUbiquitousLanguageMarkdown(project.ubiquitousLanguageMarkdown ?? "");
     setMaintainerCandidates([]);
     setMaintainerQuery("");
-    setSelectedMaintainerId("");
-  }, [
-    project.id,
-    project.name,
-    project.description,
-    project.orgOwner,
-    project.ubiquitousLanguageMarkdown,
-  ]);
+  }, [project.id, project.name, project.description, project.orgOwner]);
+
+  useEffect(() => {
+    if (!project.isOwner) {
+      return;
+    }
+
+    const query = maintainerQuery.trim();
+
+    if (query.length < 2) {
+      setMaintainerCandidates([]);
+      setIsSearchingMaintainers(false);
+      return;
+    }
+
+    const abortController = new AbortController();
+    const timeout = window.setTimeout(async () => {
+      setError(null);
+      setIsSearchingMaintainers(true);
+
+      try {
+        const response = await fetch(
+          `/api/project/${project.id}/maintainers?q=${encodeURIComponent(query)}`,
+          { signal: abortController.signal },
+        );
+
+        if (!response.ok) {
+          const data = (await response.json().catch(() => null)) as { error?: string } | null;
+          throw new Error(data?.error || "Failed to search users.");
+        }
+
+        const data = (await response.json()) as { candidates?: UserOption[] };
+        setMaintainerCandidates(data.candidates ?? []);
+      } catch (error) {
+        if (!abortController.signal.aborted) {
+          setError(getErrorMessage(error, "Failed to search users."));
+        }
+      } finally {
+        if (!abortController.signal.aborted) {
+          setIsSearchingMaintainers(false);
+        }
+      }
+    }, 300);
+
+    return () => {
+      abortController.abort();
+      window.clearTimeout(timeout);
+    };
+  }, [maintainerQuery, project.id, project.isOwner]);
 
   async function saveSettings(body: Record<string, string>) {
     const response = await fetch(`/api/project/${project.id}/settings`, {
@@ -143,34 +185,13 @@ export function ProjectSettingsPage({
     }
   }
 
-  async function handleSaveLanguage() {
-    setError(null);
-    setIsSavingLanguage(true);
-
-    try {
-      await saveSettings({
-        ubiquitousLanguageMarkdown,
-      });
-      router.refresh();
-    } catch (error) {
-      setError(getErrorMessage(error, "Failed to save ubiquitous language."));
-    } finally {
-      setIsSavingLanguage(false);
-    }
-  }
-
-  async function handleAddMaintainer() {
-    if (!selectedMaintainerId) {
-      setError("Choose a user to add.");
-      return;
-    }
-
+  async function handleAddMaintainer(userId: string) {
     setError(null);
     setIsSavingMaintainer(true);
 
     try {
       const response = await fetch(`/api/project/${project.id}/maintainers`, {
-        body: JSON.stringify({ userId: selectedMaintainerId }),
+        body: JSON.stringify({ userId }),
         headers: {
           "content-type": "application/json",
         },
@@ -182,7 +203,6 @@ export function ProjectSettingsPage({
         throw new Error(data?.error || "Failed to add maintainer.");
       }
 
-      setSelectedMaintainerId("");
       setMaintainerQuery("");
       setMaintainerCandidates([]);
       router.refresh();
@@ -190,37 +210,6 @@ export function ProjectSettingsPage({
       setError(getErrorMessage(error, "Failed to add maintainer."));
     } finally {
       setIsSavingMaintainer(false);
-    }
-  }
-
-  async function handleSearchMaintainers() {
-    const query = maintainerQuery.trim();
-
-    if (query.length < 2) {
-      setError("Search with at least 2 characters.");
-      return;
-    }
-
-    setError(null);
-    setIsSearchingMaintainers(true);
-
-    try {
-      const response = await fetch(
-        `/api/project/${project.id}/maintainers?q=${encodeURIComponent(query)}`,
-      );
-
-      if (!response.ok) {
-        const data = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(data?.error || "Failed to search users.");
-      }
-
-      const data = (await response.json()) as { candidates?: UserOption[] };
-      setMaintainerCandidates(data.candidates ?? []);
-      setSelectedMaintainerId("");
-    } catch (error) {
-      setError(getErrorMessage(error, "Failed to search users."));
-    } finally {
-      setIsSearchingMaintainers(false);
     }
   }
 
@@ -279,11 +268,11 @@ export function ProjectSettingsPage({
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="mb-12 flex flex-col gap-6">
       <section className="flex flex-col gap-2">
         <h1 className="font-heading text-2xl font-medium">Project settings</h1>
         <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-          Manage project profile, maintainers, ownership, and language.
+          Manage project profile, maintainers, and ownership.
         </p>
       </section>
 
@@ -370,35 +359,37 @@ export function ProjectSettingsPage({
           {project.isOwner ? (
             <div className="flex flex-col gap-3">
               <p className="text-sm font-medium text-foreground">Add maintainer</p>
-              <label className="flex flex-col gap-2 text-sm font-medium text-foreground">
-                <span className="sr-only">Search maintainers</span>
-                <Input
+              <Combobox
+                items={maintainerCandidates}
+                inputValue={maintainerQuery}
+                itemToStringValue={(candidate: UserOption) => candidate.name}
+                onInputValueChange={setMaintainerQuery}
+                onValueChange={(candidate) => {
+                  if (candidate && !Array.isArray(candidate)) {
+                    void handleAddMaintainer(candidate.id);
+                  }
+                }}
+                open={maintainerQuery.trim().length >= 2}
+              >
+                <ComboboxInput
                   aria-label="Search maintainers"
-                  onChange={(event) => {
-                    setMaintainerQuery(event.target.value);
-                    setMaintainerCandidates([]);
-                    setSelectedMaintainerId("");
-                  }}
+                  disabled={isSavingMaintainer}
                   placeholder="Search by name"
-                  value={maintainerQuery}
+                  showClear
                 />
-              </label>
-              <label className="flex flex-col gap-2 text-sm font-medium text-foreground">
-                <span className="sr-only">Select maintainer</span>
-                <select
-                  aria-label="Select maintainer"
-                  className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                  onChange={(event) => setSelectedMaintainerId(event.target.value)}
-                  value={selectedMaintainerId}
-                >
-                  <option value="">Choose a user</option>
-                  {maintainerCandidates.map((candidate) => (
-                    <option key={candidate.id} value={candidate.id}>
-                      {candidate.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                <ComboboxContent>
+                  <ComboboxEmpty>
+                    {isSearchingMaintainers ? "Searching..." : "No matching users."}
+                  </ComboboxEmpty>
+                  <ComboboxList>
+                    {(candidate: UserOption) => (
+                      <ComboboxItem key={candidate.id} value={candidate}>
+                        {candidate.name}
+                      </ComboboxItem>
+                    )}
+                  </ComboboxList>
+                </ComboboxContent>
+              </Combobox>
               <p className="text-xs text-muted-foreground">
                 Search returns explicit matches for existing FurrowDev users.
               </p>
@@ -409,22 +400,6 @@ export function ProjectSettingsPage({
             </p>
           )}
         </CardContent>
-        {project.isOwner ? (
-          <CardFooter className="justify-end">
-            <Button
-              disabled={isSearchingMaintainers || isSavingMaintainer}
-              onClick={handleSearchMaintainers}
-              type="button"
-              variant="outline"
-            >
-              {isSearchingMaintainers ? "Searching..." : "Search users"}
-            </Button>
-            <Button disabled={isSavingMaintainer} onClick={handleAddMaintainer} type="button">
-              <UserPlus data-icon="inline-start" />
-              {isSavingMaintainer ? "Saving..." : "Add maintainer"}
-            </Button>
-          </CardFooter>
-        ) : null}
       </Card>
 
       <Card>
@@ -475,7 +450,7 @@ export function ProjectSettingsPage({
             </p>
           )}
         </CardContent>
-        {project.isOwner ? (
+        {project.isOwner && ownedOrganisations.length > 0 ? (
           <CardFooter className="justify-end">
             <Button disabled={isSavingOwnership} onClick={handleMoveOwnership} type="button">
               <Building2 data-icon="inline-start" />
@@ -487,35 +462,11 @@ export function ProjectSettingsPage({
 
       <Card>
         <CardHeader>
-          <CardTitle>Ubiquitous language</CardTitle>
-          <CardDescription>
-            Canonical domain language for project conversations and summaries.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <textarea
-            className="min-h-80 w-full rounded-lg border border-input bg-transparent px-2.5 py-2 font-mono text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            maxLength={30000}
-            onChange={(event) => setUbiquitousLanguageMarkdown(event.target.value)}
-            value={ubiquitousLanguageMarkdown}
-          />
-        </CardContent>
-        <CardFooter className="justify-end">
-          <Button disabled={isSavingLanguage} onClick={handleSaveLanguage} type="button">
-            <Save data-icon="inline-start" />
-            {isSavingLanguage ? "Saving..." : "Save language"}
-          </Button>
-        </CardFooter>
-      </Card>
-
-      <Card>
-        <CardHeader>
           <CardTitle>Danger zone</CardTitle>
           <CardDescription>Archive and delete controls will live here later.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-            <Trash2 data-icon="inline-start" />
             <span>Archive and delete are not available yet.</span>
           </div>
         </CardContent>
