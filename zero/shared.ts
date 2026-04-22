@@ -25,6 +25,7 @@ export function editableProjectsQuery(ctx: ZeroContext) {
       cmp("userOwner", ctx.viewerId),
       exists("ownerOrganisation", (query: any) => query.where("ownerId", ctx.viewerId)),
       exists("admins", (query: any) => query.where("userId", ctx.viewerId)),
+      exists("maintainers", (query: any) => query.where("userId", ctx.viewerId)),
     ),
   );
 }
