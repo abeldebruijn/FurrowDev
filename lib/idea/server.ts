@@ -186,7 +186,7 @@ export async function convertVisionToIdea(
         title: nextTitle,
         updatedAt: now,
       })
-      .onConflictDoNothing();
+      .onConflictDoNothing({ target: ideas.sourceVisionId });
 
     await tx
       .update(visions)
