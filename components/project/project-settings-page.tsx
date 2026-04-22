@@ -88,6 +88,7 @@ export function ProjectSettingsPage({
   const [isSavingOwnership, setIsSavingOwnership] = useState(false);
   const [maintainerCandidates, setMaintainerCandidates] = useState<UserOption[]>([]);
   const [maintainerQuery, setMaintainerQuery] = useState("");
+  const [selectedMaintainer, setSelectedMaintainer] = useState<UserOption | null>(null);
   const [name, setName] = useState(project.name);
   const [isSearchingMaintainers, setIsSearchingMaintainers] = useState(false);
   const [selectedOrgOwnerId, setSelectedOrgOwnerId] = useState(project.orgOwner ?? "");
@@ -98,6 +99,7 @@ export function ProjectSettingsPage({
     setSelectedOrgOwnerId(project.orgOwner ?? "");
     setMaintainerCandidates([]);
     setMaintainerQuery("");
+    setSelectedMaintainer(null);
   }, [project.id, project.name, project.description, project.orgOwner]);
 
   useEffect(() => {
@@ -203,6 +205,7 @@ export function ProjectSettingsPage({
         throw new Error(data?.error || "Failed to add maintainer.");
       }
 
+      setSelectedMaintainer(null);
       setMaintainerQuery("");
       setMaintainerCandidates([]);
       router.refresh();
@@ -366,10 +369,14 @@ export function ProjectSettingsPage({
                 onInputValueChange={setMaintainerQuery}
                 onValueChange={(candidate) => {
                   if (candidate && !Array.isArray(candidate)) {
+                    setSelectedMaintainer(null);
+                    setMaintainerQuery("");
+                    setMaintainerCandidates([]);
                     void handleAddMaintainer(candidate.id);
                   }
                 }}
                 open={maintainerQuery.trim().length >= 2}
+                value={selectedMaintainer}
               >
                 <ComboboxInput
                   aria-label="Search maintainers"
