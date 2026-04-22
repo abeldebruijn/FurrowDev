@@ -1,16 +1,18 @@
 import { randomUUID } from "node:crypto";
 
-import { and, eq, isNull, or } from "drizzle-orm";
+import { and, eq, ilike, isNull, or } from "drizzle-orm";
 
 import {
   admins,
   conceptProjects,
+  maintainers,
   organisations,
   type ProjectWidgetLayoutItem,
   projectWidgetLayouts,
   roadmapItems,
   roadmaps,
   projects,
+  users,
 } from "@/drizzle/schema";
 import { getDb, type Database } from "@/lib/db";
 import {
@@ -40,6 +42,7 @@ export type ProjectAccess = AccessibleProject & {
   canViewModeration: boolean;
   canViewSettings: boolean;
   isAdmin: boolean;
+  isMaintainer: boolean;
   isOrganisationProject: boolean;
   isOwner: boolean;
   layout: {
@@ -178,6 +181,7 @@ export async function getProjectAccess(
       description: projects.description,
       id: projects.id,
       largeLayout: projectWidgetLayouts.largeLayout,
+      maintainerUserId: maintainers.userId,
       name: projects.name,
       mediumAutoLayout: projectWidgetLayouts.mediumAutoLayout,
       mediumLayout: projectWidgetLayouts.mediumLayout,
@@ -196,6 +200,10 @@ export async function getProjectAccess(
     .leftJoin(conceptProjects, eq(projects.conceptProjectId, conceptProjects.id))
     .leftJoin(projectWidgetLayouts, eq(projects.widgetLayoutId, projectWidgetLayouts.id))
     .leftJoin(admins, and(eq(admins.projectId, projects.id), eq(admins.userId, viewerId)))
+    .leftJoin(
+      maintainers,
+      and(eq(maintainers.projectId, projects.id), eq(maintainers.userId, viewerId)),
+    )
     .where(
       and(
         eq(projects.id, projectId),
@@ -203,6 +211,7 @@ export async function getProjectAccess(
           eq(projects.userOwner, viewerId),
           eq(organisations.ownerId, viewerId),
           eq(admins.userId, viewerId),
+          eq(maintainers.userId, viewerId),
         ),
       ),
     )
@@ -216,6 +225,7 @@ export async function getProjectAccess(
 
   const isOwner = project.userOwner === viewerId || project.organisationOwnerId === viewerId;
   const isAdmin = project.adminUserId === viewerId;
+  const isMaintainer = project.maintainerUserId === viewerId;
   const isOrganisationProject = project.orgOwner !== null;
 
   return {
@@ -242,8 +252,9 @@ export async function getProjectAccess(
     ubiquitousLanguageMarkdown: project.ubiquitousLanguageMarkdown,
     userOwner: project.userOwner,
     canViewModeration: isOrganisationProject && (isOwner || isAdmin),
-    canViewSettings: isOwner || isAdmin,
+    canViewSettings: isOwner || isAdmin || isMaintainer,
     isAdmin,
+    isMaintainer,
     isOrganisationProject,
     isOwner,
   };
@@ -290,8 +301,113 @@ export async function listAccessibleProjects(viewerId: string, db: Database = ge
     })
     .from(projects)
     .leftJoin(organisations, eq(projects.orgOwner, organisations.id))
-    .where(or(eq(projects.userOwner, viewerId), eq(organisations.ownerId, viewerId)))
+    .leftJoin(admins, and(eq(admins.projectId, projects.id), eq(admins.userId, viewerId)))
+    .leftJoin(
+      maintainers,
+      and(eq(maintainers.projectId, projects.id), eq(maintainers.userId, viewerId)),
+    )
+    .where(
+      or(
+        eq(projects.userOwner, viewerId),
+        eq(organisations.ownerId, viewerId),
+        eq(admins.userId, viewerId),
+        eq(maintainers.userId, viewerId),
+      ),
+    )
     .orderBy(projects.createdAt);
+}
+
+export async function listViewerOwnedOrganisations(viewerId: string, db: Database = getDb()) {
+  return db
+    .select({
+      description: organisations.description,
+      id: organisations.id,
+      name: organisations.name,
+    })
+    .from(organisations)
+    .where(eq(organisations.ownerId, viewerId))
+    .orderBy(organisations.name);
+}
+
+export async function listProjectMaintainers(
+  viewerId: string,
+  projectId: string,
+  db: Database = getDb(),
+) {
+  const project = await getProjectAccess(viewerId, projectId, db);
+
+  if (!project?.canViewSettings) {
+    return [];
+  }
+
+  return db
+    .select({
+      id: users.id,
+      name: users.name,
+    })
+    .from(maintainers)
+    .innerJoin(users, eq(maintainers.userId, users.id))
+    .where(eq(maintainers.projectId, projectId))
+    .orderBy(users.name);
+}
+
+export async function searchProjectMaintainerCandidates(
+  viewerId: string,
+  projectId: string,
+  searchTerm: string,
+  db: Database = getDb(),
+) {
+  const query = searchTerm.trim();
+
+  if (query.length < 2) {
+    return [];
+  }
+
+  const project = await getProjectAccess(viewerId, projectId, db);
+
+  if (!project?.isOwner) {
+    return [];
+  }
+
+  const [matchedUsers, currentMaintainers, projectRow] = await Promise.all([
+    db
+      .select({
+        id: users.id,
+        name: users.name,
+      })
+      .from(users)
+      .where(ilike(users.name, `%${query}%`))
+      .orderBy(users.name)
+      .limit(10),
+    db
+      .select({
+        userId: maintainers.userId,
+      })
+      .from(maintainers)
+      .where(eq(maintainers.projectId, projectId)),
+    db
+      .select({
+        organisationOwnerId: organisations.ownerId,
+        userOwnerId: projects.userOwner,
+      })
+      .from(projects)
+      .leftJoin(organisations, eq(projects.orgOwner, organisations.id))
+      .where(eq(projects.id, projectId))
+      .limit(1)
+      .then((rows) => rows[0] ?? null),
+  ]);
+
+  const excludedUserIds = new Set(currentMaintainers.map((maintainer) => maintainer.userId));
+
+  if (projectRow?.userOwnerId) {
+    excludedUserIds.add(projectRow.userOwnerId);
+  }
+
+  if (projectRow?.organisationOwnerId) {
+    excludedUserIds.add(projectRow.organisationOwnerId);
+  }
+
+  return matchedUsers.filter((user) => !excludedUserIds.has(user.id));
 }
 
 export async function getProjectRoadmapItems(roadmapId: string | null, db: Database = getDb()) {
@@ -439,9 +555,9 @@ export async function updateAccessibleProject(
   },
   db: Database = getDb(),
 ) {
-  const project = await getAccessibleProject(viewerId, projectId, db);
+  const project = await getProjectAccess(viewerId, projectId, db);
 
-  if (!project) {
+  if (!project?.canViewSettings) {
     return null;
   }
 
@@ -472,7 +588,132 @@ export async function updateAccessibleProject(
 
   await db.update(projects).set(nextValues).where(eq(projects.id, projectId));
 
-  return getAccessibleProject(viewerId, projectId, db);
+  return getProjectAccess(viewerId, projectId, db);
+}
+
+export async function addProjectMaintainer(
+  viewerId: string,
+  projectId: string,
+  maintainerUserId: string,
+  db: Database = getDb(),
+) {
+  const project = await getProjectAccess(viewerId, projectId, db);
+
+  if (!project) {
+    return { error: "not_found" as const };
+  }
+
+  if (!project.isOwner) {
+    return { error: "forbidden" as const };
+  }
+
+  if (maintainerUserId === project.userOwner) {
+    return { error: "owner" as const };
+  }
+
+  const [organisationOwner] = project.orgOwner
+    ? await db
+        .select({ ownerId: organisations.ownerId })
+        .from(organisations)
+        .where(eq(organisations.id, project.orgOwner))
+        .limit(1)
+    : [];
+
+  if (organisationOwner?.ownerId === maintainerUserId) {
+    return { error: "owner" as const };
+  }
+
+  const [user] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.id, maintainerUserId))
+    .limit(1);
+
+  if (!user) {
+    return { error: "invalid_user" as const };
+  }
+
+  await db
+    .insert(maintainers)
+    .values({
+      projectId,
+      userId: maintainerUserId,
+    })
+    .onConflictDoNothing();
+
+  return { error: null };
+}
+
+export async function removeProjectMaintainer(
+  viewerId: string,
+  projectId: string,
+  maintainerUserId: string,
+  db: Database = getDb(),
+) {
+  const project = await getProjectAccess(viewerId, projectId, db);
+
+  if (!project) {
+    return { error: "not_found" as const };
+  }
+
+  if (!project.isOwner) {
+    return { error: "forbidden" as const };
+  }
+
+  await db
+    .delete(maintainers)
+    .where(and(eq(maintainers.projectId, projectId), eq(maintainers.userId, maintainerUserId)));
+
+  return { error: null };
+}
+
+export async function moveProjectOwnership(
+  viewerId: string,
+  projectId: string,
+  orgOwnerId: string | null,
+  db: Database = getDb(),
+) {
+  const project = await getProjectAccess(viewerId, projectId, db);
+
+  if (!project) {
+    return { error: "not_found" as const };
+  }
+
+  if (!project.isOwner) {
+    return { error: "forbidden" as const };
+  }
+
+  if (orgOwnerId === null) {
+    await db
+      .update(projects)
+      .set({
+        orgOwner: null,
+        userOwner: viewerId,
+      })
+      .where(eq(projects.id, projectId));
+
+    return { error: null };
+  }
+
+  const [organisation] = await db
+    .select({ id: organisations.id })
+    .from(organisations)
+    .where(and(eq(organisations.id, orgOwnerId), eq(organisations.ownerId, viewerId)))
+    .limit(1);
+
+  if (!organisation) {
+    return { error: "invalid_organisation" as const };
+  }
+
+  await db
+    .update(projects)
+    .set({
+      orgOwner: orgOwnerId,
+      userOwner: null,
+    })
+    .where(eq(projects.id, projectId));
+
+  return { error: null };
 }
 
 export async function saveAccessibleProjectWidgetLayout(
