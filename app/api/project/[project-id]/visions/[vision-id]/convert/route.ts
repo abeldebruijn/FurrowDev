@@ -23,7 +23,7 @@ function getConversionErrorResponse(
   switch (error) {
     case "forbidden":
       return Response.json(
-        { error: "Only project maintainers and admins can create ideas." },
+        { error: "Only project owners, maintainers, and admins can create ideas." },
         { status: 403 },
       );
     case "invalid_roadmap_item":

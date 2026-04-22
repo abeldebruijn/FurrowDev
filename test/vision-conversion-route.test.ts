@@ -151,7 +151,7 @@ describe("vision conversion routes", () => {
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual({
-      error: "Only project maintainers and admins can create ideas.",
+      error: "Only project owners, maintainers, and admins can create ideas.",
     });
   });
 

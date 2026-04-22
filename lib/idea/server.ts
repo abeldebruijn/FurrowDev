@@ -136,7 +136,7 @@ export async function convertVisionToIdea(
     return { error: "not_found" as const, idea: null };
   }
 
-  if (!(project.isAdmin || project.isMaintainer)) {
+  if (!(project.isOwner || project.isAdmin || project.isMaintainer)) {
     return { error: "forbidden" as const, idea: null };
   }
 

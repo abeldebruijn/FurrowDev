@@ -304,16 +304,20 @@ export async function listAccessibleProjects(viewerId: string, db: Database = ge
     .orderBy(projects.createdAt);
 }
 
-export async function listMaintainerProjects(viewerId: string, db: Database = getDb()) {
+export async function listCollaboratorProjects(viewerId: string, db: Database = getDb()) {
   return db
-    .select({
+    .selectDistinct({
       description: projects.description,
       id: projects.id,
       name: projects.name,
     })
     .from(projects)
-    .innerJoin(maintainers, eq(maintainers.projectId, projects.id))
-    .where(eq(maintainers.userId, viewerId))
+    .leftJoin(admins, and(eq(admins.projectId, projects.id), eq(admins.userId, viewerId)))
+    .leftJoin(
+      maintainers,
+      and(eq(maintainers.projectId, projects.id), eq(maintainers.userId, viewerId)),
+    )
+    .where(or(eq(admins.userId, viewerId), eq(maintainers.userId, viewerId)))
     .orderBy(projects.createdAt);
 }
 

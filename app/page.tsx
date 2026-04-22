@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { createConceptProject } from "@/app/actions/concept-projects";
 import { listAccessibleActiveConceptProjects } from "@/lib/concept-project/server";
 import { isDatabaseConnectionError } from "@/lib/db";
-import { listAccessibleProjects, listMaintainerProjects } from "@/lib/project/server";
+import { listAccessibleProjects, listCollaboratorProjects } from "@/lib/project/server";
 import { upsertViewerFromWorkOSSession } from "@/lib/zero/context";
 import { getWorkOSSession } from "@/lib/workos-session";
 import { Button } from "@/components/ui/button";
@@ -97,15 +97,15 @@ export default async function Home() {
 
   let activeConceptRows: Awaited<ReturnType<typeof listAccessibleActiveConceptProjects>> = [];
   let projectRows: Awaited<ReturnType<typeof listAccessibleProjects>> = [];
-  let maintainerProjectRows: Awaited<ReturnType<typeof listMaintainerProjects>> = [];
+  let collaboratorMembershipProjectRows: Awaited<ReturnType<typeof listCollaboratorProjects>> = [];
   let databaseUnavailable = false;
 
   try {
     const viewer = await upsertViewerFromWorkOSSession(session);
-    [activeConceptRows, projectRows, maintainerProjectRows] = await Promise.all([
+    [activeConceptRows, projectRows, collaboratorMembershipProjectRows] = await Promise.all([
       listAccessibleActiveConceptProjects(viewer.id),
       listAccessibleProjects(viewer.id),
-      listMaintainerProjects(viewer.id),
+      listCollaboratorProjects(viewer.id),
     ]);
   } catch (error) {
     if (!isDatabaseConnectionError(error)) {
@@ -116,7 +116,7 @@ export default async function Home() {
   }
 
   const ownedProjectIds = new Set(projectRows.map((project) => project.id));
-  const collaboratorProjectRows = maintainerProjectRows.filter(
+  const collaboratorProjectRows = collaboratorMembershipProjectRows.filter(
     (project) => !ownedProjectIds.has(project.id),
   );
   const isEmpty =

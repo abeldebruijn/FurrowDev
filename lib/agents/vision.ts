@@ -113,7 +113,7 @@ function createVisionTools(context: VisionAgentContext) {
         }
 
         if (result.error === "forbidden") {
-          throw new Error("Only project maintainers and admins can create ideas.");
+          throw new Error("Only project owners, maintainers, and admins can create ideas.");
         }
 
         if (result.error) {

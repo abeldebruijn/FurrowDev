@@ -146,6 +146,7 @@ describe("idea server helpers", () => {
       id: "project-1",
       isAdmin: false,
       isMaintainer: true,
+      isOwner: false,
       roadmapId: "roadmap-1",
     });
     getAccessibleVision.mockResolvedValue({
@@ -189,8 +190,9 @@ describe("idea server helpers", () => {
     };
     getProjectAccess.mockResolvedValue({
       id: "project-1",
-      isAdmin: true,
+      isAdmin: false,
       isMaintainer: false,
+      isOwner: true,
     });
 
     await expect(
@@ -202,7 +204,7 @@ describe("idea server helpers", () => {
     expect(db.transaction).not.toHaveBeenCalled();
   });
 
-  it("rejects conversion from project viewers who are not maintainers or admins", async () => {
+  it("rejects conversion from project viewers who are not owners, maintainers, or admins", async () => {
     const db = {
       select: vi.fn(),
       transaction: vi.fn(),
@@ -211,6 +213,7 @@ describe("idea server helpers", () => {
       id: "project-1",
       isAdmin: false,
       isMaintainer: false,
+      isOwner: false,
       roadmapId: "roadmap-1",
     });
 
