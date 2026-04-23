@@ -17,6 +17,7 @@ vi.mock("drizzle-orm", () => ({
   desc: (arg: unknown) => arg,
   eq: (...args: unknown[]) => args,
   inArray: (...args: unknown[]) => args,
+  sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values }),
 }));
 
 vi.mock("@/drizzle/schema", () => ({
@@ -381,11 +382,11 @@ describe("idea server helpers", () => {
         .fn()
         .mockReturnValueOnce(createSelectBuilder([{ id: "idea-1" }]))
         .mockReturnValueOnce(createSelectBuilder([{ id: "dependency-task" }]))
-        .mockReturnValueOnce(createSelectBuilder([{ position: 4 }]))
         .mockReturnValueOnce(createSelectBuilder([{ id: "idea-1" }]))
         .mockReturnValueOnce(createSelectBuilder([])),
       transaction: vi.fn(async (callback) =>
         callback({
+          execute: vi.fn(() => Promise.resolve()),
           insert: vi.fn(() => ({
             values: vi.fn((values) => {
               insertedRows.push(values);
@@ -393,6 +394,7 @@ describe("idea server helpers", () => {
               return Promise.resolve();
             }),
           })),
+          select: vi.fn(() => createSelectBuilder([{ position: 4 }])),
         }),
       ),
     };

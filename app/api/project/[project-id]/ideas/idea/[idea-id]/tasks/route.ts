@@ -14,13 +14,12 @@ type ProjectIdeaTasksRouteProps = {
 
 const metadataSchema = z.record(z.string(), z.unknown());
 
-const taskSchema = z.object({
+const createTaskSchema = z.object({
   dependencies: z.array(z.uuid()).optional(),
   description: z.string().optional(),
-  id: z.uuid().optional(),
   metadata: metadataSchema.optional(),
   position: z.int().min(0).optional(),
-  title: z.string().trim().min(1).optional(),
+  title: z.string().trim().min(1),
 });
 
 function getTaskErrorResponse(
@@ -51,7 +50,7 @@ export async function POST(request: NextRequest, { params }: ProjectIdeaTasksRou
     return Response.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  const body = taskSchema.safeParse(rawBody);
+  const body = createTaskSchema.safeParse(rawBody);
 
   if (!body.success) {
     return Response.json({ error: "Invalid task payload." }, { status: 400 });

@@ -38,7 +38,7 @@ function getSubtaskErrorResponse(
     case "invalid_metadata":
       return Response.json({ error: "Invalid subtask metadata." }, { status: 400 });
     case "not_found":
-      return Response.json({ error: "SubTask not found." }, { status: 404 });
+      return Response.json({ error: "Subtask not found." }, { status: 404 });
     default:
       return null;
   }

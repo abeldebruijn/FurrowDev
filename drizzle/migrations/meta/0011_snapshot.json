@@ -470,7 +470,12 @@
       },
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "idea_subtask_dependency_no_self": {
+          "name": "idea_subtask_dependency_no_self",
+          "value": "\"idea_subtask_dependency\".\"subtask_id\" <> \"idea_subtask_dependency\".\"depends_on_subtask_id\""
+        }
+      },
       "isRLSEnabled": false
     },
     "public.idea_subtask": {
@@ -615,7 +620,12 @@
       },
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "idea_task_dependency_no_self": {
+          "name": "idea_task_dependency_no_self",
+          "value": "\"idea_task_dependency\".\"task_id\" <> \"idea_task_dependency\".\"depends_on_task_id\""
+        }
+      },
       "isRLSEnabled": false
     },
     "public.idea_task": {

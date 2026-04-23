@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 
 import {
   ideas,
@@ -118,6 +118,7 @@ type ProjectIdeaSubtaskMutationError =
   | "invalid_metadata"
   | "not_found"
   | null;
+type ProjectIdeaReorderError = "invalid_order" | "not_found" | null;
 
 /**
  * Return the trimmed `title` when it contains non-whitespace characters, otherwise use `fallback`.
@@ -173,6 +174,21 @@ function isPlainMetadata(value: unknown): value is IdeaTaskMetadata {
 
 function normalizeMetadata(value: IdeaTaskMetadata | undefined) {
   return value === undefined ? undefined : value;
+}
+
+function hasExactlySameIds(expectedIds: string[], actualIds: string[]) {
+  if (expectedIds.length !== actualIds.length) {
+    return false;
+  }
+
+  const expectedIdSet = new Set(expectedIds);
+  const actualIdSet = new Set(actualIds);
+
+  return expectedIdSet.size === actualIdSet.size && actualIds.every((id) => expectedIdSet.has(id));
+}
+
+async function lockPositionScope(tx: Transaction, scopeId: string) {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${scopeId}))`);
 }
 
 function normalizeTitle(title: string | undefined, fallback: string) {
@@ -711,7 +727,7 @@ export async function createProjectIdeaTask(
   viewerId: string,
   projectId: string,
   ideaId: string,
-  patch: ProjectIdeaTaskPatch & { id?: string },
+  patch: ProjectIdeaTaskPatch,
   db: Database = getDb(),
 ) {
   const access = await getAccessibleIdeaBase(viewerId, projectId, ideaId, db);
@@ -726,37 +742,39 @@ export async function createProjectIdeaTask(
     return { error: "invalid_metadata" as const, idea: null };
   }
 
+  const taskId = randomUUID();
+
   if (
     patch.dependencies &&
-    !(await validateTaskDependencies(ideaId, patch.id ?? "", patch.dependencies, db))
+    !(await validateTaskDependencies(ideaId, taskId, patch.dependencies, db))
   ) {
     return { error: "invalid_dependency" as const, idea: null };
   }
 
-  const taskId = patch.id ?? randomUUID();
-  const position =
-    patch.position ??
-    (await db
-      .select({
-        position: ideaTasks.position,
-      })
-      .from(ideaTasks)
-      .where(eq(ideaTasks.ideaId, ideaId))
-      .orderBy(desc(ideaTasks.position))
-      .then((rows) => (rows[0]?.position ?? -1) + 1));
-  const now = new Date();
-
   await db.transaction(async (tx) => {
-    await tx.insert(ideaTasks).values({
-      createdAt: now,
+    await lockPositionScope(tx, ideaId);
+
+    const position: number =
+      patch.position ??
+      (await tx
+        .select({
+          position: ideaTasks.position,
+        })
+        .from(ideaTasks)
+        .where(eq(ideaTasks.ideaId, ideaId))
+        .orderBy(desc(ideaTasks.position))
+        .then((rows) => (rows[0]?.position ?? -1) + 1));
+
+    const values: typeof ideaTasks.$inferInsert = {
       description: patch.description ?? "",
       id: taskId,
       ideaId,
       metadata: metadata ?? {},
       position,
       title: normalizeTitle(patch.title, "Untitled task"),
-      updatedAt: now,
-    } as any);
+    };
+
+    await tx.insert(ideaTasks).values(values);
 
     if (patch.dependencies && patch.dependencies.length > 0) {
       await tx.insert(ideaTaskDependencies).values(
@@ -871,12 +889,59 @@ export async function deleteProjectIdeaTask(
   };
 }
 
+export async function reorderProjectIdeaTasks(
+  viewerId: string,
+  projectId: string,
+  ideaId: string,
+  taskIds: string[],
+  db: Database = getDb(),
+) {
+  const access = await getAccessibleIdeaBase(viewerId, projectId, ideaId, db);
+
+  if (!access) {
+    return { error: "not_found" as const, idea: null };
+  }
+
+  const existingTasks = await db
+    .select({
+      id: ideaTasks.id,
+    })
+    .from(ideaTasks)
+    .where(eq(ideaTasks.ideaId, ideaId))
+    .orderBy(asc(ideaTasks.position), asc(ideaTasks.createdAt), asc(ideaTasks.title));
+
+  if (
+    !hasExactlySameIds(
+      existingTasks.map((task) => task.id),
+      taskIds,
+    )
+  ) {
+    return { error: "invalid_order" as const, idea: null };
+  }
+
+  await db.transaction(async (tx) => {
+    await lockPositionScope(tx, ideaId);
+
+    for (const [position, taskId] of taskIds.entries()) {
+      await tx
+        .update(ideaTasks)
+        .set({ position, updatedAt: new Date() })
+        .where(and(eq(ideaTasks.ideaId, ideaId), eq(ideaTasks.id, taskId)));
+    }
+  });
+
+  return {
+    error: null as ProjectIdeaReorderError,
+    idea: await getIdeaById(projectId, ideaId, db),
+  };
+}
+
 export async function createProjectIdeaSubtask(
   viewerId: string,
   projectId: string,
   ideaId: string,
   taskId: string,
-  patch: ProjectIdeaSubtaskPatch & { id?: string },
+  patch: ProjectIdeaSubtaskPatch,
   db: Database = getDb(),
 ) {
   const access = await getAccessibleIdeaBase(viewerId, projectId, ideaId, db);
@@ -891,7 +956,7 @@ export async function createProjectIdeaSubtask(
     return { error: "invalid_metadata" as const, idea: null };
   }
 
-  const subtaskId = patch.id ?? randomUUID();
+  const subtaskId = randomUUID();
 
   if (
     patch.dependencies &&
@@ -900,30 +965,33 @@ export async function createProjectIdeaSubtask(
     return { error: "invalid_dependency" as const, idea: null };
   }
 
-  const position =
-    patch.position ??
-    (await db
-      .select({
-        position: ideaSubtasks.position,
-      })
-      .from(ideaSubtasks)
-      .where(eq(ideaSubtasks.taskId, taskId))
-      .orderBy(desc(ideaSubtasks.position))
-      .then((rows) => (rows[0]?.position ?? -1) + 1));
   const now = new Date();
 
   await db.transaction(async (tx) => {
-    await tx.insert(ideaSubtasks).values({
+    await lockPositionScope(tx, taskId);
+
+    const position: number =
+      patch.position ??
+      (await tx
+        .select({
+          position: ideaSubtasks.position,
+        })
+        .from(ideaSubtasks)
+        .where(eq(ideaSubtasks.taskId, taskId))
+        .orderBy(desc(ideaSubtasks.position))
+        .then((rows) => (rows[0]?.position ?? -1) + 1));
+
+    const values: typeof ideaSubtasks.$inferInsert = {
       completedAt: patch.completed ? now : null,
-      createdAt: now,
       description: patch.description ?? "",
       id: subtaskId,
       metadata: metadata ?? {},
       position,
       taskId,
       title: normalizeTitle(patch.title, "Untitled subtask"),
-      updatedAt: now,
-    } as any);
+    };
+
+    await tx.insert(ideaSubtasks).values(values);
 
     if (patch.dependencies && patch.dependencies.length > 0) {
       await tx.insert(ideaSubtaskDependencies).values(
@@ -1052,6 +1120,54 @@ export async function deleteProjectIdeaSubtask(
 
   return {
     error: null as ProjectIdeaSubtaskMutationError,
+    idea: await getIdeaById(projectId, ideaId, db),
+  };
+}
+
+export async function reorderProjectIdeaSubtasks(
+  viewerId: string,
+  projectId: string,
+  ideaId: string,
+  taskId: string,
+  subtaskIds: string[],
+  db: Database = getDb(),
+) {
+  const access = await getAccessibleIdeaBase(viewerId, projectId, ideaId, db);
+
+  if (!access || !(await getTaskForIdea(ideaId, taskId, db))) {
+    return { error: "not_found" as const, idea: null };
+  }
+
+  const existingSubtasks = await db
+    .select({
+      id: ideaSubtasks.id,
+    })
+    .from(ideaSubtasks)
+    .where(eq(ideaSubtasks.taskId, taskId))
+    .orderBy(asc(ideaSubtasks.position), asc(ideaSubtasks.createdAt), asc(ideaSubtasks.title));
+
+  if (
+    !hasExactlySameIds(
+      existingSubtasks.map((subtask) => subtask.id),
+      subtaskIds,
+    )
+  ) {
+    return { error: "invalid_order" as const, idea: null };
+  }
+
+  await db.transaction(async (tx) => {
+    await lockPositionScope(tx, taskId);
+
+    for (const [position, subtaskId] of subtaskIds.entries()) {
+      await tx
+        .update(ideaSubtasks)
+        .set({ position, updatedAt: new Date() })
+        .where(and(eq(ideaSubtasks.taskId, taskId), eq(ideaSubtasks.id, subtaskId)));
+    }
+  });
+
+  return {
+    error: null as ProjectIdeaReorderError,
     idea: await getIdeaById(projectId, ideaId, db),
   };
 }

@@ -399,15 +399,19 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
       throw new Error(data?.error || "Failed to update tasks.");
     }
 
-    const data = (await response.json()) as { idea?: { isDone: boolean; tasks: IdeaTask[] } };
+    const data = ((await response.json().catch(() => null)) ?? {}) as {
+      idea?: { isDone: boolean; tasks: IdeaTask[] };
+    };
 
-    if (data.idea) {
-      setIdeaDone(data.idea.isDone);
-      setTasks(data.idea.tasks);
-      setTaskDrafts(buildTaskDrafts(data.idea.tasks));
-      setSubtaskDrafts(buildSubtaskDrafts(data.idea.tasks));
-      router.refresh();
+    if (!data.idea) {
+      throw new Error("Unexpected response from server.");
     }
+
+    setIdeaDone(data.idea.isDone);
+    setTasks(data.idea.tasks);
+    setTaskDrafts(buildTaskDrafts(data.idea.tasks));
+    setSubtaskDrafts(buildSubtaskDrafts(data.idea.tasks));
+    router.refresh();
   }
 
   async function handleAddTask() {
@@ -470,30 +474,26 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
     reordered[taskIndex] = nextTask;
     reordered[nextIndex] = currentTask;
 
-    const updates = reordered.map((task, position) => ({
-      body: { position },
-      path: `/api/project/${projectId}/ideas/idea/${idea.id}/tasks/${task.id}`,
-    }));
+    const ids = reordered.map((task) => task.id);
 
-    for (const update of updates) {
-      const failure = await mutateTasks(update.path, "PATCH", update.body)
-        .then(() => null)
-        .catch((error: unknown) => error);
-
-      if (failure) {
-        setTaskError(failure instanceof Error ? failure.message : "Failed to reorder tasks.");
-        return;
-      }
+    try {
+      await mutateTasks(`/api/project/${projectId}/ideas/idea/${idea.id}/tasks/reorder`, "PATCH", {
+        ids,
+      });
+    } catch (error) {
+      setTaskError(error instanceof Error ? error.message : "Failed to reorder tasks.");
     }
   }
 
   async function handleAddSubtask(task: IdeaTask) {
+    const title = newSubtaskTitles[task.id]?.trim() || "Untitled subtask";
+
     try {
       await mutateTasks(
         `/api/project/${projectId}/ideas/idea/${idea.id}/tasks/${task.id}/subtasks`,
         "POST",
         {
-          title: newSubtaskTitles[task.id]?.trim() || "Untitled subtask",
+          title,
         },
       );
       setNewSubtaskTitles((current) => ({ ...current, [task.id]: "" }));
@@ -550,20 +550,18 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
     reordered[subtaskIndex] = nextSubtask;
     reordered[nextIndex] = currentSubtask;
 
-    const updates = reordered.map((subtask, position) => ({
-      body: { position },
-      path: `/api/project/${projectId}/ideas/idea/${idea.id}/tasks/${task.id}/subtasks/${subtask.id}`,
-    }));
+    const ids = reordered.map((subtask) => subtask.id);
 
-    for (const update of updates) {
-      const failure = await mutateTasks(update.path, "PATCH", update.body)
-        .then(() => null)
-        .catch((error: unknown) => error);
-
-      if (failure) {
-        setTaskError(failure instanceof Error ? failure.message : "Failed to reorder subtasks.");
-        return;
-      }
+    try {
+      await mutateTasks(
+        `/api/project/${projectId}/ideas/idea/${idea.id}/tasks/${task.id}/subtasks/reorder`,
+        "PATCH",
+        {
+          ids,
+        },
+      );
+    } catch (error) {
+      setTaskError(error instanceof Error ? error.message : "Failed to reorder subtasks.");
     }
   }
 

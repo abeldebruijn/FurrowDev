@@ -15,14 +15,13 @@ type ProjectIdeaSubtasksRouteProps = {
 
 const metadataSchema = z.record(z.string(), z.unknown());
 
-const subtaskSchema = z.object({
+const createSubtaskSchema = z.object({
   completed: z.boolean().optional(),
   dependencies: z.array(z.uuid()).optional(),
   description: z.string().optional(),
-  id: z.uuid().optional(),
   metadata: metadataSchema.optional(),
   position: z.int().min(0).optional(),
-  title: z.string().trim().min(1).optional(),
+  title: z.string().trim().min(1),
 });
 
 function getSubtaskErrorResponse(
@@ -53,7 +52,7 @@ export async function POST(request: NextRequest, { params }: ProjectIdeaSubtasks
     return Response.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  const body = subtaskSchema.safeParse(rawBody);
+  const body = createSubtaskSchema.safeParse(rawBody);
 
   if (!body.success) {
     return Response.json({ error: "Invalid subtask payload." }, { status: 400 });

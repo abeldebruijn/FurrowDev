@@ -328,7 +328,10 @@ export const ideaTaskDependencies = pgTable(
       .notNull()
       .references(() => ideaTasks.id, { onDelete: "cascade" }),
   },
-  (table) => [primaryKey({ columns: [table.taskId, table.dependsOnTaskId] })],
+  (table) => [
+    primaryKey({ columns: [table.taskId, table.dependsOnTaskId] }),
+    check("idea_task_dependency_no_self", sql`${table.taskId} <> ${table.dependsOnTaskId}`),
+  ],
 );
 
 export const ideaSubtaskDependencies = pgTable(
@@ -341,7 +344,13 @@ export const ideaSubtaskDependencies = pgTable(
       .notNull()
       .references(() => ideaSubtasks.id, { onDelete: "cascade" }),
   },
-  (table) => [primaryKey({ columns: [table.subtaskId, table.dependsOnSubtaskId] })],
+  (table) => [
+    primaryKey({ columns: [table.subtaskId, table.dependsOnSubtaskId] }),
+    check(
+      "idea_subtask_dependency_no_self",
+      sql`${table.subtaskId} <> ${table.dependsOnSubtaskId}`,
+    ),
+  ],
 );
 
 export const usersRelations = relations(users, ({ many }) => ({

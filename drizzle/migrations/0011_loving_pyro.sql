@@ -1,7 +1,8 @@
 CREATE TABLE "idea_subtask_dependency" (
 	"subtask_id" uuid NOT NULL,
 	"depends_on_subtask_id" uuid NOT NULL,
-	CONSTRAINT "idea_subtask_dependency_subtask_id_depends_on_subtask_id_pk" PRIMARY KEY("subtask_id","depends_on_subtask_id")
+	CONSTRAINT "idea_subtask_dependency_subtask_id_depends_on_subtask_id_pk" PRIMARY KEY("subtask_id","depends_on_subtask_id"),
+	CONSTRAINT "idea_subtask_dependency_no_self" CHECK ("subtask_id" <> "depends_on_subtask_id")
 );
 --> statement-breakpoint
 CREATE TABLE "idea_subtask" (
@@ -19,7 +20,8 @@ CREATE TABLE "idea_subtask" (
 CREATE TABLE "idea_task_dependency" (
 	"task_id" uuid NOT NULL,
 	"depends_on_task_id" uuid NOT NULL,
-	CONSTRAINT "idea_task_dependency_task_id_depends_on_task_id_pk" PRIMARY KEY("task_id","depends_on_task_id")
+	CONSTRAINT "idea_task_dependency_task_id_depends_on_task_id_pk" PRIMARY KEY("task_id","depends_on_task_id"),
+	CONSTRAINT "idea_task_dependency_no_self" CHECK ("task_id" <> "depends_on_task_id")
 );
 --> statement-breakpoint
 CREATE TABLE "idea_task" (
