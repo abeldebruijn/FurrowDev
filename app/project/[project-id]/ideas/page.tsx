@@ -1,4 +1,5 @@
 import { LinkButton } from "@/components/ui/button";
+import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -91,7 +92,14 @@ export default async function ProjectIdeasPage({ params }: ProjectIdeasPageProps
               <TableBody>
                 {ideas.map((idea) => (
                   <TableRow key={idea.id}>
-                    <TableCell className="font-medium">{idea.title}</TableCell>
+                    <TableCell className="font-medium">
+                      <Link
+                        className="underline-offset-4 hover:underline"
+                        href={`/project/${project.id}/ideas/idea/${idea.id}`}
+                      >
+                        {idea.title}
+                      </Link>
+                    </TableCell>
                     <TableCell className="text-muted-foreground">{getRoadmapLabel(idea)}</TableCell>
                     <TableCell className="text-muted-foreground">
                       {idea.sourceVisionTitle}

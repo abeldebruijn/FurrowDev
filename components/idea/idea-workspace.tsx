@@ -214,6 +214,17 @@ function buildSubtaskDrafts(tasks: IdeaTask[]) {
   );
 }
 
+/**
+ * Render an editable workspace for an idea with debounced autosave, manual save, and story editing.
+ *
+ * Displays editors for context (markdown with preview), spec sheet, roadmap item selection, and user stories;
+ * automatically persists changes after a short debounce and allows an explicit "Save changes" action.
+ *
+ * @param props.idea - The initial idea data used to populate editors and create the baseline snapshot
+ * @param props.projectId - The project identifier used for API requests when saving changes
+ * @param props.roadmapItems - Roadmap items shown in the roadmap item selector
+ * @returns A React element rendering the idea workspace UI
+ */
 export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspaceProps) {
   const router = useRouter();
   const debounceMs = 700;
