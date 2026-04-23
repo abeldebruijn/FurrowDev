@@ -117,6 +117,40 @@ type SubtaskDraft = TaskDraft & {
   completed: boolean;
 };
 
+type GeneratedTaskTitle = {
+  key: string;
+  title: string;
+};
+
+type GeneratedSubtaskDraft = {
+  dependencies: string[];
+  description: string;
+  key: string;
+  metadata: IdeaMetadata;
+  title: string;
+};
+
+type GeneratedTaskDraft = {
+  dependencies: string[];
+  description: string;
+  key: string;
+  metadata: IdeaMetadata;
+  subtasks: GeneratedSubtaskDraft[];
+  title: string;
+};
+
+type GeneratedTaskApplyMode = "append" | "replace_all" | "replace_empty";
+
+type TaskGenerationPhase =
+  | "idle"
+  | "generating_titles"
+  | "review_titles"
+  | "refining_titles"
+  | "generating_details"
+  | "review_details"
+  | "saving"
+  | "saved";
+
 function createSnapshot(idea: IdeaWorkspaceProps["idea"]): IdeaWorkspaceSnapshot {
   return {
     context: idea.context,
@@ -264,6 +298,13 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newSubtaskTitles, setNewSubtaskTitles] = useState<Record<string, string>>({});
   const [taskError, setTaskError] = useState<string | null>(null);
+  const [isGenerateTasksOpen, setIsGenerateTasksOpen] = useState(false);
+  const [taskGenerationPhase, setTaskGenerationPhase] = useState<TaskGenerationPhase>("idle");
+  const [generatedTaskTitles, setGeneratedTaskTitles] = useState<GeneratedTaskTitle[]>([]);
+  const [generatedTaskDetails, setGeneratedTaskDetails] = useState<GeneratedTaskDraft[]>([]);
+  const [taskGenerationError, setTaskGenerationError] = useState<string | null>(null);
+  const [generatedTaskApplyMode, setGeneratedTaskApplyMode] =
+    useState<GeneratedTaskApplyMode>("append");
   const [lastSavedSnapshot, setLastSavedSnapshot] = useState<IdeaWorkspaceSnapshot>(() =>
     createSnapshot(idea),
   );
@@ -287,6 +328,53 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
   );
   const visibleStories = showAllStories ? userStories : userStories.slice(0, 5);
   const hiddenStoryCount = userStories.length - visibleStories.length;
+  const isGeneratingTasks =
+    taskGenerationPhase === "generating_titles" ||
+    taskGenerationPhase === "refining_titles" ||
+    taskGenerationPhase === "generating_details" ||
+    taskGenerationPhase === "saving";
+  const taskGenerationSteps = [
+    {
+      label: "Reading idea context",
+      status: taskGenerationPhase === "idle" ? "pending" : "done",
+    },
+    {
+      label: "Generating task titles",
+      status:
+        taskGenerationPhase === "generating_titles"
+          ? "active"
+          : generatedTaskTitles.length > 0
+            ? "done"
+            : "pending",
+    },
+    {
+      label: "Waiting for title review",
+      status:
+        taskGenerationPhase === "review_titles" || taskGenerationPhase === "refining_titles"
+          ? "active"
+          : generatedTaskDetails.length > 0 || taskGenerationPhase === "saved"
+            ? "done"
+            : "pending",
+    },
+    {
+      label: "Generating subtasks and details",
+      status:
+        taskGenerationPhase === "generating_details"
+          ? "active"
+          : generatedTaskDetails.length > 0 || taskGenerationPhase === "saved"
+            ? "done"
+            : "pending",
+    },
+    {
+      label: "Saving accepted plan",
+      status:
+        taskGenerationPhase === "saving"
+          ? "active"
+          : taskGenerationPhase === "saved"
+            ? "done"
+            : "pending",
+    },
+  ];
 
   useEffect(() => {
     return () => {
@@ -445,6 +533,159 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
     setTaskDrafts(buildTaskDrafts(data.idea.tasks));
     setSubtaskDrafts(buildSubtaskDrafts(data.idea.tasks));
     router.refresh();
+  }
+
+  async function postTaskGeneration<T>(path: string, body?: unknown) {
+    const response = await fetch(path, {
+      body: body === undefined ? undefined : JSON.stringify(body),
+      headers: body === undefined ? undefined : { "content-type": "application/json" },
+      method: "POST",
+    });
+
+    if (!response.ok) {
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(data?.error || "Failed to generate tasks.");
+    }
+
+    return ((await response.json().catch(() => null)) ?? {}) as T;
+  }
+
+  async function handleOpenTaskGeneration() {
+    setIsGenerateTasksOpen(true);
+    setTaskGenerationError(null);
+    setGeneratedTaskTitles([]);
+    setGeneratedTaskDetails([]);
+    setGeneratedTaskApplyMode("append");
+    setTaskGenerationPhase("generating_titles");
+
+    try {
+      const data = await postTaskGeneration<{ tasks?: GeneratedTaskTitle[] }>(
+        `/api/project/${projectId}/ideas/idea/${idea.id}/tasks/generate/titles`,
+      );
+
+      if (!data.tasks) {
+        setTaskGenerationError("Unexpected response from server.");
+        setTaskGenerationPhase("idle");
+        return;
+      }
+
+      setGeneratedTaskTitles(data.tasks);
+      setTaskGenerationPhase("review_titles");
+    } catch (error) {
+      setTaskGenerationError(error instanceof Error ? error.message : "Failed to generate tasks.");
+      setTaskGenerationPhase("idle");
+    }
+  }
+
+  async function handleRefineGeneratedTaskTitles(direction: "more_abstract" | "more_detailed") {
+    setTaskGenerationError(null);
+    setTaskGenerationPhase("refining_titles");
+
+    try {
+      const data = await postTaskGeneration<{ tasks?: GeneratedTaskTitle[] }>(
+        `/api/project/${projectId}/ideas/idea/${idea.id}/tasks/generate/refine`,
+        {
+          direction,
+          tasks: generatedTaskTitles,
+        },
+      );
+
+      if (!data.tasks) {
+        setTaskGenerationError("Unexpected response from server.");
+        setTaskGenerationPhase("review_titles");
+        return;
+      }
+
+      setGeneratedTaskTitles(data.tasks);
+      setTaskGenerationPhase("review_titles");
+    } catch (error) {
+      setTaskGenerationError(error instanceof Error ? error.message : "Failed to refine tasks.");
+      setTaskGenerationPhase("review_titles");
+    }
+  }
+
+  function handleMoveGeneratedTaskTitle(index: number, direction: -1 | 1) {
+    const nextIndex = index + direction;
+
+    if (nextIndex < 0 || nextIndex >= generatedTaskTitles.length) {
+      return;
+    }
+
+    setGeneratedTaskTitles((current) => {
+      const reordered = [...current];
+      const currentTask = reordered[index];
+      const nextTask = reordered[nextIndex];
+
+      if (!currentTask || !nextTask) {
+        return current;
+      }
+
+      reordered[index] = nextTask;
+      reordered[nextIndex] = currentTask;
+
+      return reordered;
+    });
+  }
+
+  async function handleGenerateTaskDetails() {
+    setTaskGenerationError(null);
+    setTaskGenerationPhase("generating_details");
+
+    try {
+      const data = await postTaskGeneration<{ tasks?: GeneratedTaskDraft[] }>(
+        `/api/project/${projectId}/ideas/idea/${idea.id}/tasks/generate/details`,
+        {
+          tasks: generatedTaskTitles,
+        },
+      );
+
+      if (!data.tasks) {
+        setTaskGenerationError("Unexpected response from server.");
+        setTaskGenerationPhase("review_titles");
+        return;
+      }
+
+      setGeneratedTaskDetails(data.tasks);
+      setTaskGenerationPhase("review_details");
+    } catch (error) {
+      setTaskGenerationError(
+        error instanceof Error ? error.message : "Failed to generate task details.",
+      );
+      setTaskGenerationPhase("review_titles");
+    }
+  }
+
+  async function handleApplyGeneratedTasks() {
+    setTaskGenerationError(null);
+    setTaskGenerationPhase("saving");
+
+    const mode = tasks.length === 0 ? "append" : generatedTaskApplyMode;
+
+    try {
+      const data = await postTaskGeneration<{ idea?: { isDone: boolean; tasks: IdeaTask[] } }>(
+        `/api/project/${projectId}/ideas/idea/${idea.id}/tasks/generate/apply`,
+        {
+          mode,
+          tasks: generatedTaskDetails,
+        },
+      );
+
+      if (!data.idea) {
+        setTaskGenerationError("Unexpected response from server.");
+        setTaskGenerationPhase("review_details");
+        return;
+      }
+
+      setIdeaDone(data.idea.isDone);
+      setTasks(data.idea.tasks);
+      setTaskDrafts(buildTaskDrafts(data.idea.tasks));
+      setSubtaskDrafts(buildSubtaskDrafts(data.idea.tasks));
+      setTaskGenerationPhase("saved");
+      router.refresh();
+    } catch (error) {
+      setTaskGenerationError(error instanceof Error ? error.message : "Failed to save tasks.");
+      setTaskGenerationPhase("review_details");
+    }
   }
 
   async function handleAddTask() {
@@ -835,8 +1076,205 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
           <CardTitle>Tasks</CardTitle>
+          <Dialog onOpenChange={setIsGenerateTasksOpen} open={isGenerateTasksOpen}>
+            <DialogTrigger
+              render={<Button onClick={handleOpenTaskGeneration} type="button" variant="outline" />}
+            >
+              Generate tasks
+            </DialogTrigger>
+            <DialogContent className="max-w-3xl!">
+              <DialogHeader>
+                <DialogTitle>Generate tasks</DialogTitle>
+                <DialogDescription>
+                  Review task titles before the agent generates subtasks and details.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="flex flex-col gap-5">
+                <div className="rounded-lg border p-3">
+                  <div className="mb-2 text-sm font-medium">Agent progress</div>
+                  <ol className="flex flex-col gap-2 text-sm">
+                    {taskGenerationSteps.map((step) => (
+                      <li className="flex items-center justify-between gap-3" key={step.label}>
+                        <span>{step.label}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {step.status === "active"
+                            ? "Working"
+                            : step.status === "done"
+                              ? "Done"
+                              : "Pending"}
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+
+                {taskGenerationError ? (
+                  <Alert variant="destructive">
+                    <AlertTitle>Generation failed</AlertTitle>
+                    <AlertDescription>{taskGenerationError}</AlertDescription>
+                  </Alert>
+                ) : null}
+
+                {taskGenerationPhase === "saved" ? (
+                  <div className="rounded-lg border p-4 text-sm">
+                    Generated tasks were added to this idea.
+                  </div>
+                ) : null}
+
+                {generatedTaskTitles.length > 0 && generatedTaskDetails.length === 0 ? (
+                  <div className="flex flex-col gap-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-sm font-medium">Task titles</div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          disabled={isGeneratingTasks}
+                          onClick={() => handleRefineGeneratedTaskTitles("more_detailed")}
+                          size="sm"
+                          type="button"
+                          variant="outline"
+                        >
+                          More detailed
+                        </Button>
+                        <Button
+                          disabled={isGeneratingTasks}
+                          onClick={() => handleRefineGeneratedTaskTitles("more_abstract")}
+                          size="sm"
+                          type="button"
+                          variant="outline"
+                        >
+                          More abstract
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="flex max-h-80 flex-col gap-2 overflow-y-auto rounded-lg border p-2">
+                      {generatedTaskTitles.map((task, index) => (
+                        <div className="flex items-center gap-2" key={task.key}>
+                          <Input
+                            aria-label={`Generated task ${index + 1}`}
+                            disabled={isGeneratingTasks}
+                            onChange={(event) =>
+                              setGeneratedTaskTitles((current) =>
+                                current.map((candidate) =>
+                                  candidate.key === task.key
+                                    ? { ...candidate, title: event.target.value }
+                                    : candidate,
+                                ),
+                              )
+                            }
+                            value={task.title}
+                          />
+                          <Button
+                            disabled={isGeneratingTasks || index === 0}
+                            onClick={() => handleMoveGeneratedTaskTitle(index, -1)}
+                            size="sm"
+                            type="button"
+                            variant="outline"
+                          >
+                            Up
+                          </Button>
+                          <Button
+                            disabled={isGeneratingTasks || index === generatedTaskTitles.length - 1}
+                            onClick={() => handleMoveGeneratedTaskTitle(index, 1)}
+                            size="sm"
+                            type="button"
+                            variant="outline"
+                          >
+                            Down
+                          </Button>
+                          <Button
+                            disabled={isGeneratingTasks || generatedTaskTitles.length === 1}
+                            onClick={() =>
+                              setGeneratedTaskTitles((current) =>
+                                current.filter((candidate) => candidate.key !== task.key),
+                              )
+                            }
+                            size="sm"
+                            type="button"
+                            variant="outline"
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {generatedTaskDetails.length > 0 && taskGenerationPhase !== "saved" ? (
+                  <div className="flex flex-col gap-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-sm font-medium">Generated task plan</div>
+                      {tasks.length > 0 ? (
+                        <select
+                          className="h-8 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring"
+                          disabled={isGeneratingTasks}
+                          onChange={(event) =>
+                            setGeneratedTaskApplyMode(event.target.value as GeneratedTaskApplyMode)
+                          }
+                          value={generatedTaskApplyMode}
+                        >
+                          <option value="append">Append only</option>
+                          <option value="replace_empty">Replace empty tasks</option>
+                          <option value="replace_all">Replace all tasks</option>
+                        </select>
+                      ) : null}
+                    </div>
+                    <div className="flex max-h-96 flex-col gap-3 overflow-y-auto rounded-lg border p-3">
+                      {generatedTaskDetails.map((task, index) => (
+                        <div className="flex flex-col gap-2 rounded-lg border p-3" key={task.key}>
+                          <div>
+                            <div className="text-sm font-medium">{`${index + 1}. ${task.title}`}</div>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              {task.description || "No description."}
+                            </p>
+                          </div>
+                          {task.dependencies.length > 0 ? (
+                            <p className="text-xs text-muted-foreground">
+                              {`Depends on: ${task.dependencies.join(", ")}`}
+                            </p>
+                          ) : null}
+                          <div className="flex flex-col gap-1">
+                            {task.subtasks.map((subtask) => (
+                              <div className="rounded-md bg-muted/30 px-2 py-1.5" key={subtask.key}>
+                                <div className="text-sm font-medium">{subtask.title}</div>
+                                <p className="text-xs text-muted-foreground">
+                                  {subtask.description || "No description."}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <DialogFooter>
+                <DialogClose render={<Button type="button" variant="outline" />}>Close</DialogClose>
+                {generatedTaskDetails.length === 0 ? (
+                  <Button
+                    disabled={isGeneratingTasks || generatedTaskTitles.length === 0}
+                    onClick={handleGenerateTaskDetails}
+                    type="button"
+                  >
+                    Generate subtasks
+                  </Button>
+                ) : taskGenerationPhase === "saved" ? null : (
+                  <Button
+                    disabled={isGeneratingTasks}
+                    onClick={handleApplyGeneratedTasks}
+                    type="button"
+                  >
+                    {taskGenerationPhase === "saving" ? "Creating..." : "Create tasks"}
+                  </Button>
+                )}
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-col gap-2 sm:flex-row">
