@@ -169,6 +169,12 @@ export type ProjectWidgetLayoutItem = {
   hSize: number;
 };
 
+export type IdeaUserStory = {
+  id: string;
+  outcome: string;
+  story: string;
+};
+
 export const projectWidgetLayouts = pgTable("project_widget_layout", {
   id: uuid("id").primaryKey(),
   version: integer("version").notNull().default(1),
@@ -274,6 +280,8 @@ export const ideas = pgTable("idea", {
   }),
   title: text("title").notNull(),
   context: text("context").notNull().default(""),
+  specSheet: text("spec_sheet").notNull().default(""),
+  userStories: jsonb("user_stories").$type<IdeaUserStory[]>().notNull().default([]),
   createdByUserId: uuid("created_by_user_id")
     .notNull()
     .references(() => users.id),

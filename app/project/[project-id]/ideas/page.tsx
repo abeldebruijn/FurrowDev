@@ -37,6 +37,16 @@ function getRoadmapLabel(idea: {
   return `v${idea.roadmapItemMajorVersion}.${idea.roadmapItemMinorVersion} - ${idea.roadmapItemName}`;
 }
 
+/**
+ * Render the project ideas page for a given project.
+ *
+ * Fetches project and viewer context and displays a header with a "New vision" action.
+ * If there are no ideas, shows an empty-state card; otherwise shows a table of ideas with
+ * roadmap label, source vision, creator, creation date, and an "Open" action for each idea.
+ *
+ * @param params - A promise that resolves to route parameters containing the `"project-id"` key
+ * @returns The page's React element displaying the project ideas list or the empty-state card
+ */
 export default async function ProjectIdeasPage({ params }: ProjectIdeasPageProps) {
   const routeParams = await params;
   const { project, viewer } = await getProjectPageData(routeParams["project-id"]);
@@ -75,6 +85,7 @@ export default async function ProjectIdeasPage({ params }: ProjectIdeasPageProps
                   <TableHead>Source vision</TableHead>
                   <TableHead>Created by</TableHead>
                   <TableHead>Created</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -88,6 +99,15 @@ export default async function ProjectIdeasPage({ params }: ProjectIdeasPageProps
                     <TableCell>{idea.createdByName}</TableCell>
                     <TableCell>
                       <VisionUpdatedAt isoString={idea.createdAt.toISOString()} />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <LinkButton
+                        href={`/project/${project.id}/ideas/idea/${idea.id}`}
+                        size="sm"
+                        variant="outline"
+                      >
+                        Open
+                      </LinkButton>
                     </TableCell>
                   </TableRow>
                 ))}

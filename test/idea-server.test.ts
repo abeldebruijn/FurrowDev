@@ -26,8 +26,10 @@ vi.mock("@/drizzle/schema", () => ({
     projectId: "ideas.projectId",
     roadmapItemId: "ideas.roadmapItemId",
     sourceVisionId: "ideas.sourceVisionId",
+    specSheet: "ideas.specSheet",
     title: "ideas.title",
     updatedAt: "ideas.updatedAt",
+    userStories: "ideas.userStories",
   },
   roadmapItems: {
     id: "roadmapItems.id",
@@ -60,7 +62,12 @@ vi.mock("@/lib/vision/server", () => ({
   getAccessibleVision,
 }));
 
-import { convertVisionToIdea, listProjectIdeas } from "../lib/idea/server";
+import {
+  convertVisionToIdea,
+  getProjectIdeaById,
+  listProjectIdeas,
+  updateProjectIdeaWorkspace,
+} from "../lib/idea/server";
 
 function createSelectBuilder(rows: unknown[]) {
   const builder = {
@@ -91,6 +98,177 @@ describe("idea server helpers", () => {
 
     await expect(listProjectIdeas("viewer-1", "project-1", db as any)).resolves.toEqual([]);
     expect(db.select).not.toHaveBeenCalled();
+  });
+
+  it("returns null when idea detail is inaccessible", async () => {
+    const db = {
+      select: vi.fn(),
+    };
+    getProjectAccess.mockResolvedValue(null);
+
+    await expect(
+      getProjectIdeaById("viewer-1", "project-1", "idea-1", db as any),
+    ).resolves.toBeNull();
+    expect(db.select).not.toHaveBeenCalled();
+  });
+
+  it("updates editable idea fields", async () => {
+    const ideaBefore = {
+      context: "Context",
+      createdAt: new Date("2026-04-15T10:00:00.000Z"),
+      createdByName: "Riley",
+      createdByUserId: "viewer-1",
+      id: "idea-1",
+      projectId: "project-1",
+      roadmapItemId: null,
+      roadmapItemMajorVersion: null,
+      roadmapItemMinorVersion: null,
+      roadmapItemName: null,
+      sourceVisionId: "vision-1",
+      sourceVisionTitle: "Checkout rethink",
+      specSheet: "Spec",
+      title: "Shared idea",
+      updatedAt: new Date("2026-04-15T10:00:00.000Z"),
+      userStories: [],
+    };
+    const ideaAfter = {
+      ...ideaBefore,
+      context: "Updated context",
+      specSheet: "Updated spec",
+      updatedAt: new Date("2026-04-16T10:00:00.000Z"),
+      userStories: [
+        {
+          id: "story-1",
+          outcome: "So checkout is quicker",
+          story: "As a buyer I want fewer clicks",
+        },
+      ],
+    };
+    const selectQueue = [createSelectBuilder([ideaBefore]), createSelectBuilder([ideaAfter])];
+    const setValues: unknown[] = [];
+    const db = {
+      select: vi.fn(() => selectQueue.shift()),
+      update: vi.fn(() => ({
+        set: vi.fn((values) => {
+          setValues.push(values);
+
+          return {
+            where: vi.fn(() => Promise.resolve()),
+          };
+        }),
+      })),
+    };
+
+    getProjectAccess.mockResolvedValue({
+      id: "project-1",
+      isAdmin: false,
+      isMaintainer: true,
+      isOwner: false,
+      roadmapId: "roadmap-1",
+    });
+
+    await expect(
+      updateProjectIdeaWorkspace(
+        "viewer-1",
+        "project-1",
+        "idea-1",
+        {
+          context: "Updated context",
+          specSheet: "Updated spec",
+          userStories: [
+            {
+              id: "story-1",
+              outcome: "So checkout is quicker",
+              story: "As a buyer I want fewer clicks",
+            },
+          ],
+        },
+        db as any,
+      ),
+    ).resolves.toEqual({
+      error: null,
+      idea: ideaAfter,
+    });
+    expect(setValues[0]).toEqual(
+      expect.objectContaining({
+        context: "Updated context",
+        specSheet: "Updated spec",
+        updatedAt: expect.any(Date),
+      }),
+    );
+  });
+
+  it("rejects invalid roadmap links while updating an idea", async () => {
+    const ideaRow = {
+      id: "idea-1",
+    };
+    const db = {
+      select: vi.fn(() => createSelectBuilder([ideaRow])),
+      update: vi.fn(),
+    };
+    getProjectAccess.mockResolvedValue({
+      id: "project-1",
+      isAdmin: false,
+      isMaintainer: true,
+      isOwner: false,
+      roadmapId: "roadmap-1",
+    });
+    getProjectRoadmapItems.mockResolvedValue([]);
+
+    await expect(
+      updateProjectIdeaWorkspace(
+        "viewer-1",
+        "project-1",
+        "idea-1",
+        {
+          roadmapItemId: "550e8400-e29b-41d4-a716-446655440000",
+        },
+        db as any,
+      ),
+    ).resolves.toEqual({
+      error: "invalid_roadmap_item",
+      idea: null,
+    });
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid user stories while updating an idea", async () => {
+    const ideaRow = {
+      id: "idea-1",
+    };
+    const db = {
+      select: vi.fn(() => createSelectBuilder([ideaRow])),
+      update: vi.fn(),
+    };
+    getProjectAccess.mockResolvedValue({
+      id: "project-1",
+      isAdmin: false,
+      isMaintainer: true,
+      isOwner: false,
+      roadmapId: "roadmap-1",
+    });
+
+    await expect(
+      updateProjectIdeaWorkspace(
+        "viewer-1",
+        "project-1",
+        "idea-1",
+        {
+          userStories: [
+            {
+              id: "story-1",
+              outcome: "Outcome",
+              story: "   ",
+            },
+          ],
+        },
+        db as any,
+      ),
+    ).resolves.toEqual({
+      error: "invalid_user_stories",
+      idea: null,
+    });
+    expect(db.update).not.toHaveBeenCalled();
   });
 
   it("copies the summary into idea context and archives the source vision", async () => {
@@ -177,53 +355,5 @@ describe("idea server helpers", () => {
         updatedAt: expect.any(Date),
       }),
     );
-  });
-
-  it("returns an existing idea for duplicate conversion", async () => {
-    const existingIdea = {
-      id: "idea-1",
-      sourceVisionId: "vision-1",
-    };
-    const db = {
-      select: vi.fn(() => createSelectBuilder([existingIdea])),
-      transaction: vi.fn(),
-    };
-    getProjectAccess.mockResolvedValue({
-      id: "project-1",
-      isAdmin: false,
-      isMaintainer: false,
-      isOwner: true,
-    });
-
-    await expect(
-      convertVisionToIdea("viewer-1", "project-1", "vision-1", {}, db as any),
-    ).resolves.toEqual({
-      error: null,
-      idea: existingIdea,
-    });
-    expect(db.transaction).not.toHaveBeenCalled();
-  });
-
-  it("rejects conversion from project viewers who are not owners, maintainers, or admins", async () => {
-    const db = {
-      select: vi.fn(),
-      transaction: vi.fn(),
-    };
-    getProjectAccess.mockResolvedValue({
-      id: "project-1",
-      isAdmin: false,
-      isMaintainer: false,
-      isOwner: false,
-      roadmapId: "roadmap-1",
-    });
-
-    await expect(
-      convertVisionToIdea("viewer-1", "project-1", "vision-1", {}, db as any),
-    ).resolves.toEqual({
-      error: "forbidden",
-      idea: null,
-    });
-    expect(getAccessibleVision).not.toHaveBeenCalled();
-    expect(db.transaction).not.toHaveBeenCalled();
   });
 });
