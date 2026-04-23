@@ -51,6 +51,12 @@ type IdeaWorkspaceSnapshot = {
 
 type IdeaWorkspacePatch = Partial<IdeaWorkspaceSnapshot>;
 
+/**
+ * Create an editable snapshot of an idea containing only the fields persisted by the workspace.
+ *
+ * @param idea - Source idea object used to derive the editable snapshot
+ * @returns An IdeaWorkspaceSnapshot with `context`, `roadmapItemId`, `specSheet`, and `userStories`
+ */
 function createSnapshot(idea: IdeaWorkspaceProps["idea"]): IdeaWorkspaceSnapshot {
   return {
     context: idea.context,
@@ -60,6 +66,11 @@ function createSnapshot(idea: IdeaWorkspaceProps["idea"]): IdeaWorkspaceSnapshot
   };
 }
 
+/**
+ * Produce a unique string identifier for a user story.
+ *
+ * @returns A unique string identifier suitable for use as a story id.
+ */
 function createStoryId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
@@ -68,6 +79,13 @@ function createStoryId() {
   return `story-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+/**
+ * Determines whether two arrays of idea stories are equal after trimming whitespace.
+ *
+ * @param left - First list of stories to compare
+ * @param right - Second list of stories to compare
+ * @returns `true` if both lists have the same length and each story at the same index has identical `id`, `story`, and `outcome` after trimming whitespace, `false` otherwise.
+ */
 function areStoriesEqual(left: IdeaStory[], right: IdeaStory[]) {
   const normalizedLeft = normalizeStories(left);
   const normalizedRight = normalizeStories(right);
@@ -89,6 +107,12 @@ function areStoriesEqual(left: IdeaStory[], right: IdeaStory[]) {
   });
 }
 
+/**
+ * Produce a new array of stories with leading and trailing whitespace removed from each field.
+ *
+ * @param stories - The list of stories to normalize; each returned story will have `id`, `outcome`, and `story` trimmed.
+ * @returns An array of `IdeaStory` objects whose `id`, `outcome`, and `story` values have been trimmed.
+ */
 function normalizeStories(stories: IdeaStory[]): IdeaStory[] {
   return stories.map((story) => ({
     id: story.id.trim(),
@@ -97,6 +121,13 @@ function normalizeStories(stories: IdeaStory[]): IdeaStory[] {
   }));
 }
 
+/**
+ * Create a patch object containing only fields that differ between two snapshots.
+ *
+ * @param current - The current editable snapshot to compare
+ * @param baseline - The baseline snapshot to compare against (typically the last-saved snapshot)
+ * @returns An object with only the keys that changed; when `userStories` changed, its value is the normalized story array
+ */
 function buildPatch(
   current: IdeaWorkspaceSnapshot,
   baseline: IdeaWorkspaceSnapshot,
@@ -123,6 +154,13 @@ function buildPatch(
   return patch;
 }
 
+/**
+ * Determines whether two story arrays are equal by comparing each element positionally for exact `id`, `story`, and `outcome` matches.
+ *
+ * @param left - The first array of stories (compared position-by-position)
+ * @param right - The second array of stories (compared position-by-position)
+ * @returns `true` if both arrays have the same length and every corresponding story has identical `id`, `story`, and `outcome`, `false` otherwise
+ */
 function legacyAreStoriesEqual(left: IdeaStory[], right: IdeaStory[]) {
   if (left.length !== right.length) {
     return false;
@@ -141,6 +179,17 @@ function legacyAreStoriesEqual(left: IdeaStory[], right: IdeaStory[]) {
   });
 }
 
+/**
+ * Render an editable workspace for an idea with debounced autosave, manual save, and story editing.
+ *
+ * Displays editors for context (markdown with preview), spec sheet, roadmap item selection, and user stories;
+ * automatically persists changes after a short debounce and allows an explicit "Save changes" action.
+ *
+ * @param props.idea - The initial idea data used to populate editors and create the baseline snapshot
+ * @param props.projectId - The project identifier used for API requests when saving changes
+ * @param props.roadmapItems - Roadmap items shown in the roadmap item selector
+ * @returns A React element rendering the idea workspace UI
+ */
 export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspaceProps) {
   const router = useRouter();
   const debounceMs = 700;

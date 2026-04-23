@@ -29,6 +29,12 @@ const updateIdeaSchema = z
     message: "Nothing to update",
   });
 
+/**
+ * Map a canonical update error code to an HTTP error Response or return `null`.
+ *
+ * @param error - One of `"invalid_roadmap_item"`, `"invalid_user_stories"`, `"not_found"`, or `null`
+ * @returns An HTTP `Response` containing a JSON error message and appropriate status code, or `null` if `error` is `null` or unrecognized
+ */
 function getUpdateErrorResponse(
   error: "invalid_roadmap_item" | "invalid_user_stories" | "not_found" | null,
 ) {
@@ -44,6 +50,12 @@ function getUpdateErrorResponse(
   }
 }
 
+/**
+ * Handle GET requests for a single project idea and return the idea if found.
+ *
+ * @param params - A Promise resolving to route parameters containing `"idea-id"` and `"project-id"` strings.
+ * @returns A Response whose JSON is `{ idea, ok: true }` on success; a 401 response `{ error: "Unauthorized" }` if the requester is not authenticated; or a 404 response `{ error: "Idea not found." }` if no idea exists for the given IDs.
+ */
 export async function GET(request: NextRequest, { params }: ProjectIdeaRouteProps) {
   const session = await getWorkOSSession(request);
 
@@ -62,6 +74,15 @@ export async function GET(request: NextRequest, { params }: ProjectIdeaRouteProp
   return Response.json({ idea, ok: true });
 }
 
+/**
+ * Handles PATCH requests to update a project idea within the workspace.
+ *
+ * Attempts to authenticate the request, validate the request body against the update schema, apply the update, and return the updated idea.
+ *
+ * @param request - The incoming NextRequest
+ * @param params - Route params (Promise) that resolve to an object containing `"idea-id"` and `"project-id"`
+ * @returns A Response containing `{ idea, ok: true }` on success; otherwise a Response with an error message and an appropriate HTTP status (400 for invalid JSON or payload/validation errors, 401 for unauthorized, 404 if the idea is not found).
+ */
 export async function PATCH(request: NextRequest, { params }: ProjectIdeaRouteProps) {
   const session = await getWorkOSSession(request);
 

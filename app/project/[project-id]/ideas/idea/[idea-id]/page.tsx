@@ -12,6 +12,14 @@ type IdeaPageProps = {
   }>;
 };
 
+/**
+ * Renders the Idea workspace page for a specific idea within a project.
+ *
+ * Loads the project context and the requested idea, triggers Next.js 404 behavior if the idea is not found, and returns the page UI that mounts `IdeaWorkspace` with a normalized `idea` object, the project id, and the project's roadmap items.
+ *
+ * @param params - A promise that resolves to route parameters containing `"idea-id"` and `"project-id"`.
+ * @returns The page's React element that renders the `IdeaWorkspace` for the requested idea.
+ */
 export default async function IdeaPage({ params }: IdeaPageProps) {
   const routeParams = await params;
   const { project, projectRoadmapItems, viewer } = await getProjectPageData(
