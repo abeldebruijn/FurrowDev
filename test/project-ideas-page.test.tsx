@@ -104,5 +104,6 @@ describe("ProjectIdeasPage", () => {
     expect(markup).toContain("v1.2 - Checkout");
     expect(markup).toContain("Checkout rethink");
     expect(markup).toContain("Riley");
+    expect(markup).toContain("/project/project-1/ideas/idea/idea-1");
   });
 });

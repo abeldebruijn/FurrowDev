@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
-import { IdeaSpecEditor } from "@/components/idea/idea-spec-editor";
-import { getIdeaById } from "@/lib/idea/server";
+import { IdeaWorkspace } from "@/components/idea/idea-workspace";
+import { getProjectIdeaById } from "@/lib/idea/server";
 
 import { getProjectPageData } from "../../../project-page-data";
 
@@ -12,24 +12,34 @@ type IdeaPageProps = {
   }>;
 };
 
-export default async function ProjectIdeaPage({ params }: IdeaPageProps) {
+export default async function IdeaPage({ params }: IdeaPageProps) {
   const routeParams = await params;
-  const { project, viewer } = await getProjectPageData(routeParams["project-id"]);
-  const idea = await getIdeaById(viewer.id, project.id, routeParams["idea-id"]);
+  const { project, projectRoadmapItems, viewer } = await getProjectPageData(
+    routeParams["project-id"],
+  );
+  const idea = await getProjectIdeaById(viewer.id, project.id, routeParams["idea-id"]);
 
   if (!idea) {
     notFound();
   }
 
   return (
-    <IdeaSpecEditor
-      context={idea.context}
-      ideaId={idea.id}
+    <IdeaWorkspace
+      idea={{
+        context: idea.context,
+        createdAt: idea.createdAt.toISOString(),
+        createdByName: idea.createdByName,
+        id: idea.id,
+        roadmapItemId: idea.roadmapItemId,
+        sourceVisionId: idea.sourceVisionId,
+        sourceVisionTitle: idea.sourceVisionTitle,
+        specSheet: idea.specSheet,
+        title: idea.title,
+        updatedAt: idea.updatedAt.toISOString(),
+        userStories: idea.userStories,
+      }}
       projectId={project.id}
-      sourceVisionTitle={idea.sourceVisionTitle}
-      specSheet={idea.specSheet}
-      title={idea.title}
-      userStories={idea.userStories}
+      roadmapItems={projectRoadmapItems}
     />
   );
 }

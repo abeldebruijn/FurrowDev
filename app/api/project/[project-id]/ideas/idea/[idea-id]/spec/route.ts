@@ -15,7 +15,15 @@ type IdeaSpecRouteProps = {
 const updateSchema = z
   .object({
     specSheet: z.string().trim().max(30000).optional(),
-    userStories: z.string().trim().max(30000).optional(),
+    userStories: z
+      .array(
+        z.object({
+          id: z.string().trim().min(1),
+          outcome: z.string().trim().min(1),
+          story: z.string().trim().min(1),
+        }),
+      )
+      .optional(),
   })
   .refine((value) => value.specSheet !== undefined || value.userStories !== undefined, {
     message: "Nothing to update",
@@ -30,9 +38,13 @@ const regenerateSchema = z
     message: "Nothing to regenerate",
   });
 
-function getErrorResponse(error: "invalid_update" | "not_found" | null) {
+function getErrorResponse(
+  error: "invalid_roadmap_item" | "invalid_update" | "invalid_user_stories" | "not_found" | null,
+) {
   switch (error) {
     case "invalid_update":
+    case "invalid_roadmap_item":
+    case "invalid_user_stories":
       return Response.json({ error: "Invalid idea update." }, { status: 400 });
     case "not_found":
       return Response.json({ error: "Idea not found." }, { status: 404 });

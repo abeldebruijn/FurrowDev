@@ -72,7 +72,13 @@ describe("idea spec route", () => {
       new Request("http://localhost/api/project/project-1/ideas/idea/idea-1/spec", {
         body: JSON.stringify({
           specSheet: "# Spec",
-          userStories: "- As a user",
+          userStories: [
+            {
+              id: "story-1",
+              outcome: "so that checkout is faster",
+              story: "As a buyer, I want fewer checkout steps",
+            },
+          ],
         }),
         headers: {
           "content-type": "application/json",
@@ -89,7 +95,13 @@ describe("idea spec route", () => {
 
     expect(updateIdeaDocuments).toHaveBeenCalledWith("viewer-1", "project-1", "idea-1", {
       specSheet: "# Spec",
-      userStories: "- As a user",
+      userStories: [
+        {
+          id: "story-1",
+          outcome: "so that checkout is faster",
+          story: "As a buyer, I want fewer checkout steps",
+        },
+      ],
     });
     expect(response.status).toBe(200);
   });
