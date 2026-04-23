@@ -19,6 +19,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { MarkdownContent } from "@/components/ui/markdown-content";
 import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
   Table,
   TableBody,
   TableCell,
@@ -295,9 +302,9 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
   const [subtaskDrafts, setSubtaskDrafts] = useState<Record<string, SubtaskDraft>>(() =>
     buildSubtaskDrafts(idea.tasks),
   );
-  const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newSubtaskTitles, setNewSubtaskTitles] = useState<Record<string, string>>({});
   const [taskError, setTaskError] = useState<string | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [isGenerateTasksOpen, setIsGenerateTasksOpen] = useState(false);
   const [taskGenerationPhase, setTaskGenerationPhase] = useState<TaskGenerationPhase>("idle");
   const [generatedTaskTitles, setGeneratedTaskTitles] = useState<GeneratedTaskTitle[]>([]);
@@ -328,6 +335,10 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
   );
   const visibleStories = showAllStories ? userStories : userStories.slice(0, 5);
   const hiddenStoryCount = userStories.length - visibleStories.length;
+  const selectedTask = useMemo(
+    () => tasks.find((task) => task.id === selectedTaskId) ?? null,
+    [selectedTaskId, tasks],
+  );
   const isGeneratingTasks =
     taskGenerationPhase === "generating_titles" ||
     taskGenerationPhase === "refining_titles" ||
@@ -680,19 +691,6 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
     }
   }
 
-  async function handleAddTask() {
-    const title = newTaskTitle.trim() || "Untitled task";
-
-    try {
-      await mutateTasks(`/api/project/${projectId}/ideas/idea/${idea.id}/tasks`, "POST", {
-        title,
-      });
-      setNewTaskTitle("");
-    } catch (error) {
-      setTaskError(error instanceof Error ? error.message : "Failed to create task.");
-    }
-  }
-
   async function handleSaveTask(task: IdeaTask) {
     const draft = taskDrafts[task.id];
 
@@ -722,32 +720,9 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
         `/api/project/${projectId}/ideas/idea/${idea.id}/tasks/${task.id}`,
         "DELETE",
       );
+      setSelectedTaskId(null);
     } catch (error) {
       setTaskError(error instanceof Error ? error.message : "Failed to delete task.");
-    }
-  }
-
-  async function handleMoveTask(taskIndex: number, direction: -1 | 1) {
-    const nextIndex = taskIndex + direction;
-    const reordered = [...tasks];
-    const currentTask = reordered[taskIndex];
-    const nextTask = reordered[nextIndex];
-
-    if (!currentTask || !nextTask) {
-      return;
-    }
-
-    reordered[taskIndex] = nextTask;
-    reordered[nextIndex] = currentTask;
-
-    const ids = reordered.map((task) => task.id);
-
-    try {
-      await mutateTasks(`/api/project/${projectId}/ideas/idea/${idea.id}/tasks/reorder`, "PATCH", {
-        ids,
-      });
-    } catch (error) {
-      setTaskError(error instanceof Error ? error.message : "Failed to reorder tasks.");
     }
   }
 
@@ -800,34 +775,6 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
       );
     } catch (error) {
       setTaskError(error instanceof Error ? error.message : "Failed to delete subtask.");
-    }
-  }
-
-  async function handleMoveSubtask(task: IdeaTask, subtaskIndex: number, direction: -1 | 1) {
-    const nextIndex = subtaskIndex + direction;
-    const reordered = [...task.subtasks];
-    const currentSubtask = reordered[subtaskIndex];
-    const nextSubtask = reordered[nextIndex];
-
-    if (!currentSubtask || !nextSubtask) {
-      return;
-    }
-
-    reordered[subtaskIndex] = nextSubtask;
-    reordered[nextIndex] = currentSubtask;
-
-    const ids = reordered.map((subtask) => subtask.id);
-
-    try {
-      await mutateTasks(
-        `/api/project/${projectId}/ideas/idea/${idea.id}/tasks/${task.id}/subtasks/reorder`,
-        "PATCH",
-        {
-          ids,
-        },
-      );
-    } catch (error) {
-      setTaskError(error instanceof Error ? error.message : "Failed to reorder subtasks.");
     }
   }
 
@@ -1259,286 +1206,342 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
             </DialogContent>
           </Dialog>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Input
-              onChange={(event) => setNewTaskTitle(event.target.value)}
-              placeholder="Task title"
-              value={newTaskTitle}
-            />
-            <Button onClick={handleAddTask} type="button" variant="outline">
-              Add task
-            </Button>
-          </div>
-
+        <CardContent className="flex flex-col gap-4">
           {tasks.length === 0 ? (
             <p className="text-sm text-muted-foreground">No tasks yet. Idea is not done.</p>
           ) : (
-            tasks.map((task, taskIndex) => {
-              const draft = taskDrafts[task.id];
-
-              return (
-                <div className="space-y-3 rounded-xl border p-3" key={task.id}>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-medium">{`Task ${taskIndex + 1}`}</p>
-                      <p className="text-xs text-muted-foreground">
+            <div className="overflow-hidden rounded-lg border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="h-9 px-3">Task</TableHead>
+                    <TableHead className="h-9 w-52 px-3">Depends on</TableHead>
+                    <TableHead className="h-9 w-28 px-3">Status</TableHead>
+                    <TableHead className="h-9 w-28 px-3 text-right">Subtasks</TableHead>
+                    <TableHead className="h-9 w-24 px-3 text-right">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {tasks.map((task) => (
+                    <TableRow key={task.id}>
+                      <TableCell className="p-3 align-middle">
+                        <p className="line-clamp-2 text-sm font-medium">{task.title}</p>
+                      </TableCell>
+                      <TableCell className="p-3 align-middle text-sm text-muted-foreground">
+                        <p className="line-clamp-2">
+                          {task.dependencies.length > 0
+                            ? task.dependencies.map((dependency) => dependency.title).join(", ")
+                            : "None"}
+                        </p>
+                      </TableCell>
+                      <TableCell className="p-3 align-middle text-sm text-muted-foreground">
                         {task.isDone ? "Done" : "Not done"}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        disabled={taskIndex === 0}
-                        onClick={() => handleMoveTask(taskIndex, -1)}
-                        size="sm"
-                        type="button"
-                        variant="outline"
-                      >
-                        Up
-                      </Button>
-                      <Button
-                        disabled={taskIndex === tasks.length - 1}
-                        onClick={() => handleMoveTask(taskIndex, 1)}
-                        size="sm"
-                        type="button"
-                        variant="outline"
-                      >
-                        Down
-                      </Button>
-                      <Button onClick={() => handleSaveTask(task)} size="sm" type="button">
-                        Save
-                      </Button>
-                      <Button
-                        onClick={() => handleDeleteTask(task)}
-                        size="sm"
-                        type="button"
-                        variant="outline"
-                      >
-                        Remove
-                      </Button>
-                    </div>
-                  </div>
-
-                  {draft ? (
-                    <div className="grid gap-2 md:grid-cols-2">
-                      <Input
-                        onChange={(event) =>
-                          setTaskDrafts((current) => ({
-                            ...current,
-                            [task.id]: { ...draft, title: event.target.value },
-                          }))
-                        }
-                        value={draft.title}
-                      />
-                      <select
-                        className="min-h-20 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring"
-                        multiple
-                        onChange={(event) =>
-                          setTaskDrafts((current) => ({
-                            ...current,
-                            [task.id]: {
-                              ...draft,
-                              dependencyIds: Array.from(event.target.selectedOptions).map(
-                                (option) => option.value,
-                              ),
-                            },
-                          }))
-                        }
-                        value={draft.dependencyIds}
-                      >
-                        {tasks
-                          .filter((candidate) => candidate.id !== task.id)
-                          .map((candidate) => (
-                            <option key={candidate.id} value={candidate.id}>
-                              {candidate.title}
-                            </option>
-                          ))}
-                      </select>
-                      <textarea
-                        className="min-h-20 rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:border-foreground"
-                        onChange={(event) =>
-                          setTaskDrafts((current) => ({
-                            ...current,
-                            [task.id]: { ...draft, description: event.target.value },
-                          }))
-                        }
-                        placeholder="Task description"
-                        value={draft.description}
-                      />
-                      <textarea
-                        className="min-h-20 rounded-xl border bg-background px-3 py-2 font-mono text-xs outline-none focus:border-foreground"
-                        onChange={(event) =>
-                          setTaskDrafts((current) => ({
-                            ...current,
-                            [task.id]: { ...draft, metadataText: event.target.value },
-                          }))
-                        }
-                        value={draft.metadataText}
-                      />
-                    </div>
-                  ) : null}
-
-                  <div className="space-y-3 border-t pt-3">
-                    <div className="flex flex-col gap-2 sm:flex-row">
-                      <Input
-                        onChange={(event) =>
-                          setNewSubtaskTitles((current) => ({
-                            ...current,
-                            [task.id]: event.target.value,
-                          }))
-                        }
-                        placeholder="SubTask title"
-                        value={newSubtaskTitles[task.id] ?? ""}
-                      />
-                      <Button
-                        onClick={() => handleAddSubtask(task)}
-                        type="button"
-                        variant="outline"
-                      >
-                        Add SubTask
-                      </Button>
-                    </div>
-
-                    {task.subtasks.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">
-                        No SubTasks yet. Task is not done.
-                      </p>
-                    ) : (
-                      task.subtasks.map((subtask, subtaskIndex) => {
-                        const subtaskDraft = subtaskDrafts[subtask.id];
-
-                        return (
-                          <div className="space-y-2 rounded-xl border p-3" key={subtask.id}>
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <label className="flex items-center gap-2 text-sm font-medium">
-                                <input
-                                  checked={subtaskDraft?.completed ?? false}
-                                  onChange={(event) =>
-                                    setSubtaskDrafts((current) => ({
-                                      ...current,
-                                      [subtask.id]: {
-                                        ...subtaskDraft!,
-                                        completed: event.target.checked,
-                                      },
-                                    }))
-                                  }
-                                  type="checkbox"
-                                />
-                                {`SubTask ${subtaskIndex + 1}`}
-                              </label>
-                              <div className="flex gap-2">
-                                <Button
-                                  disabled={subtaskIndex === 0}
-                                  onClick={() => handleMoveSubtask(task, subtaskIndex, -1)}
-                                  size="sm"
-                                  type="button"
-                                  variant="outline"
-                                >
-                                  Up
-                                </Button>
-                                <Button
-                                  disabled={subtaskIndex === task.subtasks.length - 1}
-                                  onClick={() => handleMoveSubtask(task, subtaskIndex, 1)}
-                                  size="sm"
-                                  type="button"
-                                  variant="outline"
-                                >
-                                  Down
-                                </Button>
-                                <Button
-                                  onClick={() => handleSaveSubtask(task, subtask)}
-                                  size="sm"
-                                  type="button"
-                                >
-                                  Save
-                                </Button>
-                                <Button
-                                  onClick={() => handleDeleteSubtask(task, subtask)}
-                                  size="sm"
-                                  type="button"
-                                  variant="outline"
-                                >
-                                  Remove
-                                </Button>
-                              </div>
-                            </div>
-
-                            {subtaskDraft ? (
-                              <div className="grid gap-2 md:grid-cols-2">
-                                <Input
-                                  onChange={(event) =>
-                                    setSubtaskDrafts((current) => ({
-                                      ...current,
-                                      [subtask.id]: {
-                                        ...subtaskDraft,
-                                        title: event.target.value,
-                                      },
-                                    }))
-                                  }
-                                  value={subtaskDraft.title}
-                                />
-                                <select
-                                  className="min-h-20 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring"
-                                  multiple
-                                  onChange={(event) =>
-                                    setSubtaskDrafts((current) => ({
-                                      ...current,
-                                      [subtask.id]: {
-                                        ...subtaskDraft,
-                                        dependencyIds: Array.from(event.target.selectedOptions).map(
-                                          (option) => option.value,
-                                        ),
-                                      },
-                                    }))
-                                  }
-                                  value={subtaskDraft.dependencyIds}
-                                >
-                                  {task.subtasks
-                                    .filter((candidate) => candidate.id !== subtask.id)
-                                    .map((candidate) => (
-                                      <option key={candidate.id} value={candidate.id}>
-                                        {candidate.title}
-                                      </option>
-                                    ))}
-                                </select>
-                                <textarea
-                                  className="min-h-20 rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:border-foreground"
-                                  onChange={(event) =>
-                                    setSubtaskDrafts((current) => ({
-                                      ...current,
-                                      [subtask.id]: {
-                                        ...subtaskDraft,
-                                        description: event.target.value,
-                                      },
-                                    }))
-                                  }
-                                  placeholder="SubTask description"
-                                  value={subtaskDraft.description}
-                                />
-                                <textarea
-                                  className="min-h-20 rounded-xl border bg-background px-3 py-2 font-mono text-xs outline-none focus:border-foreground"
-                                  onChange={(event) =>
-                                    setSubtaskDrafts((current) => ({
-                                      ...current,
-                                      [subtask.id]: {
-                                        ...subtaskDraft,
-                                        metadataText: event.target.value,
-                                      },
-                                    }))
-                                  }
-                                  value={subtaskDraft.metadataText}
-                                />
-                              </div>
-                            ) : null}
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-              );
-            })
+                      </TableCell>
+                      <TableCell className="p-3 text-right align-middle text-sm text-muted-foreground">
+                        {task.subtasks.length}
+                      </TableCell>
+                      <TableCell className="p-3 text-right align-middle">
+                        <Button onClick={() => setSelectedTaskId(task.id)} size="sm" type="button">
+                          View
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
+
+          <Sheet
+            onOpenChange={(open) => {
+              if (!open) {
+                setSelectedTaskId(null);
+              }
+            }}
+            open={Boolean(selectedTask)}
+          >
+            <SheetContent className="w-full overflow-y-auto sm:max-w-2xl">
+              {selectedTask ? (
+                <>
+                  <SheetHeader>
+                    <SheetTitle>{selectedTask.title}</SheetTitle>
+                    <SheetDescription>{selectedTask.isDone ? "Done" : "Not done"}</SheetDescription>
+                  </SheetHeader>
+
+                  <div className="flex flex-col gap-5 px-4 pb-4">
+                    {(() => {
+                      const draft = taskDrafts[selectedTask.id];
+
+                      return draft ? (
+                        <div className="flex flex-col gap-3">
+                          <div className="flex flex-col gap-2">
+                            <label
+                              className="text-xs font-medium text-muted-foreground"
+                              htmlFor={`task-title-${selectedTask.id}`}
+                            >
+                              Title
+                            </label>
+                            <Input
+                              id={`task-title-${selectedTask.id}`}
+                              onChange={(event) =>
+                                setTaskDrafts((current) => ({
+                                  ...current,
+                                  [selectedTask.id]: { ...draft, title: event.target.value },
+                                }))
+                              }
+                              value={draft.title}
+                            />
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            <label
+                              className="text-xs font-medium text-muted-foreground"
+                              htmlFor={`task-dependencies-${selectedTask.id}`}
+                            >
+                              Dependencies
+                            </label>
+                            <select
+                              className="min-h-20 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring"
+                              id={`task-dependencies-${selectedTask.id}`}
+                              multiple
+                              onChange={(event) =>
+                                setTaskDrafts((current) => ({
+                                  ...current,
+                                  [selectedTask.id]: {
+                                    ...draft,
+                                    dependencyIds: Array.from(event.target.selectedOptions).map(
+                                      (option) => option.value,
+                                    ),
+                                  },
+                                }))
+                              }
+                              value={draft.dependencyIds}
+                            >
+                              {tasks
+                                .filter((candidate) => candidate.id !== selectedTask.id)
+                                .map((candidate) => (
+                                  <option key={candidate.id} value={candidate.id}>
+                                    {candidate.title}
+                                  </option>
+                                ))}
+                            </select>
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            <label
+                              className="text-xs font-medium text-muted-foreground"
+                              htmlFor={`task-description-${selectedTask.id}`}
+                            >
+                              Description
+                            </label>
+                            <textarea
+                              className="min-h-24 rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:border-foreground"
+                              id={`task-description-${selectedTask.id}`}
+                              onChange={(event) =>
+                                setTaskDrafts((current) => ({
+                                  ...current,
+                                  [selectedTask.id]: { ...draft, description: event.target.value },
+                                }))
+                              }
+                              value={draft.description}
+                            />
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            <label
+                              className="text-xs font-medium text-muted-foreground"
+                              htmlFor={`task-metadata-${selectedTask.id}`}
+                            >
+                              Metadata
+                            </label>
+                            <textarea
+                              className="min-h-24 rounded-xl border bg-background px-3 py-2 font-mono text-xs outline-none focus:border-foreground"
+                              id={`task-metadata-${selectedTask.id}`}
+                              onChange={(event) =>
+                                setTaskDrafts((current) => ({
+                                  ...current,
+                                  [selectedTask.id]: {
+                                    ...draft,
+                                    metadataText: event.target.value,
+                                  },
+                                }))
+                              }
+                              value={draft.metadataText}
+                            />
+                          </div>
+                          <div className="flex flex-wrap justify-end gap-2">
+                            <Button onClick={() => handleSaveTask(selectedTask)} type="button">
+                              Save task
+                            </Button>
+                            <Button
+                              onClick={() => handleDeleteTask(selectedTask)}
+                              type="button"
+                              variant="outline"
+                            >
+                              Remove task
+                            </Button>
+                          </div>
+                        </div>
+                      ) : null;
+                    })()}
+
+                    <div className="flex flex-col gap-3 border-t pt-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <h3 className="text-sm font-medium">Subtasks</h3>
+                        <span className="text-xs text-muted-foreground">
+                          {`${selectedTask.subtasks.filter((subtask) => subtask.isDone).length} of ${
+                            selectedTask.subtasks.length
+                          } done`}
+                        </span>
+                      </div>
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <Input
+                          onChange={(event) =>
+                            setNewSubtaskTitles((current) => ({
+                              ...current,
+                              [selectedTask.id]: event.target.value,
+                            }))
+                          }
+                          placeholder="Subtask title"
+                          value={newSubtaskTitles[selectedTask.id] ?? ""}
+                        />
+                        <Button
+                          onClick={() => handleAddSubtask(selectedTask)}
+                          type="button"
+                          variant="outline"
+                        >
+                          Add subtask
+                        </Button>
+                      </div>
+
+                      {selectedTask.subtasks.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">
+                          No subtasks yet. Task is not done.
+                        </p>
+                      ) : (
+                        selectedTask.subtasks.map((subtask) => {
+                          const subtaskDraft = subtaskDrafts[subtask.id];
+
+                          return (
+                            <div
+                              className="flex flex-col gap-3 rounded-xl border p-3"
+                              key={subtask.id}
+                            >
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <label className="flex items-center gap-2 text-sm font-medium">
+                                  <input
+                                    checked={subtaskDraft?.completed ?? false}
+                                    onChange={(event) =>
+                                      setSubtaskDrafts((current) => ({
+                                        ...current,
+                                        [subtask.id]: {
+                                          ...subtaskDraft!,
+                                          completed: event.target.checked,
+                                        },
+                                      }))
+                                    }
+                                    type="checkbox"
+                                  />
+                                  {subtask.title}
+                                </label>
+                                <div className="flex gap-2">
+                                  <Button
+                                    onClick={() => handleSaveSubtask(selectedTask, subtask)}
+                                    size="sm"
+                                    type="button"
+                                  >
+                                    Save
+                                  </Button>
+                                  <Button
+                                    onClick={() => handleDeleteSubtask(selectedTask, subtask)}
+                                    size="sm"
+                                    type="button"
+                                    variant="outline"
+                                  >
+                                    Remove
+                                  </Button>
+                                </div>
+                              </div>
+
+                              {subtaskDraft ? (
+                                <div className="grid gap-2 md:grid-cols-2">
+                                  <Input
+                                    onChange={(event) =>
+                                      setSubtaskDrafts((current) => ({
+                                        ...current,
+                                        [subtask.id]: {
+                                          ...subtaskDraft,
+                                          title: event.target.value,
+                                        },
+                                      }))
+                                    }
+                                    value={subtaskDraft.title}
+                                  />
+                                  <select
+                                    className="min-h-20 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring"
+                                    multiple
+                                    onChange={(event) =>
+                                      setSubtaskDrafts((current) => ({
+                                        ...current,
+                                        [subtask.id]: {
+                                          ...subtaskDraft,
+                                          dependencyIds: Array.from(
+                                            event.target.selectedOptions,
+                                          ).map((option) => option.value),
+                                        },
+                                      }))
+                                    }
+                                    value={subtaskDraft.dependencyIds}
+                                  >
+                                    {selectedTask.subtasks
+                                      .filter((candidate) => candidate.id !== subtask.id)
+                                      .map((candidate) => (
+                                        <option key={candidate.id} value={candidate.id}>
+                                          {candidate.title}
+                                        </option>
+                                      ))}
+                                  </select>
+                                  <textarea
+                                    className="min-h-20 rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:border-foreground"
+                                    onChange={(event) =>
+                                      setSubtaskDrafts((current) => ({
+                                        ...current,
+                                        [subtask.id]: {
+                                          ...subtaskDraft,
+                                          description: event.target.value,
+                                        },
+                                      }))
+                                    }
+                                    placeholder="Subtask description"
+                                    value={subtaskDraft.description}
+                                  />
+                                  <textarea
+                                    className="min-h-20 rounded-xl border bg-background px-3 py-2 font-mono text-xs outline-none focus:border-foreground"
+                                    onChange={(event) =>
+                                      setSubtaskDrafts((current) => ({
+                                        ...current,
+                                        [subtask.id]: {
+                                          ...subtaskDraft,
+                                          metadataText: event.target.value,
+                                        },
+                                      }))
+                                    }
+                                    value={subtaskDraft.metadataText}
+                                  />
+                                </div>
+                              ) : null}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <SheetHeader>
+                  <SheetTitle>Task details</SheetTitle>
+                  <SheetDescription>Select a task to view details.</SheetDescription>
+                </SheetHeader>
+              )}
+            </SheetContent>
+          </Sheet>
         </CardContent>
       </Card>
 

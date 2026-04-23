@@ -57,6 +57,14 @@ vi.mock("@/components/ui/markdown-content", () => ({
   MarkdownContent: ({ text }: { text: string }) => <div>{text}</div>,
 }));
 
+vi.mock("@/components/ui/sheet", () => ({
+  Sheet: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  SheetContent: ({ children }: { children: React.ReactNode }) => <aside>{children}</aside>,
+  SheetDescription: ({ children }: { children: React.ReactNode }) => <p>{children}</p>,
+  SheetHeader: ({ children }: { children: React.ReactNode }) => <header>{children}</header>,
+  SheetTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>,
+}));
+
 vi.mock("@/components/ui/table", () => ({
   Table: ({ children }: { children: React.ReactNode }) => <table>{children}</table>,
   TableBody: ({ children }: { children: React.ReactNode }) => <tbody>{children}</tbody>,
@@ -112,7 +120,7 @@ describe("IdeaWorkspace", () => {
           tasks: [
             {
               createdAt: "2026-04-15T10:00:00.000Z",
-              dependencies: [],
+              dependencies: [{ id: "task-0", title: "Plan API" }],
               description: "Build the API.",
               id: "task-1",
               ideaId: "idea-1",
@@ -144,8 +152,12 @@ describe("IdeaWorkspace", () => {
       />,
     );
 
-    expect(markup).toContain("Task 1");
-    expect(markup).toContain("SubTask 1");
+    expect(markup).toContain("Build API");
+    expect(markup).toContain("Depends on");
+    expect(markup).toContain("Plan API");
+    expect(markup).toContain("View");
+    expect(markup).not.toContain("SubTask 1");
+    expect(markup).not.toContain("Add task");
     expect(markup).toContain("Generate tasks");
   });
 });
