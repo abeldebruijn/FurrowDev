@@ -1,0 +1,1753 @@
+{
+  "id": "d8760355-eac6-41fc-bdf8-f68b9b30546b",
+  "prevId": "f3e5e469-a5ed-4f20-bc9c-9e4357c28c08",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.admins": {
+      "name": "admins",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "admins_user_id_users_id_fk": {
+          "name": "admins_user_id_users_id_fk",
+          "tableFrom": "admins",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "admins_project_id_project_id_fk": {
+          "name": "admins_project_id_project_id_fk",
+          "tableFrom": "admins",
+          "tableTo": "project",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "admins_user_id_project_id_pk": {
+          "name": "admins_user_id_project_id_pk",
+          "columns": [
+            "user_id",
+            "project_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.concept_project_chat_message": {
+      "name": "concept_project_chat_message",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "message": {
+          "name": "message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "order": {
+          "name": "order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "concept_project_chat_message_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stage": {
+          "name": "stage",
+          "type": "concept_project_stage",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'what'"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "concept_project_chat_id": {
+          "name": "concept_project_chat_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "concept_project_chat_message_order_unique": {
+          "name": "concept_project_chat_message_order_unique",
+          "columns": [
+            {
+              "expression": "concept_project_chat_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "order",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "concept_project_chat_message_user_id_users_id_fk": {
+          "name": "concept_project_chat_message_user_id_users_id_fk",
+          "tableFrom": "concept_project_chat_message",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "concept_project_chat_message_concept_project_chat_id_concept_project_chat_id_fk": {
+          "name": "concept_project_chat_message_concept_project_chat_id_concept_project_chat_id_fk",
+          "tableFrom": "concept_project_chat_message",
+          "tableTo": "concept_project_chat",
+          "columnsFrom": [
+            "concept_project_chat_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.concept_project_chat": {
+      "name": "concept_project_chat",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "concept_project_id": {
+          "name": "concept_project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "concept_project_chat_concept_project_id_concept_project_id_fk": {
+          "name": "concept_project_chat_concept_project_id_concept_project_id_fk",
+          "tableFrom": "concept_project_chat",
+          "tableTo": "concept_project",
+          "columnsFrom": [
+            "concept_project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "concept_project_chat_concept_project_id_unique": {
+          "name": "concept_project_chat_concept_project_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "concept_project_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.concept_project": {
+      "name": "concept_project",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "current_stage": {
+          "name": "current_stage",
+          "type": "concept_project_stage",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'what'"
+        },
+        "what_summary": {
+          "name": "what_summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "for_whom_summary": {
+          "name": "for_whom_summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "how_summary": {
+          "name": "how_summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "setup_summary": {
+          "name": "setup_summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "understood_what_at": {
+          "name": "understood_what_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "understood_for_whom_at": {
+          "name": "understood_for_whom_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "understood_how_at": {
+          "name": "understood_how_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "understood_setup_at": {
+          "name": "understood_setup_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "roadmap_id": {
+          "name": "roadmap_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_owner": {
+          "name": "user_owner",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "org_owner": {
+          "name": "org_owner",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "concept_project_user_owner_name_unique": {
+          "name": "concept_project_user_owner_name_unique",
+          "columns": [
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "user_owner",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"concept_project\".\"name\" is not null and \"concept_project\".\"user_owner\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "concept_project_org_owner_name_unique": {
+          "name": "concept_project_org_owner_name_unique",
+          "columns": [
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "org_owner",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"concept_project\".\"name\" is not null and \"concept_project\".\"org_owner\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "concept_project_roadmap_id_roadmap_id_fk": {
+          "name": "concept_project_roadmap_id_roadmap_id_fk",
+          "tableFrom": "concept_project",
+          "tableTo": "roadmap",
+          "columnsFrom": [
+            "roadmap_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "concept_project_user_owner_users_id_fk": {
+          "name": "concept_project_user_owner_users_id_fk",
+          "tableFrom": "concept_project",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_owner"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "concept_project_org_owner_organisation_id_fk": {
+          "name": "concept_project_org_owner_organisation_id_fk",
+          "tableFrom": "concept_project",
+          "tableTo": "organisation",
+          "columnsFrom": [
+            "org_owner"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "concept_project_exactly_one_owner": {
+          "name": "concept_project_exactly_one_owner",
+          "value": "(case when \"concept_project\".\"user_owner\" is null then 0 else 1 end) + (case when \"concept_project\".\"org_owner\" is null then 0 else 1 end) = 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.idea_subtask_dependency": {
+      "name": "idea_subtask_dependency",
+      "schema": "",
+      "columns": {
+        "subtask_id": {
+          "name": "subtask_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "depends_on_subtask_id": {
+          "name": "depends_on_subtask_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "idea_subtask_dependency_subtask_id_idea_subtask_id_fk": {
+          "name": "idea_subtask_dependency_subtask_id_idea_subtask_id_fk",
+          "tableFrom": "idea_subtask_dependency",
+          "tableTo": "idea_subtask",
+          "columnsFrom": [
+            "subtask_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "idea_subtask_dependency_depends_on_subtask_id_idea_subtask_id_fk": {
+          "name": "idea_subtask_dependency_depends_on_subtask_id_idea_subtask_id_fk",
+          "tableFrom": "idea_subtask_dependency",
+          "tableTo": "idea_subtask",
+          "columnsFrom": [
+            "depends_on_subtask_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "idea_subtask_dependency_subtask_id_depends_on_subtask_id_pk": {
+          "name": "idea_subtask_dependency_subtask_id_depends_on_subtask_id_pk",
+          "columns": [
+            "subtask_id",
+            "depends_on_subtask_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "idea_subtask_dependency_no_self": {
+          "name": "idea_subtask_dependency_no_self",
+          "value": "\"idea_subtask_dependency\".\"subtask_id\" <> \"idea_subtask_dependency\".\"depends_on_subtask_id\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.idea_subtask": {
+      "name": "idea_subtask",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "task_id": {
+          "name": "task_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "idea_subtask_task_id_idea_task_id_fk": {
+          "name": "idea_subtask_task_id_idea_task_id_fk",
+          "tableFrom": "idea_subtask",
+          "tableTo": "idea_task",
+          "columnsFrom": [
+            "task_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.idea_task_dependency": {
+      "name": "idea_task_dependency",
+      "schema": "",
+      "columns": {
+        "task_id": {
+          "name": "task_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "depends_on_task_id": {
+          "name": "depends_on_task_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "idea_task_dependency_task_id_idea_task_id_fk": {
+          "name": "idea_task_dependency_task_id_idea_task_id_fk",
+          "tableFrom": "idea_task_dependency",
+          "tableTo": "idea_task",
+          "columnsFrom": [
+            "task_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "idea_task_dependency_depends_on_task_id_idea_task_id_fk": {
+          "name": "idea_task_dependency_depends_on_task_id_idea_task_id_fk",
+          "tableFrom": "idea_task_dependency",
+          "tableTo": "idea_task",
+          "columnsFrom": [
+            "depends_on_task_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "idea_task_dependency_task_id_depends_on_task_id_pk": {
+          "name": "idea_task_dependency_task_id_depends_on_task_id_pk",
+          "columns": [
+            "task_id",
+            "depends_on_task_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "idea_task_dependency_no_self": {
+          "name": "idea_task_dependency_no_self",
+          "value": "\"idea_task_dependency\".\"task_id\" <> \"idea_task_dependency\".\"depends_on_task_id\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.idea_task": {
+      "name": "idea_task",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "idea_id": {
+          "name": "idea_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "idea_task_idea_id_idea_id_fk": {
+          "name": "idea_task_idea_id_idea_id_fk",
+          "tableFrom": "idea_task",
+          "tableTo": "idea",
+          "columnsFrom": [
+            "idea_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.idea": {
+      "name": "idea",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_vision_id": {
+          "name": "source_vision_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "roadmap_item_id": {
+          "name": "roadmap_item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "context": {
+          "name": "context",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "spec_sheet": {
+          "name": "spec_sheet",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "user_stories": {
+          "name": "user_stories",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "created_by_user_id": {
+          "name": "created_by_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "idea_project_id_project_id_fk": {
+          "name": "idea_project_id_project_id_fk",
+          "tableFrom": "idea",
+          "tableTo": "project",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "idea_source_vision_id_vision_id_fk": {
+          "name": "idea_source_vision_id_vision_id_fk",
+          "tableFrom": "idea",
+          "tableTo": "vision",
+          "columnsFrom": [
+            "source_vision_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "idea_roadmap_item_id_roadmap_item_id_fk": {
+          "name": "idea_roadmap_item_id_roadmap_item_id_fk",
+          "tableFrom": "idea",
+          "tableTo": "roadmap_item",
+          "columnsFrom": [
+            "roadmap_item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "idea_created_by_user_id_users_id_fk": {
+          "name": "idea_created_by_user_id_users_id_fk",
+          "tableFrom": "idea",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "idea_source_vision_id_unique": {
+          "name": "idea_source_vision_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "source_vision_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.maintainers": {
+      "name": "maintainers",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "maintainers_user_id_users_id_fk": {
+          "name": "maintainers_user_id_users_id_fk",
+          "tableFrom": "maintainers",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "maintainers_project_id_project_id_fk": {
+          "name": "maintainers_project_id_project_id_fk",
+          "tableFrom": "maintainers",
+          "tableTo": "project",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "maintainers_user_id_project_id_pk": {
+          "name": "maintainers_user_id_project_id_pk",
+          "columns": [
+            "user_id",
+            "project_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.organisation": {
+      "name": "organisation",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "owner_id": {
+          "name": "owner_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "organisation_owner_id_users_id_fk": {
+          "name": "organisation_owner_id_users_id_fk",
+          "tableFrom": "organisation",
+          "tableTo": "users",
+          "columnsFrom": [
+            "owner_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.project_widget_layout": {
+      "name": "project_widget_layout",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "large_layout": {
+          "name": "large_layout",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "medium_layout": {
+          "name": "medium_layout",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "medium_auto_layout": {
+          "name": "medium_auto_layout",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "small_layout": {
+          "name": "small_layout",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "small_auto_layout": {
+          "name": "small_auto_layout",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.project": {
+      "name": "project",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ubiquitous_language_markdown": {
+          "name": "ubiquitous_language_markdown",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "roadmap_id": {
+          "name": "roadmap_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "widget_layout_id": {
+          "name": "widget_layout_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "concept_project_id": {
+          "name": "concept_project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_owner": {
+          "name": "user_owner",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "org_owner": {
+          "name": "org_owner",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "project_concept_project_unique": {
+          "name": "project_concept_project_unique",
+          "columns": [
+            {
+              "expression": "concept_project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"project\".\"concept_project_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "project_widget_layout_unique": {
+          "name": "project_widget_layout_unique",
+          "columns": [
+            {
+              "expression": "widget_layout_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"project\".\"widget_layout_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "project_roadmap_id_roadmap_id_fk": {
+          "name": "project_roadmap_id_roadmap_id_fk",
+          "tableFrom": "project",
+          "tableTo": "roadmap",
+          "columnsFrom": [
+            "roadmap_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "project_widget_layout_id_project_widget_layout_id_fk": {
+          "name": "project_widget_layout_id_project_widget_layout_id_fk",
+          "tableFrom": "project",
+          "tableTo": "project_widget_layout",
+          "columnsFrom": [
+            "widget_layout_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "project_concept_project_id_concept_project_id_fk": {
+          "name": "project_concept_project_id_concept_project_id_fk",
+          "tableFrom": "project",
+          "tableTo": "concept_project",
+          "columnsFrom": [
+            "concept_project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "project_user_owner_users_id_fk": {
+          "name": "project_user_owner_users_id_fk",
+          "tableFrom": "project",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_owner"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "project_org_owner_organisation_id_fk": {
+          "name": "project_org_owner_organisation_id_fk",
+          "tableFrom": "project",
+          "tableTo": "organisation",
+          "columnsFrom": [
+            "org_owner"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "project_exactly_one_owner": {
+          "name": "project_exactly_one_owner",
+          "value": "(case when \"project\".\"user_owner\" is null then 0 else 1 end) + (case when \"project\".\"org_owner\" is null then 0 else 1 end) = 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.roadmap_item": {
+      "name": "roadmap_item",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "roadmap_id": {
+          "name": "roadmap_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "parent_id": {
+          "name": "parent_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "major_version": {
+          "name": "major_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "minor_version": {
+          "name": "minor_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "roadmap_item_roadmap_id_roadmap_id_fk": {
+          "name": "roadmap_item_roadmap_id_roadmap_id_fk",
+          "tableFrom": "roadmap_item",
+          "tableTo": "roadmap",
+          "columnsFrom": [
+            "roadmap_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "roadmap_item_parent_id_roadmap_item_id_fk": {
+          "name": "roadmap_item_parent_id_roadmap_item_id_fk",
+          "tableFrom": "roadmap_item",
+          "tableTo": "roadmap_item",
+          "columnsFrom": [
+            "parent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.roadmap": {
+      "name": "roadmap",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "root_roadmap_id": {
+          "name": "root_roadmap_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "embed_url": {
+          "name": "embed_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "current_major": {
+          "name": "current_major",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "current_minor": {
+          "name": "current_minor",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "roadmap_root_roadmap_id_roadmap_id_fk": {
+          "name": "roadmap_root_roadmap_id_roadmap_id_fk",
+          "tableFrom": "roadmap",
+          "tableTo": "roadmap",
+          "columnsFrom": [
+            "root_roadmap_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "workos_user_id": {
+          "name": "workos_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "users_workos_user_id_unique": {
+          "name": "users_workos_user_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "workos_user_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.vision_collaborator": {
+      "name": "vision_collaborator",
+      "schema": "",
+      "columns": {
+        "vision_id": {
+          "name": "vision_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "added_by_user_id": {
+          "name": "added_by_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "vision_collaborator_vision_id_vision_id_fk": {
+          "name": "vision_collaborator_vision_id_vision_id_fk",
+          "tableFrom": "vision_collaborator",
+          "tableTo": "vision",
+          "columnsFrom": [
+            "vision_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "vision_collaborator_user_id_users_id_fk": {
+          "name": "vision_collaborator_user_id_users_id_fk",
+          "tableFrom": "vision_collaborator",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "vision_collaborator_added_by_user_id_users_id_fk": {
+          "name": "vision_collaborator_added_by_user_id_users_id_fk",
+          "tableFrom": "vision_collaborator",
+          "tableTo": "users",
+          "columnsFrom": [
+            "added_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "vision_collaborator_vision_id_user_id_pk": {
+          "name": "vision_collaborator_vision_id_user_id_pk",
+          "columns": [
+            "vision_id",
+            "user_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.vision_message": {
+      "name": "vision_message",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "vision_id": {
+          "name": "vision_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "vision_message_role",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content": {
+          "name": "content",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "order": {
+          "name": "order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "author_user_id": {
+          "name": "author_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "vision_message_order_unique": {
+          "name": "vision_message_order_unique",
+          "columns": [
+            {
+              "expression": "vision_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "order",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "vision_message_vision_id_vision_id_fk": {
+          "name": "vision_message_vision_id_vision_id_fk",
+          "tableFrom": "vision_message",
+          "tableTo": "vision",
+          "columnsFrom": [
+            "vision_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "vision_message_author_user_id_users_id_fk": {
+          "name": "vision_message_author_user_id_users_id_fk",
+          "tableFrom": "vision_message",
+          "tableTo": "users",
+          "columnsFrom": [
+            "author_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.vision_summary_document": {
+      "name": "vision_summary_document",
+      "schema": "",
+      "columns": {
+        "vision_id": {
+          "name": "vision_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "content": {
+          "name": "content",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "vision_summary_document_vision_id_vision_id_fk": {
+          "name": "vision_summary_document_vision_id_vision_id_fk",
+          "tableFrom": "vision_summary_document",
+          "tableTo": "vision",
+          "columnsFrom": [
+            "vision_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.vision": {
+      "name": "vision",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "owner_user_id": {
+          "name": "owner_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'Untitled vision'"
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "vision_project_id_project_id_fk": {
+          "name": "vision_project_id_project_id_fk",
+          "tableFrom": "vision",
+          "tableTo": "project",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "vision_owner_user_id_users_id_fk": {
+          "name": "vision_owner_user_id_users_id_fk",
+          "tableFrom": "vision",
+          "tableTo": "users",
+          "columnsFrom": [
+            "owner_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.concept_project_chat_message_type": {
+      "name": "concept_project_chat_message_type",
+      "schema": "public",
+      "values": [
+        "agent",
+        "person"
+      ]
+    },
+    "public.concept_project_stage": {
+      "name": "concept_project_stage",
+      "schema": "public",
+      "values": [
+        "what",
+        "for_whom",
+        "how",
+        "setup",
+        "grill_me"
+      ]
+    },
+    "public.vision_message_role": {
+      "name": "vision_message_role",
+      "schema": "public",
+      "values": [
+        "assistant",
+        "user"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
