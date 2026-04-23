@@ -6,8 +6,26 @@ import { useRouter } from "next/navigation";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { MarkdownContent } from "@/components/ui/markdown-content";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { VisionUpdatedAt } from "@/app/project/[project-id]/ideas/vision-updated-at";
@@ -234,6 +252,7 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
   const [roadmapItemId, setRoadmapItemId] = useState(idea.roadmapItemId ?? "");
   const [specSheet, setSpecSheet] = useState(idea.specSheet);
   const [userStories, setUserStories] = useState<IdeaStory[]>(idea.userStories);
+  const [showAllStories, setShowAllStories] = useState(false);
   const [ideaDone, setIdeaDone] = useState(idea.isDone);
   const [tasks, setTasks] = useState<IdeaTask[]>(idea.tasks);
   const [taskDrafts, setTaskDrafts] = useState<Record<string, TaskDraft>>(() =>
@@ -266,6 +285,8 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
     () => Object.keys(buildPatch(currentSnapshot, lastSavedSnapshot)).length > 0,
     [currentSnapshot, lastSavedSnapshot],
   );
+  const visibleStories = showAllStories ? userStories : userStories.slice(0, 5);
+  const hiddenStoryCount = userStories.length - visibleStories.length;
 
   useEffect(() => {
     return () => {
@@ -286,6 +307,7 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
   }
 
   function addStory() {
+    setShowAllStories(true);
     setUserStories((current) => [
       ...current,
       {
@@ -666,55 +688,151 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
         </div>
       </Tabs>
 
-      <div>
-        <div className="mb-2">Spec Sheet</div>
-        <textarea
-          className="min-h-48 w-full rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:border-foreground"
-          onChange={(event) => setSpecSheet(event.target.value)}
-          value={specSheet}
-        />
-      </div>
+      <Tabs className="w-full" defaultValue="text">
+        <div className="flex flex-row items-end justify-between gap-3">
+          <div>Spec Sheet</div>
+          <TabsList>
+            <TabsTrigger value="text">Text</TabsTrigger>
+            <TabsTrigger value="preview">Preview</TabsTrigger>
+          </TabsList>
+        </div>
+        <div>
+          <TabsContent value="text">
+            <textarea
+              className="min-h-48 w-full rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:border-foreground"
+              onChange={(event) => setSpecSheet(event.target.value)}
+              placeholder="Write the spec sheet in markdown."
+              value={specSheet}
+            />
+          </TabsContent>
+          <TabsContent value="preview">
+            <div className="min-h-20 rounded-xl border bg-muted/30 px-3 py-2">
+              <MarkdownContent className="flex flex-col gap-3 text-sm" text={specSheet} />
+            </div>
+          </TabsContent>
+        </div>
+      </Tabs>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>User Stories</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <div>
+        <div className="mb-2">User Stories</div>
+        <div className="space-y-3">
           {userStories.length === 0 ? (
             <p className="text-sm text-muted-foreground">No user stories yet.</p>
           ) : (
-            userStories.map((story, index) => (
-              <div className="space-y-2 rounded-xl border p-3" key={story.id}>
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-medium">{`Story ${index + 1}`}</p>
-                  <Button
-                    onClick={() => removeStory(story.id)}
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    Remove
-                  </Button>
-                </div>
-                <Input
-                  onChange={(event) => updateStory(story.id, { story: event.target.value })}
-                  placeholder="As a user, I want..."
-                  value={story.story}
-                />
-                <textarea
-                  className="min-h-24 w-full rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:border-foreground"
-                  onChange={(event) => updateStory(story.id, { outcome: event.target.value })}
-                  placeholder="So that..."
-                  value={story.outcome}
-                />
-              </div>
-            ))
+            <div className="overflow-x-auto rounded-lg border">
+              <Table className="min-w-[680px] table-fixed">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="h-9 px-2">User story</TableHead>
+                    <TableHead className="h-9 px-2">Outcome</TableHead>
+                    <TableHead className="h-9 w-24 px-2 text-right">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {visibleStories.map((story) => (
+                    <TableRow key={story.id}>
+                      <TableCell className="p-2 align-top">
+                        <p className="line-clamp-4 text-sm">
+                          {story.story || "No user story provided."}
+                        </p>
+                      </TableCell>
+                      <TableCell className="p-2 align-top">
+                        <p className="line-clamp-4 text-sm">
+                          {story.outcome || "No outcome provided."}
+                        </p>
+                      </TableCell>
+                      <TableCell className="p-2 align-top">
+                        <div className="flex flex-col gap-2">
+                          <Dialog>
+                            <DialogTrigger render={<Button size="sm" type="button" />}>
+                              View
+                            </DialogTrigger>
+                            <DialogContent className="max-w-2xl!">
+                              <DialogHeader>
+                                <DialogTitle>User story details</DialogTitle>
+                                <DialogDescription>
+                                  Edit the full story text. Changes autosave with the idea
+                                  workspace.
+                                </DialogDescription>
+                              </DialogHeader>
+                              <div className="flex flex-col gap-4">
+                                <div className="flex flex-col gap-2">
+                                  <label
+                                    className="text-sm font-medium"
+                                    htmlFor={`${story.id}-story`}
+                                  >
+                                    User story
+                                  </label>
+                                  <textarea
+                                    className="min-h-36 w-full resize-y rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:border-foreground"
+                                    id={`${story.id}-story`}
+                                    onChange={(event) =>
+                                      updateStory(story.id, { story: event.target.value })
+                                    }
+                                    placeholder="As a user, I want..."
+                                    value={story.story}
+                                  />
+                                </div>
+                                <div className="flex flex-col gap-2">
+                                  <label
+                                    className="text-sm font-medium"
+                                    htmlFor={`${story.id}-outcome`}
+                                  >
+                                    Outcome
+                                  </label>
+                                  <textarea
+                                    className="min-h-36 w-full resize-y rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:border-foreground"
+                                    id={`${story.id}-outcome`}
+                                    onChange={(event) =>
+                                      updateStory(story.id, { outcome: event.target.value })
+                                    }
+                                    placeholder="So that..."
+                                    value={story.outcome}
+                                  />
+                                </div>
+                              </div>
+                              <DialogFooter>
+                                <DialogClose render={<Button type="button" variant="outline" />}>
+                                  Close
+                                </DialogClose>
+                                <Button disabled={isSaving} onClick={handleSave} type="button">
+                                  {isSaving ? "Saving..." : "Save changes"}
+                                </Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
+                          <Button
+                            onClick={() => removeStory(story.id)}
+                            size="sm"
+                            type="button"
+                            variant="outline"
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
-          <Button onClick={addStory} type="button" variant="outline">
-            Add story
-          </Button>
-        </CardContent>
-      </Card>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button onClick={addStory} type="button" variant="outline">
+              Add story
+            </Button>
+            {userStories.length > 5 ? (
+              <Button
+                onClick={() => setShowAllStories((current) => !current)}
+                type="button"
+                variant="outline"
+              >
+                {showAllStories ? "Show first five" : `Show ${hiddenStoryCount} more`}
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      </div>
 
       <Card>
         <CardHeader>
