@@ -37,6 +37,16 @@ function getRoadmapLabel(idea: {
   return `v${idea.roadmapItemMajorVersion}.${idea.roadmapItemMinorVersion} - ${idea.roadmapItemName}`;
 }
 
+/**
+ * Render the project ideas page for a given project.
+ *
+ * Fetches project and viewer context and displays a header with a "New vision" action.
+ * If there are no ideas, shows an empty-state card; otherwise shows a table of ideas with
+ * roadmap label, source vision, creator, creation date, and an "Open" action for each idea.
+ *
+ * @param params - A promise that resolves to route parameters containing the `"project-id"` key
+ * @returns The page's React element displaying the project ideas list or the empty-state card
+ */
 export default async function ProjectIdeasPage({ params }: ProjectIdeasPageProps) {
   const routeParams = await params;
   const { project, viewer } = await getProjectPageData(routeParams["project-id"]);

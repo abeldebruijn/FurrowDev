@@ -58,12 +58,25 @@ type UpdateProjectIdeaWorkspaceError =
   | "not_found"
   | null;
 
+/**
+ * Return the trimmed `title` when it contains non-whitespace characters, otherwise use `fallback`.
+ *
+ * @param title - The candidate title which may be `undefined` or contain surrounding whitespace.
+ * @param fallback - The value to return when `title` is missing or empty after trimming.
+ * @returns The trimmed `title` if it contains at least one character after trimming, otherwise `fallback`.
+ */
 function normalizeIdeaTitle(title: string | undefined, fallback: string) {
   const trimmedTitle = title?.trim();
 
   return trimmedTitle && trimmedTitle.length > 0 ? trimmedTitle : fallback;
 }
 
+/**
+ * Validates that every idea user story contains a non-empty trimmed `id`, `story`, and `outcome`.
+ *
+ * @param stories - The array of idea user stories to validate
+ * @returns `true` if every story's `id`, `story`, and `outcome` are non-empty after trimming, `false` otherwise.
+ */
 function isValidIdeaUserStories(stories: IdeaUserStory[]) {
   return stories.every((story) => {
     const normalizedId = story.id.trim();
@@ -74,6 +87,12 @@ function isValidIdeaUserStories(stories: IdeaUserStory[]) {
   });
 }
 
+/**
+ * Normalize idea user stories by trimming leading and trailing whitespace from each field.
+ *
+ * @param stories - Array of idea user story objects whose `id`, `story`, and `outcome` fields will be trimmed
+ * @returns An array of idea user stories where each object's `id`, `story`, and `outcome` are trimmed
+ */
 function normalizeIdeaUserStories(stories: IdeaUserStory[]) {
   return stories.map((story) => ({
     id: story.id.trim(),
@@ -116,6 +135,12 @@ function ideaSelectFields(includeWorkspaceFields: true): {
   updatedAt: typeof ideas.updatedAt;
   userStories: typeof ideas.userStories;
 };
+/**
+ * Builds a selection field map for querying idea rows, optionally including workspace fields.
+ *
+ * @param includeWorkspaceFields - When `true`, the returned map includes `specSheet` and `userStories`; when `false`, those workspace fields are omitted.
+ * @returns A selection field map for ideas joined with users, visions, and roadmap items. When `includeWorkspaceFields` is `true`, the map also contains `specSheet` and `userStories`.
+ */
 function ideaSelectFields(includeWorkspaceFields: boolean) {
   const baseFields = {
     context: ideas.context,
@@ -145,6 +170,13 @@ function ideaSelectFields(includeWorkspaceFields: boolean) {
   };
 }
 
+/**
+ * Fetches the summary row for an idea linked to a specific vision within a project.
+ *
+ * @param projectId - The project identifier to filter ideas by
+ * @param visionId - The source vision identifier to find the linked idea
+ * @returns The matching `IdeaSummaryRow` if found, otherwise `null`
+ */
 async function getIdeaBySourceVisionId(
   projectId: string,
   visionId: string,
@@ -162,6 +194,11 @@ async function getIdeaBySourceVisionId(
   return rows[0] ?? null;
 }
 
+/**
+ * Fetches the detailed idea record for a project by idea ID.
+ *
+ * @returns The idea detail row including workspace fields, or `null` if no matching idea exists.
+ */
 async function getIdeaById(
   projectId: string,
   ideaId: string,
@@ -179,6 +216,11 @@ async function getIdeaById(
   return rows[0] ?? null;
 }
 
+/**
+ * Fetches the project's idea linked to a vision when the viewer has project access.
+ *
+ * @returns The idea summary row for the given vision, or `null` if access is denied or no idea exists.
+ */
 export async function getIdeaBySourceVision(
   viewerId: string,
   projectId: string,
@@ -194,6 +236,14 @@ export async function getIdeaBySourceVision(
   return getIdeaBySourceVisionId(projectId, visionId, db);
 }
 
+/**
+ * Fetches a project's idea detail if the viewer has access.
+ *
+ * @param viewerId - ID of the requesting user
+ * @param projectId - ID of the project containing the idea
+ * @param ideaId - ID of the idea to retrieve
+ * @returns The idea detail row including workspace fields, or `null` if access is denied or the idea does not exist
+ */
 export async function getProjectIdeaById(
   viewerId: string,
   projectId: string,
@@ -209,6 +259,11 @@ export async function getProjectIdeaById(
   return getIdeaById(projectId, ideaId, db);
 }
 
+/**
+ * Lists summary information for ideas in a project that the viewer is allowed to see.
+ *
+ * @returns An array of idea summary rows for the given project; returns an empty array when the viewer has no access or there are no ideas.
+ */
 export async function listProjectIdeas(
   viewerId: string,
   projectId: string,
@@ -230,6 +285,18 @@ export async function listProjectIdeas(
     .orderBy(desc(ideas.createdAt), ideas.title);
 }
 
+/**
+ * Apply workspace-only updates to an existing project idea and return the refreshed idea.
+ *
+ * Updates permitted fields from `patch` (context, roadmap linkage, spec sheet, user stories), validates roadmap item membership and user stories, persists the changes, and returns the updated idea.
+ *
+ * @param patch - Patchable workspace fields: `context` (string), `roadmapItemId` (string | null), `specSheet` (string), and `userStories` (array of user-story objects). `roadmapItemId` is validated against the project's roadmap when provided; `userStories` must pass validation and will be normalized before saving.
+ * @returns An object `{ error, idea }` where `idea` is the updated idea detail on success and `error` is one of:
+ * - `"not_found"` when the project or idea does not exist or the updated idea cannot be loaded,
+ * - `"invalid_roadmap_item"` when `roadmapItemId` is provided but does not belong to the project,
+ * - `"invalid_user_stories"` when `userStories` is present but invalid,
+ * - `null` on success.
+ */
 export async function updateProjectIdeaWorkspace(
   viewerId: string,
   projectId: string,
@@ -310,6 +377,20 @@ export async function updateProjectIdeaWorkspace(
 export type ProjectIdea = Awaited<ReturnType<typeof listProjectIdeas>>[number];
 export type ProjectIdeaDetail = Awaited<ReturnType<typeof getProjectIdeaById>>;
 
+/**
+ * Create an idea from an existing vision in the project when the viewer has sufficient project role.
+ *
+ * Attempts to create a new idea linked to `visionId` (using `title` as an override and optionally linking to
+ * `roadmapItemId`) unless an idea for that vision already exists. On success returns the created or existing idea.
+ *
+ * @param {ConvertVisionToIdeaArgs} { roadmapItemId, title } - Optional conversion options: `roadmapItemId` links the new idea to a roadmap item if valid; `title` overrides the vision title.
+ * @returns An object with:
+ *  - `error`: `"not_found" | "forbidden" | "invalid_roadmap_item" | null` — `null` when conversion succeeded.
+ *    - `"not_found"` if the project or vision is missing or the created idea cannot be retrieved after insertion.
+ *    - `"forbidden"` if the viewer's project role does not permit conversion.
+ *    - `"invalid_roadmap_item"` if a provided `roadmapItemId` does not belong to the project's roadmap.
+ *  - `idea`: the resulting idea detail when `error` is `null`, otherwise `null`.
+ */
 export async function convertVisionToIdea(
   viewerId: string,
   projectId: string,
