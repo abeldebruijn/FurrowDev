@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -38,6 +38,14 @@ export function IdeaSpecEditor({
   const [isSaving, setIsSaving] = useState(false);
   const [isRegeneratingSpec, setIsRegeneratingSpec] = useState(false);
   const [isRegeneratingStories, setIsRegeneratingStories] = useState(false);
+
+  useEffect(() => {
+    setDraftSpecSheet(specSheet);
+  }, [specSheet]);
+
+  useEffect(() => {
+    setDraftUserStories(userStories);
+  }, [userStories]);
 
   const route = useMemo(
     () => `/api/project/${projectId}/ideas/idea/${ideaId}/spec`,
@@ -147,6 +155,7 @@ export function IdeaSpecEditor({
         </CardHeader>
         <CardContent>
           <textarea
+            aria-label="Spec sheet"
             className="min-h-80 w-full rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:border-foreground"
             onChange={(event) => setDraftSpecSheet(event.target.value)}
             value={draftSpecSheet}
@@ -171,6 +180,7 @@ export function IdeaSpecEditor({
         </CardHeader>
         <CardContent>
           <textarea
+            aria-label="User stories"
             className="min-h-56 w-full rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:border-foreground"
             onChange={(event) => setDraftUserStories(event.target.value)}
             value={draftUserStories}
