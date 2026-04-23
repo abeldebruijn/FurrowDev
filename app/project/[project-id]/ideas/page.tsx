@@ -75,6 +75,7 @@ export default async function ProjectIdeasPage({ params }: ProjectIdeasPageProps
                   <TableHead>Source vision</TableHead>
                   <TableHead>Created by</TableHead>
                   <TableHead>Created</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -88,6 +89,15 @@ export default async function ProjectIdeasPage({ params }: ProjectIdeasPageProps
                     <TableCell>{idea.createdByName}</TableCell>
                     <TableCell>
                       <VisionUpdatedAt isoString={idea.createdAt.toISOString()} />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <LinkButton
+                        href={`/project/${project.id}/ideas/idea/${idea.id}`}
+                        size="sm"
+                        variant="outline"
+                      >
+                        Open
+                      </LinkButton>
                     </TableCell>
                   </TableRow>
                 ))}
