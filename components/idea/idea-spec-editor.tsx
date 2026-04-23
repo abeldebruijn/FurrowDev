@@ -8,6 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MarkdownContent } from "@/components/ui/markdown-content";
 
+type UserStoryInput = {
+  id: string;
+  outcome: string;
+  story: string;
+};
+
 type IdeaSpecEditorProps = {
   context: string;
   ideaId: string;
@@ -15,11 +21,41 @@ type IdeaSpecEditorProps = {
   sourceVisionTitle: string;
   specSheet: string;
   title: string;
-  userStories: string;
+  userStories: UserStoryInput[];
 };
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
+}
+
+function serializeUserStories(userStories: UserStoryInput[]) {
+  return JSON.stringify(userStories, null, 2);
+}
+
+function parseUserStories(rawValue: string): UserStoryInput[] {
+  const parsed = JSON.parse(rawValue);
+
+  if (!Array.isArray(parsed)) {
+    throw new Error("User stories must be a JSON array.");
+  }
+
+  return parsed.map((story, index) => {
+    if (
+      !story ||
+      typeof story !== "object" ||
+      typeof story.id !== "string" ||
+      typeof story.outcome !== "string" ||
+      typeof story.story !== "string"
+    ) {
+      throw new Error(`Invalid user story at index ${index}.`);
+    }
+
+    return {
+      id: story.id,
+      outcome: story.outcome,
+      story: story.story,
+    };
+  });
 }
 
 export function IdeaSpecEditor({
@@ -33,7 +69,7 @@ export function IdeaSpecEditor({
 }: IdeaSpecEditorProps) {
   const router = useRouter();
   const [draftSpecSheet, setDraftSpecSheet] = useState(specSheet);
-  const [draftUserStories, setDraftUserStories] = useState(userStories);
+  const [draftUserStories, setDraftUserStories] = useState(serializeUserStories(userStories));
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isRegeneratingSpec, setIsRegeneratingSpec] = useState(false);
@@ -44,7 +80,7 @@ export function IdeaSpecEditor({
   }, [specSheet]);
 
   useEffect(() => {
-    setDraftUserStories(userStories);
+    setDraftUserStories(serializeUserStories(userStories));
   }, [userStories]);
 
   const route = useMemo(
@@ -57,10 +93,11 @@ export function IdeaSpecEditor({
     setIsSaving(true);
 
     try {
+      const parsedUserStories = parseUserStories(draftUserStories);
       const response = await fetch(route, {
         body: JSON.stringify({
           specSheet: draftSpecSheet,
-          userStories: draftUserStories,
+          userStories: parsedUserStories,
         }),
         headers: {
           "content-type": "application/json",

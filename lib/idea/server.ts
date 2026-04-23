@@ -77,6 +77,11 @@ type RegenerateIdeaDocumentsArgs = {
   userStories?: boolean;
 };
 
+type IdeaGenerationTargets = {
+  specSheet: boolean;
+  userStories: boolean;
+};
+
 const generatedIdeaDocumentsSchema = z.object({
   specSheet: z.string().trim().min(1).max(30000),
   userStories: z
@@ -89,6 +94,24 @@ const generatedIdeaDocumentsSchema = z.object({
     .min(4)
     .max(12),
 });
+const generatedSpecSheetSchema = z.object({
+  specSheet: z.string().trim().min(1).max(30000),
+});
+const generatedUserStoriesSchema = z.object({
+  userStories: z
+    .array(
+      z.object({
+        outcome: z.string().trim().min(1).max(500),
+        story: z.string().trim().min(1).max(500),
+      }),
+    )
+    .min(4)
+    .max(12),
+});
+const MAX_STORIES = 50;
+const MAX_ID_LEN = 64;
+const MAX_STORY_LEN = 2000;
+const MAX_OUTCOME_LEN = 2000;
 
 function normalizeIdeaTitle(title: string | undefined, fallback: string) {
   const trimmedTitle = title?.trim();
@@ -105,12 +128,23 @@ function normalizeIdeaUserStories(stories: IdeaUserStory[]) {
 }
 
 function isValidIdeaUserStories(stories: IdeaUserStory[]) {
+  if (stories.length > MAX_STORIES) {
+    return false;
+  }
+
   return stories.every((story) => {
     const normalizedId = story.id.trim();
     const normalizedStory = story.story.trim();
     const normalizedOutcome = story.outcome.trim();
 
-    return normalizedId.length > 0 && normalizedStory.length > 0 && normalizedOutcome.length > 0;
+    return (
+      normalizedId.length > 0 &&
+      normalizedId.length <= MAX_ID_LEN &&
+      normalizedStory.length > 0 &&
+      normalizedStory.length <= MAX_STORY_LEN &&
+      normalizedOutcome.length > 0 &&
+      normalizedOutcome.length <= MAX_OUTCOME_LEN
+    );
   });
 }
 
@@ -163,42 +197,127 @@ function buildFallbackUserStories(input: IdeaGenerationInput): IdeaUserStory[] {
   ];
 }
 
-async function generateIdeaDocuments(input: IdeaGenerationInput) {
-  try {
-    const result = await generateText({
-      model: IDEA_MODEL,
-      output: Output.object({
-        description:
-          "A PRD-style spec sheet and actor-goal-benefit user stories for a project idea.",
-        name: "ideaSpecAndStories",
-        schema: generatedIdeaDocumentsSchema,
-      }),
-      prompt: [
-        "Create an idea-level PRD-style spec sheet and user stories.",
-        "Write concrete, concise markdown.",
-        "Spec sheet sections: Problem, Goals, Non-goals, Scope, User flows, Risks, Success metrics.",
-        'User stories must be actor-goal-benefit and use "As a..., I want..., so that...".',
-        "Return 4 to 8 user stories.",
-        `Idea title: ${input.title}`,
-        `Source vision title: ${input.sourceVisionTitle}`,
-        "Idea context:",
-        input.context.trim() || "No context available.",
-      ].join("\n"),
-    });
+async function generateIdeaDocuments(input: IdeaGenerationInput, targets: IdeaGenerationTargets) {
+  if (targets.specSheet && targets.userStories) {
+    try {
+      const result = await generateText({
+        model: IDEA_MODEL,
+        output: Output.object({
+          description:
+            "A PRD-style spec sheet and actor-goal-benefit user stories for a project idea.",
+          name: "ideaSpecAndStories",
+          schema: generatedIdeaDocumentsSchema,
+        }),
+        prompt: [
+          "Create an idea-level PRD-style spec sheet and user stories.",
+          "Write concrete, concise markdown.",
+          "Spec sheet sections: Problem, Goals, Non-goals, Scope, User flows, Risks, Success metrics.",
+          'User stories must be actor-goal-benefit and use "As a..., I want..., so that...".',
+          "Return 4 to 8 user stories.",
+          `Idea title: ${input.title}`,
+          `Source vision title: ${input.sourceVisionTitle}`,
+          "Idea context:",
+          input.context.trim() || "No context available.",
+        ].join("\n"),
+      });
 
-    return {
-      specSheet: result.output.specSheet,
-      userStories: result.output.userStories.map((story) => ({
-        id: randomUUID(),
-        outcome: story.outcome,
-        story: story.story,
-      })),
-    };
+      return {
+        specSheet: result.output.specSheet,
+        userStories: result.output.userStories.map((story) => ({
+          id: randomUUID(),
+          outcome: story.outcome,
+          story: story.story,
+        })),
+      };
+    } catch {
+      return {
+        specSheet: buildFallbackSpecSheet(input),
+        userStories: buildFallbackUserStories(input),
+      };
+    }
+  }
+
+  if (targets.specSheet) {
+    try {
+      const result = await generateText({
+        model: IDEA_MODEL,
+        output: Output.object({
+          description: "A PRD-style spec sheet for a project idea.",
+          name: "ideaSpecSheet",
+          schema: generatedSpecSheetSchema,
+        }),
+        prompt: [
+          "Create an idea-level PRD-style spec sheet in markdown.",
+          "Use sections: Problem, Goals, Non-goals, Scope, User flows, Risks, Success metrics.",
+          `Idea title: ${input.title}`,
+          `Source vision title: ${input.sourceVisionTitle}`,
+          "Idea context:",
+          input.context.trim() || "No context available.",
+        ].join("\n"),
+      });
+
+      return { specSheet: result.output.specSheet };
+    } catch {
+      return { specSheet: buildFallbackSpecSheet(input) };
+    }
+  }
+
+  if (targets.userStories) {
+    try {
+      const result = await generateText({
+        model: IDEA_MODEL,
+        output: Output.object({
+          description: "Actor-goal-benefit user stories for a project idea.",
+          name: "ideaUserStories",
+          schema: generatedUserStoriesSchema,
+        }),
+        prompt: [
+          "Create actor-goal-benefit user stories for this idea.",
+          'Use format intent: "As a..., I want..., so that...".',
+          "Return 4 to 8 user stories.",
+          `Idea title: ${input.title}`,
+          `Source vision title: ${input.sourceVisionTitle}`,
+          "Idea context:",
+          input.context.trim() || "No context available.",
+        ].join("\n"),
+      });
+
+      return {
+        userStories: result.output.userStories.map((story) => ({
+          id: randomUUID(),
+          outcome: story.outcome,
+          story: story.story,
+        })),
+      };
+    } catch {
+      return { userStories: buildFallbackUserStories(input) };
+    }
+  }
+
+  return {};
+}
+
+function getGenerationTargets(input: IdeaGenerationTargets) {
+  return {
+    specSheet: Boolean(input.specSheet),
+    userStories: Boolean(input.userStories),
+  };
+}
+
+async function generateIdeaDocumentsForTargets(
+  input: IdeaGenerationInput,
+  requestedTargets: IdeaGenerationTargets,
+) {
+  const targets = getGenerationTargets(requestedTargets);
+
+  if (!targets.specSheet && !targets.userStories) {
+    return {};
+  }
+
+  try {
+    return await generateIdeaDocuments(input, targets);
   } catch {
-    return {
-      specSheet: buildFallbackSpecSheet(input),
-      userStories: buildFallbackUserStories(input),
-    };
+    return {};
   }
 }
 
@@ -478,11 +597,14 @@ export async function convertVisionToIdea(
     .where(eq(visionSummaryDocuments.visionId, visionId))
     .limit(1)
     .then((rows) => rows[0]?.content ?? "");
-  const generated = await generateIdeaDocuments({
-    context: summary,
-    sourceVisionTitle: vision.title,
-    title: nextTitle,
-  });
+  const generated = await generateIdeaDocumentsForTargets(
+    {
+      context: summary,
+      sourceVisionTitle: vision.title,
+      title: nextTitle,
+    },
+    { specSheet: true, userStories: true },
+  );
 
   await db.transaction(async (tx) => {
     await tx
@@ -495,10 +617,22 @@ export async function convertVisionToIdea(
         projectId,
         roadmapItemId: roadmapItemId || null,
         sourceVisionId: visionId,
-        specSheet: generated.specSheet,
+        specSheet:
+          generated.specSheet ??
+          buildFallbackSpecSheet({
+            context: summary,
+            sourceVisionTitle: vision.title,
+            title: nextTitle,
+          }),
         title: nextTitle,
         updatedAt: now,
-        userStories: generated.userStories,
+        userStories:
+          generated.userStories ??
+          buildFallbackUserStories({
+            context: summary,
+            sourceVisionTitle: vision.title,
+            title: nextTitle,
+          }),
       })
       .onConflictDoNothing({ target: ideas.sourceVisionId });
 
@@ -568,11 +702,17 @@ export async function regenerateIdeaDocuments(
     return { error: "not_found" as const, idea: null };
   }
 
-  const regenerated = await generateIdeaDocuments({
-    context: existingIdea.context,
-    sourceVisionTitle: existingIdea.sourceVisionTitle,
-    title: existingIdea.title,
-  });
+  const regenerated = await generateIdeaDocumentsForTargets(
+    {
+      context: existingIdea.context,
+      sourceVisionTitle: existingIdea.sourceVisionTitle,
+      title: existingIdea.title,
+    },
+    {
+      specSheet: Boolean(options.specSheet),
+      userStories: Boolean(options.userStories),
+    },
+  );
 
   const result = await updateProjectIdeaWorkspace(
     viewerId,
