@@ -704,8 +704,10 @@ describe("idea server helpers", () => {
     };
     const selectQueue = [
       createSelectBuilder([existingIdea]),
+      createSelectBuilder([]),
       createSelectBuilder([existingIdea]),
       createSelectBuilder([updatedIdea]),
+      createSelectBuilder([]),
     ];
     const setValues: unknown[] = [];
     const db = {
@@ -762,7 +764,11 @@ describe("idea server helpers", () => {
       ),
     ).resolves.toEqual({
       error: null,
-      idea: updatedIdea,
+      idea: {
+        ...updatedIdea,
+        isDone: false,
+        tasks: [],
+      },
     });
 
     expect(setValues[0]).toEqual(
@@ -805,8 +811,10 @@ describe("idea server helpers", () => {
     };
     const selectQueue = [
       createSelectBuilder([existingIdea]),
+      createSelectBuilder([]),
       createSelectBuilder([existingIdea]),
       createSelectBuilder([updatedIdea]),
+      createSelectBuilder([]),
     ];
     const setValues: unknown[] = [];
     const db = {
@@ -839,7 +847,11 @@ describe("idea server helpers", () => {
       regenerateIdeaDocuments("viewer-1", "project-1", "idea-1", { specSheet: true }, db as any),
     ).resolves.toEqual({
       error: null,
-      idea: updatedIdea,
+      idea: {
+        ...updatedIdea,
+        isDone: false,
+        tasks: [],
+      },
     });
 
     expect(generateText).toHaveBeenCalledTimes(1);
