@@ -274,6 +274,8 @@ export const ideas = pgTable("idea", {
   }),
   title: text("title").notNull(),
   context: text("context").notNull().default(""),
+  specSheet: text("spec_sheet").notNull().default(""),
+  userStories: text("user_stories").notNull().default(""),
   createdByUserId: uuid("created_by_user_id")
     .notNull()
     .references(() => users.id),
