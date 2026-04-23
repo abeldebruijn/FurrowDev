@@ -101,6 +101,7 @@ describe("IdeaWorkspace", () => {
 
     expect(markup).toContain("Generate tasks");
     expect(markup).toContain("No tasks yet. Idea is not done.");
+    expect(markup).not.toContain("Saving accepted plan");
   });
 
   it("renders existing tasks and subtasks for review", () => {

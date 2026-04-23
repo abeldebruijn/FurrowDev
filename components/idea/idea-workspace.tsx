@@ -365,15 +365,6 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
             ? "done"
             : "pending",
     },
-    {
-      label: "Saving accepted plan",
-      status:
-        taskGenerationPhase === "saving"
-          ? "active"
-          : taskGenerationPhase === "saved"
-            ? "done"
-            : "pending",
-    },
   ];
 
   useEffect(() => {
@@ -681,6 +672,7 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
       setTaskDrafts(buildTaskDrafts(data.idea.tasks));
       setSubtaskDrafts(buildSubtaskDrafts(data.idea.tasks));
       setTaskGenerationPhase("saved");
+      setIsGenerateTasksOpen(false);
       router.refresh();
     } catch (error) {
       setTaskGenerationError(error instanceof Error ? error.message : "Failed to save tasks.");
@@ -1118,12 +1110,6 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
                   </Alert>
                 ) : null}
 
-                {taskGenerationPhase === "saved" ? (
-                  <div className="rounded-lg border p-4 text-sm">
-                    Generated tasks were added to this idea.
-                  </div>
-                ) : null}
-
                 {generatedTaskTitles.length > 0 && generatedTaskDetails.length === 0 ? (
                   <div className="flex flex-col gap-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1222,32 +1208,29 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
                         </select>
                       ) : null}
                     </div>
-                    <div className="flex max-h-96 flex-col gap-3 overflow-y-auto rounded-lg border p-3">
-                      {generatedTaskDetails.map((task, index) => (
-                        <div className="flex flex-col gap-2 rounded-lg border p-3" key={task.key}>
-                          <div>
-                            <div className="text-sm font-medium">{`${index + 1}. ${task.title}`}</div>
-                            <p className="mt-1 text-sm text-muted-foreground">
-                              {task.description || "No description."}
-                            </p>
-                          </div>
-                          {task.dependencies.length > 0 ? (
-                            <p className="text-xs text-muted-foreground">
-                              {`Depends on: ${task.dependencies.join(", ")}`}
-                            </p>
-                          ) : null}
-                          <div className="flex flex-col gap-1">
-                            {task.subtasks.map((subtask) => (
-                              <div className="rounded-md bg-muted/30 px-2 py-1.5" key={subtask.key}>
-                                <div className="text-sm font-medium">{subtask.title}</div>
-                                <p className="text-xs text-muted-foreground">
-                                  {subtask.description || "No description."}
+                    <div className="max-h-96 overflow-y-auto rounded-lg border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="h-9 px-2">Task</TableHead>
+                            <TableHead className="h-9 w-28 px-2 text-right">Subtasks</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {generatedTaskDetails.map((task, index) => (
+                            <TableRow key={task.key}>
+                              <TableCell className="p-2 align-top">
+                                <p className="line-clamp-2 text-sm">
+                                  {`${index + 1}. ${task.title}`}
                                 </p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
+                              </TableCell>
+                              <TableCell className="p-2 text-right align-top text-sm text-muted-foreground">
+                                {task.subtasks.length}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
                     </div>
                   </div>
                 ) : null}
