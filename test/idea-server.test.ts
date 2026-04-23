@@ -13,11 +13,42 @@ vi.mock("@/lib/db", () => ({
 
 vi.mock("drizzle-orm", () => ({
   and: (...args: unknown[]) => args,
+  asc: (arg: unknown) => arg,
   desc: (arg: unknown) => arg,
   eq: (...args: unknown[]) => args,
+  inArray: (...args: unknown[]) => args,
 }));
 
 vi.mock("@/drizzle/schema", () => ({
+  ideaSubtaskDependencies: {
+    dependsOnSubtaskId: "ideaSubtaskDependencies.dependsOnSubtaskId",
+    subtaskId: "ideaSubtaskDependencies.subtaskId",
+  },
+  ideaSubtasks: {
+    completedAt: "ideaSubtasks.completedAt",
+    createdAt: "ideaSubtasks.createdAt",
+    description: "ideaSubtasks.description",
+    id: "ideaSubtasks.id",
+    metadata: "ideaSubtasks.metadata",
+    position: "ideaSubtasks.position",
+    taskId: "ideaSubtasks.taskId",
+    title: "ideaSubtasks.title",
+    updatedAt: "ideaSubtasks.updatedAt",
+  },
+  ideaTaskDependencies: {
+    dependsOnTaskId: "ideaTaskDependencies.dependsOnTaskId",
+    taskId: "ideaTaskDependencies.taskId",
+  },
+  ideaTasks: {
+    createdAt: "ideaTasks.createdAt",
+    description: "ideaTasks.description",
+    id: "ideaTasks.id",
+    ideaId: "ideaTasks.ideaId",
+    metadata: "ideaTasks.metadata",
+    position: "ideaTasks.position",
+    title: "ideaTasks.title",
+    updatedAt: "ideaTasks.updatedAt",
+  },
   ideas: {
     context: "ideas.context",
     createdAt: "ideas.createdAt",
@@ -64,6 +95,7 @@ vi.mock("@/lib/vision/server", () => ({
 
 import {
   convertVisionToIdea,
+  createProjectIdeaTask,
   getProjectIdeaById,
   listProjectIdeas,
   updateProjectIdeaWorkspace,
@@ -112,6 +144,142 @@ describe("idea server helpers", () => {
     expect(db.select).not.toHaveBeenCalled();
   });
 
+  it("returns idea detail with task and subtask completion rollups", async () => {
+    const ideaRow = {
+      context: "Context",
+      createdAt: new Date("2026-04-15T10:00:00.000Z"),
+      createdByName: "Riley",
+      createdByUserId: "viewer-1",
+      id: "idea-1",
+      projectId: "project-1",
+      roadmapItemId: null,
+      roadmapItemMajorVersion: null,
+      roadmapItemMinorVersion: null,
+      roadmapItemName: null,
+      sourceVisionId: "vision-1",
+      sourceVisionTitle: "Checkout rethink",
+      specSheet: "Spec",
+      title: "Shared idea",
+      updatedAt: new Date("2026-04-15T10:00:00.000Z"),
+      userStories: [],
+    };
+    const taskRows = [
+      {
+        createdAt: new Date("2026-04-15T10:00:00.000Z"),
+        description: "",
+        id: "task-1",
+        ideaId: "idea-1",
+        metadata: { category: "backend" },
+        position: 0,
+        title: "Build API",
+        updatedAt: new Date("2026-04-15T10:00:00.000Z"),
+      },
+    ];
+    const subtaskRows = [
+      {
+        completedAt: new Date("2026-04-16T10:00:00.000Z"),
+        createdAt: new Date("2026-04-15T10:00:00.000Z"),
+        description: "",
+        id: "subtask-1",
+        metadata: { assignee: "agent" },
+        position: 0,
+        taskId: "task-1",
+        title: "Create route",
+        updatedAt: new Date("2026-04-16T10:00:00.000Z"),
+      },
+    ];
+    const db = {
+      select: vi
+        .fn()
+        .mockReturnValueOnce(createSelectBuilder([ideaRow]))
+        .mockReturnValueOnce(createSelectBuilder(taskRows))
+        .mockReturnValueOnce(createSelectBuilder(subtaskRows))
+        .mockReturnValueOnce(createSelectBuilder([]))
+        .mockReturnValueOnce(createSelectBuilder([])),
+    };
+    getProjectAccess.mockResolvedValue({
+      id: "project-1",
+      isAdmin: false,
+      isMaintainer: true,
+      isOwner: false,
+      roadmapId: "roadmap-1",
+    });
+
+    await expect(getProjectIdeaById("viewer-1", "project-1", "idea-1", db as any)).resolves.toEqual(
+      expect.objectContaining({
+        isDone: true,
+        tasks: [
+          expect.objectContaining({
+            isDone: true,
+            metadata: { category: "backend" },
+            subtasks: [
+              expect.objectContaining({
+                isDone: true,
+                metadata: { assignee: "agent" },
+              }),
+            ],
+          }),
+        ],
+      }),
+    );
+  });
+
+  it("treats empty idea and task rollups as not done", async () => {
+    const ideaRow = {
+      context: "Context",
+      createdAt: new Date("2026-04-15T10:00:00.000Z"),
+      createdByName: "Riley",
+      createdByUserId: "viewer-1",
+      id: "idea-1",
+      projectId: "project-1",
+      roadmapItemId: null,
+      roadmapItemMajorVersion: null,
+      roadmapItemMinorVersion: null,
+      roadmapItemName: null,
+      sourceVisionId: "vision-1",
+      sourceVisionTitle: "Checkout rethink",
+      specSheet: "Spec",
+      title: "Shared idea",
+      updatedAt: new Date("2026-04-15T10:00:00.000Z"),
+      userStories: [],
+    };
+    const db = {
+      select: vi
+        .fn()
+        .mockReturnValueOnce(createSelectBuilder([ideaRow]))
+        .mockReturnValueOnce(
+          createSelectBuilder([
+            {
+              createdAt: new Date("2026-04-15T10:00:00.000Z"),
+              description: "",
+              id: "task-1",
+              ideaId: "idea-1",
+              metadata: {},
+              position: 0,
+              title: "Build API",
+              updatedAt: new Date("2026-04-15T10:00:00.000Z"),
+            },
+          ]),
+        )
+        .mockReturnValueOnce(createSelectBuilder([]))
+        .mockReturnValueOnce(createSelectBuilder([])),
+    };
+    getProjectAccess.mockResolvedValue({
+      id: "project-1",
+      isAdmin: false,
+      isMaintainer: true,
+      isOwner: false,
+      roadmapId: "roadmap-1",
+    });
+
+    await expect(getProjectIdeaById("viewer-1", "project-1", "idea-1", db as any)).resolves.toEqual(
+      expect.objectContaining({
+        isDone: false,
+        tasks: [expect.objectContaining({ isDone: false, subtasks: [] })],
+      }),
+    );
+  });
+
   it("updates editable idea fields", async () => {
     const ideaBefore = {
       context: "Context",
@@ -144,7 +312,11 @@ describe("idea server helpers", () => {
         },
       ],
     };
-    const selectQueue = [createSelectBuilder([ideaBefore]), createSelectBuilder([ideaAfter])];
+    const selectQueue = [
+      createSelectBuilder([ideaBefore]),
+      createSelectBuilder([ideaAfter]),
+      createSelectBuilder([]),
+    ];
     const setValues: unknown[] = [];
     const db = {
       select: vi.fn(() => selectQueue.shift()),
@@ -187,7 +359,11 @@ describe("idea server helpers", () => {
       ),
     ).resolves.toEqual({
       error: null,
-      idea: ideaAfter,
+      idea: expect.objectContaining({
+        ...ideaAfter,
+        isDone: false,
+        tasks: [],
+      }),
     });
     expect(setValues[0]).toEqual(
       expect.objectContaining({
@@ -196,6 +372,62 @@ describe("idea server helpers", () => {
         updatedAt: expect.any(Date),
       }),
     );
+  });
+
+  it("persists a task with metadata and dependencies", async () => {
+    const insertedRows: unknown[] = [];
+    const db = {
+      select: vi
+        .fn()
+        .mockReturnValueOnce(createSelectBuilder([{ id: "idea-1" }]))
+        .mockReturnValueOnce(createSelectBuilder([{ id: "dependency-task" }]))
+        .mockReturnValueOnce(createSelectBuilder([{ position: 4 }]))
+        .mockReturnValueOnce(createSelectBuilder([{ id: "idea-1" }]))
+        .mockReturnValueOnce(createSelectBuilder([])),
+      transaction: vi.fn(async (callback) =>
+        callback({
+          insert: vi.fn(() => ({
+            values: vi.fn((values) => {
+              insertedRows.push(values);
+
+              return Promise.resolve();
+            }),
+          })),
+        }),
+      ),
+    };
+    getProjectAccess.mockResolvedValue({
+      id: "project-1",
+      isAdmin: false,
+      isMaintainer: true,
+      isOwner: false,
+      roadmapId: "roadmap-1",
+    });
+
+    await createProjectIdeaTask(
+      "viewer-1",
+      "project-1",
+      "idea-1",
+      {
+        dependencies: ["dependency-task"],
+        metadata: { assignee: "agent", category: "backend" },
+        title: " Build API ",
+      },
+      db as any,
+    );
+
+    expect(insertedRows[0]).toEqual(
+      expect.objectContaining({
+        metadata: { assignee: "agent", category: "backend" },
+        position: 5,
+        title: "Build API",
+      }),
+    );
+    expect(insertedRows[1]).toEqual([
+      expect.objectContaining({
+        dependsOnTaskId: "dependency-task",
+      }),
+    ]);
   });
 
   it("rejects invalid roadmap links while updating an idea", async () => {

@@ -175,6 +175,8 @@ export type IdeaUserStory = {
   story: string;
 };
 
+export type IdeaTaskMetadata = Record<string, unknown>;
+
 export const projectWidgetLayouts = pgTable("project_widget_layout", {
   id: uuid("id").primaryKey(),
   version: integer("version").notNull().default(1),
@@ -288,6 +290,59 @@ export const ideas = pgTable("idea", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const ideaTasks = pgTable("idea_task", {
+  id: uuid("id").primaryKey(),
+  ideaId: uuid("idea_id")
+    .notNull()
+    .references(() => ideas.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description").notNull().default(""),
+  position: integer("position").notNull(),
+  metadata: jsonb("metadata").$type<IdeaTaskMetadata>().notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const ideaSubtasks = pgTable("idea_subtask", {
+  id: uuid("id").primaryKey(),
+  taskId: uuid("task_id")
+    .notNull()
+    .references(() => ideaTasks.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description").notNull().default(""),
+  position: integer("position").notNull(),
+  metadata: jsonb("metadata").$type<IdeaTaskMetadata>().notNull().default({}),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const ideaTaskDependencies = pgTable(
+  "idea_task_dependency",
+  {
+    taskId: uuid("task_id")
+      .notNull()
+      .references(() => ideaTasks.id, { onDelete: "cascade" }),
+    dependsOnTaskId: uuid("depends_on_task_id")
+      .notNull()
+      .references(() => ideaTasks.id, { onDelete: "cascade" }),
+  },
+  (table) => [primaryKey({ columns: [table.taskId, table.dependsOnTaskId] })],
+);
+
+export const ideaSubtaskDependencies = pgTable(
+  "idea_subtask_dependency",
+  {
+    subtaskId: uuid("subtask_id")
+      .notNull()
+      .references(() => ideaSubtasks.id, { onDelete: "cascade" }),
+    dependsOnSubtaskId: uuid("depends_on_subtask_id")
+      .notNull()
+      .references(() => ideaSubtasks.id, { onDelete: "cascade" }),
+  },
+  (table) => [primaryKey({ columns: [table.subtaskId, table.dependsOnSubtaskId] })],
+);
 
 export const usersRelations = relations(users, ({ many }) => ({
   ownedOrganisations: many(organisations),
@@ -505,7 +560,7 @@ export const visionSummaryDocumentsRelations = relations(visionSummaryDocuments,
   }),
 }));
 
-export const ideasRelations = relations(ideas, ({ one }) => ({
+export const ideasRelations = relations(ideas, ({ one, many }) => ({
   project: one(projects, {
     fields: [ideas.projectId],
     references: [projects.id],
@@ -521,6 +576,60 @@ export const ideasRelations = relations(ideas, ({ one }) => ({
   createdBy: one(users, {
     fields: [ideas.createdByUserId],
     references: [users.id],
+  }),
+  tasks: many(ideaTasks),
+}));
+
+export const ideaTasksRelations = relations(ideaTasks, ({ one, many }) => ({
+  idea: one(ideas, {
+    fields: [ideaTasks.ideaId],
+    references: [ideas.id],
+  }),
+  subtasks: many(ideaSubtasks),
+  dependencies: many(ideaTaskDependencies, {
+    relationName: "ideaTaskDependencySource",
+  }),
+  dependents: many(ideaTaskDependencies, {
+    relationName: "ideaTaskDependencyTarget",
+  }),
+}));
+
+export const ideaSubtasksRelations = relations(ideaSubtasks, ({ one, many }) => ({
+  task: one(ideaTasks, {
+    fields: [ideaSubtasks.taskId],
+    references: [ideaTasks.id],
+  }),
+  dependencies: many(ideaSubtaskDependencies, {
+    relationName: "ideaSubtaskDependencySource",
+  }),
+  dependents: many(ideaSubtaskDependencies, {
+    relationName: "ideaSubtaskDependencyTarget",
+  }),
+}));
+
+export const ideaTaskDependenciesRelations = relations(ideaTaskDependencies, ({ one }) => ({
+  task: one(ideaTasks, {
+    fields: [ideaTaskDependencies.taskId],
+    references: [ideaTasks.id],
+    relationName: "ideaTaskDependencySource",
+  }),
+  dependsOnTask: one(ideaTasks, {
+    fields: [ideaTaskDependencies.dependsOnTaskId],
+    references: [ideaTasks.id],
+    relationName: "ideaTaskDependencyTarget",
+  }),
+}));
+
+export const ideaSubtaskDependenciesRelations = relations(ideaSubtaskDependencies, ({ one }) => ({
+  subtask: one(ideaSubtasks, {
+    fields: [ideaSubtaskDependencies.subtaskId],
+    references: [ideaSubtasks.id],
+    relationName: "ideaSubtaskDependencySource",
+  }),
+  dependsOnSubtask: one(ideaSubtasks, {
+    fields: [ideaSubtaskDependencies.dependsOnSubtaskId],
+    references: [ideaSubtasks.id],
+    relationName: "ideaSubtaskDependencyTarget",
   }),
 }));
 
@@ -557,4 +666,12 @@ export const zeroDrizzleSchema = {
   visionSummaryDocumentsRelations,
   ideas,
   ideasRelations,
+  ideaTasks,
+  ideaTasksRelations,
+  ideaSubtasks,
+  ideaSubtasksRelations,
+  ideaTaskDependencies,
+  ideaTaskDependenciesRelations,
+  ideaSubtaskDependencies,
+  ideaSubtaskDependenciesRelations,
 };

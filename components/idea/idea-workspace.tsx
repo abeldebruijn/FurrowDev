@@ -18,16 +18,53 @@ type IdeaStory = {
   story: string;
 };
 
+type IdeaMetadata = Record<string, unknown>;
+
+type IdeaDependency = {
+  id: string;
+  title: string;
+};
+
+type IdeaSubtask = {
+  completedAt: string | null;
+  createdAt: string;
+  dependencies: IdeaDependency[];
+  description: string;
+  id: string;
+  isDone: boolean;
+  metadata: IdeaMetadata;
+  position: number;
+  taskId: string;
+  title: string;
+  updatedAt: string;
+};
+
+type IdeaTask = {
+  createdAt: string;
+  dependencies: IdeaDependency[];
+  description: string;
+  id: string;
+  ideaId: string;
+  isDone: boolean;
+  metadata: IdeaMetadata;
+  position: number;
+  subtasks: IdeaSubtask[];
+  title: string;
+  updatedAt: string;
+};
+
 type IdeaWorkspaceProps = {
   idea: {
     context: string;
     createdAt: string;
     createdByName: string;
     id: string;
+    isDone: boolean;
     roadmapItemId: string | null;
     sourceVisionId: string;
     sourceVisionTitle: string;
     specSheet: string;
+    tasks: IdeaTask[];
     title: string;
     updatedAt: string;
     userStories: IdeaStory[];
@@ -51,12 +88,17 @@ type IdeaWorkspaceSnapshot = {
 
 type IdeaWorkspacePatch = Partial<IdeaWorkspaceSnapshot>;
 
-/**
- * Create an editable snapshot of an idea containing only the fields persisted by the workspace.
- *
- * @param idea - Source idea object used to derive the editable snapshot
- * @returns An IdeaWorkspaceSnapshot with `context`, `roadmapItemId`, `specSheet`, and `userStories`
- */
+type TaskDraft = {
+  dependencyIds: string[];
+  description: string;
+  metadataText: string;
+  title: string;
+};
+
+type SubtaskDraft = TaskDraft & {
+  completed: boolean;
+};
+
 function createSnapshot(idea: IdeaWorkspaceProps["idea"]): IdeaWorkspaceSnapshot {
   return {
     context: idea.context,
@@ -66,26 +108,22 @@ function createSnapshot(idea: IdeaWorkspaceProps["idea"]): IdeaWorkspaceSnapshot
   };
 }
 
-/**
- * Produce a unique string identifier for a user story.
- *
- * @returns A unique string identifier suitable for use as a story id.
- */
-function createStoryId() {
+function createId(prefix: string) {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
   }
 
-  return `story-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-/**
- * Determines whether two arrays of idea stories are equal after trimming whitespace.
- *
- * @param left - First list of stories to compare
- * @param right - Second list of stories to compare
- * @returns `true` if both lists have the same length and each story at the same index has identical `id`, `story`, and `outcome` after trimming whitespace, `false` otherwise.
- */
+function normalizeStories(stories: IdeaStory[]): IdeaStory[] {
+  return stories.map((story) => ({
+    id: story.id.trim(),
+    outcome: story.outcome.trim(),
+    story: story.story.trim(),
+  }));
+}
+
 function areStoriesEqual(left: IdeaStory[], right: IdeaStory[]) {
   const normalizedLeft = normalizeStories(left);
   const normalizedRight = normalizeStories(right);
@@ -97,37 +135,15 @@ function areStoriesEqual(left: IdeaStory[], right: IdeaStory[]) {
   return normalizedLeft.every((story, index) => {
     const target = normalizedRight[index];
 
-    if (!target) {
-      return false;
-    }
-
     return (
-      story.id === target.id && story.story === target.story && story.outcome === target.outcome
+      target &&
+      story.id === target.id &&
+      story.story === target.story &&
+      story.outcome === target.outcome
     );
   });
 }
 
-/**
- * Produce a new array of stories with leading and trailing whitespace removed from each field.
- *
- * @param stories - The list of stories to normalize; each returned story will have `id`, `outcome`, and `story` trimmed.
- * @returns An array of `IdeaStory` objects whose `id`, `outcome`, and `story` values have been trimmed.
- */
-function normalizeStories(stories: IdeaStory[]): IdeaStory[] {
-  return stories.map((story) => ({
-    id: story.id.trim(),
-    outcome: story.outcome.trim(),
-    story: story.story.trim(),
-  }));
-}
-
-/**
- * Create a patch object containing only fields that differ between two snapshots.
- *
- * @param current - The current editable snapshot to compare
- * @param baseline - The baseline snapshot to compare against (typically the last-saved snapshot)
- * @returns An object with only the keys that changed; when `userStories` changed, its value is the normalized story array
- */
 function buildPatch(
   current: IdeaWorkspaceSnapshot,
   baseline: IdeaWorkspaceSnapshot,
@@ -147,49 +163,57 @@ function buildPatch(
   }
 
   if (!areStoriesEqual(current.userStories, baseline.userStories)) {
-    // Match server-side normalization to avoid autosave loops on trimmed values.
     patch.userStories = normalizeStories(current.userStories);
   }
 
   return patch;
 }
 
-/**
- * Determines whether two story arrays are equal by comparing each element positionally for exact `id`, `story`, and `outcome` matches.
- *
- * @param left - The first array of stories (compared position-by-position)
- * @param right - The second array of stories (compared position-by-position)
- * @returns `true` if both arrays have the same length and every corresponding story has identical `id`, `story`, and `outcome`, `false` otherwise
- */
-function legacyAreStoriesEqual(left: IdeaStory[], right: IdeaStory[]) {
-  if (left.length !== right.length) {
-    return false;
-  }
-
-  return left.every((story, index) => {
-    const target = right[index];
-
-    if (!target) {
-      return false;
-    }
-
-    return (
-      story.id === target.id && story.story === target.story && story.outcome === target.outcome
-    );
-  });
+function formatMetadata(metadata: IdeaMetadata) {
+  return JSON.stringify(metadata, null, 2);
 }
 
-/**
- * Render an editable workspace for an idea with debounced autosave, manual save, and story editing.
- *
- * Displays editors for context (markdown with preview), spec sheet, roadmap item selection, and user stories;
- * automatically persists changes after a short debounce and allows an explicit "Save changes" action.
- *
- * @param props.idea - The initial idea data used to populate editors and create the baseline snapshot
- * @param props.projectId - The project identifier used for API requests when saving changes
- * @param props.roadmapItems - Roadmap items shown in the roadmap item selector
- * @returns A React element rendering the idea workspace UI
- */
+function parseMetadata(text: string) {
+  const value = text.trim() ? JSON.parse(text) : {};
+
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Metadata must be a JSON object.");
+  }
+
+  return value as IdeaMetadata;
+}
+
+function buildTaskDrafts(tasks: IdeaTask[]) {
+  return Object.fromEntries(
+    tasks.map((task) => [
+      task.id,
+      {
+        dependencyIds: task.dependencies.map((dependency) => dependency.id),
+        description: task.description,
+        metadataText: formatMetadata(task.metadata),
+        title: task.title,
+      },
+    ]),
+  );
+}
+
+function buildSubtaskDrafts(tasks: IdeaTask[]) {
+  return Object.fromEntries(
+    tasks.flatMap((task) =>
+      task.subtasks.map((subtask) => [
+        subtask.id,
+        {
+          completed: subtask.isDone,
+          dependencyIds: subtask.dependencies.map((dependency) => dependency.id),
+          description: subtask.description,
+          metadataText: formatMetadata(subtask.metadata),
+          title: subtask.title,
+        },
+      ]),
+    ),
+  );
+}
+
 export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspaceProps) {
   const router = useRouter();
   const debounceMs = 700;
@@ -199,14 +223,23 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
   const [roadmapItemId, setRoadmapItemId] = useState(idea.roadmapItemId ?? "");
   const [specSheet, setSpecSheet] = useState(idea.specSheet);
   const [userStories, setUserStories] = useState<IdeaStory[]>(idea.userStories);
-  const [lastSavedSnapshot, setLastSavedSnapshot] = useState<IdeaWorkspaceSnapshot>(
+  const [ideaDone, setIdeaDone] = useState(idea.isDone);
+  const [tasks, setTasks] = useState<IdeaTask[]>(idea.tasks);
+  const [taskDrafts, setTaskDrafts] = useState<Record<string, TaskDraft>>(() =>
+    buildTaskDrafts(idea.tasks),
+  );
+  const [subtaskDrafts, setSubtaskDrafts] = useState<Record<string, SubtaskDraft>>(() =>
+    buildSubtaskDrafts(idea.tasks),
+  );
+  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [newSubtaskTitles, setNewSubtaskTitles] = useState<Record<string, string>>({});
+  const [taskError, setTaskError] = useState<string | null>(null);
+  const [lastSavedSnapshot, setLastSavedSnapshot] = useState<IdeaWorkspaceSnapshot>(() =>
     createSnapshot(idea),
   );
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [isAutoSaving, setIsAutoSaving] = useState(false);
   const [autosaveError, setAutosaveError] = useState<string | null>(null);
-  const isAutoSaveInFlightRef = useRef(false);
-  const shouldAutoSaveAgainRef = useRef(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const currentSnapshot = useMemo<IdeaWorkspaceSnapshot>(
@@ -222,18 +255,6 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
     () => Object.keys(buildPatch(currentSnapshot, lastSavedSnapshot)).length > 0,
     [currentSnapshot, lastSavedSnapshot],
   );
-
-  useEffect(() => {
-    const nextSnapshot = createSnapshot(idea);
-
-    setContext(idea.context);
-    setRoadmapItemId(idea.roadmapItemId ?? "");
-    setSpecSheet(idea.specSheet);
-    setUserStories(idea.userStories);
-    setLastSavedSnapshot(nextSnapshot);
-    setLastSavedAt(null);
-    setAutosaveError(null);
-  }, [idea]);
 
   useEffect(() => {
     return () => {
@@ -257,7 +278,7 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
     setUserStories((current) => [
       ...current,
       {
-        id: createStoryId(),
+        id: createId("story"),
         outcome: "",
         story: "",
       },
@@ -279,12 +300,7 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
     }
 
     const data = (await response.json().catch(() => null)) as {
-      idea?: {
-        context: string;
-        roadmapItemId: string | null;
-        specSheet: string;
-        userStories: IdeaStory[];
-      };
+      idea?: Pick<IdeaWorkspaceSnapshot, "context" | "roadmapItemId" | "specSheet" | "userStories">;
     } | null;
 
     if (data?.idea) {
@@ -311,12 +327,6 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
       return;
     }
 
-    if (isAutoSaveInFlightRef.current) {
-      shouldAutoSaveAgainRef.current = true;
-      return;
-    }
-
-    isAutoSaveInFlightRef.current = true;
     setIsAutoSaving(true);
     setAutosaveError(null);
 
@@ -324,15 +334,9 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
       await persistPatch(patch);
     } catch (error) {
       setAutosaveError(error instanceof Error ? error.message : "Failed to autosave idea.");
-    } finally {
-      isAutoSaveInFlightRef.current = false;
-      setIsAutoSaving(false);
-
-      if (shouldAutoSaveAgainRef.current) {
-        shouldAutoSaveAgainRef.current = false;
-        void runAutoSave();
-      }
     }
+
+    setIsAutoSaving(false);
   }
 
   useEffect(() => {
@@ -363,20 +367,203 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
     setError(null);
     setIsSaving(true);
 
+    const patch = buildPatch(currentSnapshot, lastSavedSnapshot);
+
+    if (Object.keys(patch).length === 0) {
+      setIsSaving(false);
+      return;
+    }
+
     try {
-      const patch = buildPatch(currentSnapshot, lastSavedSnapshot);
-
-      if (Object.keys(patch).length === 0) {
-        return;
-      }
-
       await persistPatch(patch);
       setAutosaveError(null);
       router.refresh();
     } catch (error) {
       setError(error instanceof Error ? error.message : "Failed to save idea.");
-    } finally {
-      setIsSaving(false);
+    }
+
+    setIsSaving(false);
+  }
+
+  async function mutateTasks(path: string, method: string, body?: unknown) {
+    setTaskError(null);
+
+    const response = await fetch(path, {
+      body: body === undefined ? undefined : JSON.stringify(body),
+      headers: body === undefined ? undefined : { "content-type": "application/json" },
+      method,
+    });
+
+    if (!response.ok) {
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(data?.error || "Failed to update tasks.");
+    }
+
+    const data = (await response.json()) as { idea?: { isDone: boolean; tasks: IdeaTask[] } };
+
+    if (data.idea) {
+      setIdeaDone(data.idea.isDone);
+      setTasks(data.idea.tasks);
+      setTaskDrafts(buildTaskDrafts(data.idea.tasks));
+      setSubtaskDrafts(buildSubtaskDrafts(data.idea.tasks));
+      router.refresh();
+    }
+  }
+
+  async function handleAddTask() {
+    const title = newTaskTitle.trim() || "Untitled task";
+
+    try {
+      await mutateTasks(`/api/project/${projectId}/ideas/idea/${idea.id}/tasks`, "POST", {
+        title,
+      });
+      setNewTaskTitle("");
+    } catch (error) {
+      setTaskError(error instanceof Error ? error.message : "Failed to create task.");
+    }
+  }
+
+  async function handleSaveTask(task: IdeaTask) {
+    const draft = taskDrafts[task.id];
+
+    if (!draft) {
+      return;
+    }
+
+    try {
+      await mutateTasks(
+        `/api/project/${projectId}/ideas/idea/${idea.id}/tasks/${task.id}`,
+        "PATCH",
+        {
+          dependencies: draft.dependencyIds,
+          description: draft.description,
+          metadata: parseMetadata(draft.metadataText),
+          title: draft.title,
+        },
+      );
+    } catch (error) {
+      setTaskError(error instanceof Error ? error.message : "Failed to save task.");
+    }
+  }
+
+  async function handleDeleteTask(task: IdeaTask) {
+    try {
+      await mutateTasks(
+        `/api/project/${projectId}/ideas/idea/${idea.id}/tasks/${task.id}`,
+        "DELETE",
+      );
+    } catch (error) {
+      setTaskError(error instanceof Error ? error.message : "Failed to delete task.");
+    }
+  }
+
+  async function handleMoveTask(taskIndex: number, direction: -1 | 1) {
+    const nextIndex = taskIndex + direction;
+    const reordered = [...tasks];
+    const currentTask = reordered[taskIndex];
+    const nextTask = reordered[nextIndex];
+
+    if (!currentTask || !nextTask) {
+      return;
+    }
+
+    reordered[taskIndex] = nextTask;
+    reordered[nextIndex] = currentTask;
+
+    const updates = reordered.map((task, position) => ({
+      body: { position },
+      path: `/api/project/${projectId}/ideas/idea/${idea.id}/tasks/${task.id}`,
+    }));
+
+    for (const update of updates) {
+      const failure = await mutateTasks(update.path, "PATCH", update.body)
+        .then(() => null)
+        .catch((error: unknown) => error);
+
+      if (failure) {
+        setTaskError(failure instanceof Error ? failure.message : "Failed to reorder tasks.");
+        return;
+      }
+    }
+  }
+
+  async function handleAddSubtask(task: IdeaTask) {
+    try {
+      await mutateTasks(
+        `/api/project/${projectId}/ideas/idea/${idea.id}/tasks/${task.id}/subtasks`,
+        "POST",
+        {
+          title: newSubtaskTitles[task.id]?.trim() || "Untitled subtask",
+        },
+      );
+      setNewSubtaskTitles((current) => ({ ...current, [task.id]: "" }));
+    } catch (error) {
+      setTaskError(error instanceof Error ? error.message : "Failed to create subtask.");
+    }
+  }
+
+  async function handleSaveSubtask(task: IdeaTask, subtask: IdeaSubtask) {
+    const draft = subtaskDrafts[subtask.id];
+
+    if (!draft) {
+      return;
+    }
+
+    try {
+      await mutateTasks(
+        `/api/project/${projectId}/ideas/idea/${idea.id}/tasks/${task.id}/subtasks/${subtask.id}`,
+        "PATCH",
+        {
+          completed: draft.completed,
+          dependencies: draft.dependencyIds,
+          description: draft.description,
+          metadata: parseMetadata(draft.metadataText),
+          title: draft.title,
+        },
+      );
+    } catch (error) {
+      setTaskError(error instanceof Error ? error.message : "Failed to save subtask.");
+    }
+  }
+
+  async function handleDeleteSubtask(task: IdeaTask, subtask: IdeaSubtask) {
+    try {
+      await mutateTasks(
+        `/api/project/${projectId}/ideas/idea/${idea.id}/tasks/${task.id}/subtasks/${subtask.id}`,
+        "DELETE",
+      );
+    } catch (error) {
+      setTaskError(error instanceof Error ? error.message : "Failed to delete subtask.");
+    }
+  }
+
+  async function handleMoveSubtask(task: IdeaTask, subtaskIndex: number, direction: -1 | 1) {
+    const nextIndex = subtaskIndex + direction;
+    const reordered = [...task.subtasks];
+    const currentSubtask = reordered[subtaskIndex];
+    const nextSubtask = reordered[nextIndex];
+
+    if (!currentSubtask || !nextSubtask) {
+      return;
+    }
+
+    reordered[subtaskIndex] = nextSubtask;
+    reordered[nextIndex] = currentSubtask;
+
+    const updates = reordered.map((subtask, position) => ({
+      body: { position },
+      path: `/api/project/${projectId}/ideas/idea/${idea.id}/tasks/${task.id}/subtasks/${subtask.id}`,
+    }));
+
+    for (const update of updates) {
+      const failure = await mutateTasks(update.path, "PATCH", update.body)
+        .then(() => null)
+        .catch((error: unknown) => error);
+
+      if (failure) {
+        setTaskError(failure instanceof Error ? failure.message : "Failed to reorder subtasks.");
+        return;
+      }
     }
   }
 
@@ -384,6 +571,9 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
     <section className="mb-12 flex flex-col gap-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
+          <div className="text-xs font-medium text-muted-foreground">
+            {ideaDone ? "Done" : "Not done"}
+          </div>
           <h1 className="mt-1 text-xl font-semibold text-foreground">{idea.title}</h1>
         </div>
         <div className="flex items-center gap-2">
@@ -404,7 +594,7 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
         </div>
       </div>
 
-      <div className="grid gap-3 mb-4 md:grid-cols-2">
+      <div className="mb-4 grid gap-3 md:grid-cols-2">
         <div>
           <p className="text-xs font-medium text-muted-foreground">Source vision</p>
           <LinkButton
@@ -519,6 +709,293 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
 
       <Card>
         <CardHeader>
+          <CardTitle>Tasks</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Input
+              onChange={(event) => setNewTaskTitle(event.target.value)}
+              placeholder="Task title"
+              value={newTaskTitle}
+            />
+            <Button onClick={handleAddTask} type="button" variant="outline">
+              Add task
+            </Button>
+          </div>
+
+          {tasks.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No tasks yet. Idea is not done.</p>
+          ) : (
+            tasks.map((task, taskIndex) => {
+              const draft = taskDrafts[task.id];
+
+              return (
+                <div className="space-y-3 rounded-xl border p-3" key={task.id}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium">{`Task ${taskIndex + 1}`}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {task.isDone ? "Done" : "Not done"}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        disabled={taskIndex === 0}
+                        onClick={() => handleMoveTask(taskIndex, -1)}
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                      >
+                        Up
+                      </Button>
+                      <Button
+                        disabled={taskIndex === tasks.length - 1}
+                        onClick={() => handleMoveTask(taskIndex, 1)}
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                      >
+                        Down
+                      </Button>
+                      <Button onClick={() => handleSaveTask(task)} size="sm" type="button">
+                        Save
+                      </Button>
+                      <Button
+                        onClick={() => handleDeleteTask(task)}
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  </div>
+
+                  {draft ? (
+                    <div className="grid gap-2 md:grid-cols-2">
+                      <Input
+                        onChange={(event) =>
+                          setTaskDrafts((current) => ({
+                            ...current,
+                            [task.id]: { ...draft, title: event.target.value },
+                          }))
+                        }
+                        value={draft.title}
+                      />
+                      <select
+                        className="min-h-20 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring"
+                        multiple
+                        onChange={(event) =>
+                          setTaskDrafts((current) => ({
+                            ...current,
+                            [task.id]: {
+                              ...draft,
+                              dependencyIds: Array.from(event.target.selectedOptions).map(
+                                (option) => option.value,
+                              ),
+                            },
+                          }))
+                        }
+                        value={draft.dependencyIds}
+                      >
+                        {tasks
+                          .filter((candidate) => candidate.id !== task.id)
+                          .map((candidate) => (
+                            <option key={candidate.id} value={candidate.id}>
+                              {candidate.title}
+                            </option>
+                          ))}
+                      </select>
+                      <textarea
+                        className="min-h-20 rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:border-foreground"
+                        onChange={(event) =>
+                          setTaskDrafts((current) => ({
+                            ...current,
+                            [task.id]: { ...draft, description: event.target.value },
+                          }))
+                        }
+                        placeholder="Task description"
+                        value={draft.description}
+                      />
+                      <textarea
+                        className="min-h-20 rounded-xl border bg-background px-3 py-2 font-mono text-xs outline-none focus:border-foreground"
+                        onChange={(event) =>
+                          setTaskDrafts((current) => ({
+                            ...current,
+                            [task.id]: { ...draft, metadataText: event.target.value },
+                          }))
+                        }
+                        value={draft.metadataText}
+                      />
+                    </div>
+                  ) : null}
+
+                  <div className="space-y-3 border-t pt-3">
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Input
+                        onChange={(event) =>
+                          setNewSubtaskTitles((current) => ({
+                            ...current,
+                            [task.id]: event.target.value,
+                          }))
+                        }
+                        placeholder="SubTask title"
+                        value={newSubtaskTitles[task.id] ?? ""}
+                      />
+                      <Button
+                        onClick={() => handleAddSubtask(task)}
+                        type="button"
+                        variant="outline"
+                      >
+                        Add SubTask
+                      </Button>
+                    </div>
+
+                    {task.subtasks.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        No SubTasks yet. Task is not done.
+                      </p>
+                    ) : (
+                      task.subtasks.map((subtask, subtaskIndex) => {
+                        const subtaskDraft = subtaskDrafts[subtask.id];
+
+                        return (
+                          <div className="space-y-2 rounded-xl border p-3" key={subtask.id}>
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <label className="flex items-center gap-2 text-sm font-medium">
+                                <input
+                                  checked={subtaskDraft?.completed ?? false}
+                                  onChange={(event) =>
+                                    setSubtaskDrafts((current) => ({
+                                      ...current,
+                                      [subtask.id]: {
+                                        ...subtaskDraft!,
+                                        completed: event.target.checked,
+                                      },
+                                    }))
+                                  }
+                                  type="checkbox"
+                                />
+                                {`SubTask ${subtaskIndex + 1}`}
+                              </label>
+                              <div className="flex gap-2">
+                                <Button
+                                  disabled={subtaskIndex === 0}
+                                  onClick={() => handleMoveSubtask(task, subtaskIndex, -1)}
+                                  size="sm"
+                                  type="button"
+                                  variant="outline"
+                                >
+                                  Up
+                                </Button>
+                                <Button
+                                  disabled={subtaskIndex === task.subtasks.length - 1}
+                                  onClick={() => handleMoveSubtask(task, subtaskIndex, 1)}
+                                  size="sm"
+                                  type="button"
+                                  variant="outline"
+                                >
+                                  Down
+                                </Button>
+                                <Button
+                                  onClick={() => handleSaveSubtask(task, subtask)}
+                                  size="sm"
+                                  type="button"
+                                >
+                                  Save
+                                </Button>
+                                <Button
+                                  onClick={() => handleDeleteSubtask(task, subtask)}
+                                  size="sm"
+                                  type="button"
+                                  variant="outline"
+                                >
+                                  Remove
+                                </Button>
+                              </div>
+                            </div>
+
+                            {subtaskDraft ? (
+                              <div className="grid gap-2 md:grid-cols-2">
+                                <Input
+                                  onChange={(event) =>
+                                    setSubtaskDrafts((current) => ({
+                                      ...current,
+                                      [subtask.id]: {
+                                        ...subtaskDraft,
+                                        title: event.target.value,
+                                      },
+                                    }))
+                                  }
+                                  value={subtaskDraft.title}
+                                />
+                                <select
+                                  className="min-h-20 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring"
+                                  multiple
+                                  onChange={(event) =>
+                                    setSubtaskDrafts((current) => ({
+                                      ...current,
+                                      [subtask.id]: {
+                                        ...subtaskDraft,
+                                        dependencyIds: Array.from(event.target.selectedOptions).map(
+                                          (option) => option.value,
+                                        ),
+                                      },
+                                    }))
+                                  }
+                                  value={subtaskDraft.dependencyIds}
+                                >
+                                  {task.subtasks
+                                    .filter((candidate) => candidate.id !== subtask.id)
+                                    .map((candidate) => (
+                                      <option key={candidate.id} value={candidate.id}>
+                                        {candidate.title}
+                                      </option>
+                                    ))}
+                                </select>
+                                <textarea
+                                  className="min-h-20 rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:border-foreground"
+                                  onChange={(event) =>
+                                    setSubtaskDrafts((current) => ({
+                                      ...current,
+                                      [subtask.id]: {
+                                        ...subtaskDraft,
+                                        description: event.target.value,
+                                      },
+                                    }))
+                                  }
+                                  placeholder="SubTask description"
+                                  value={subtaskDraft.description}
+                                />
+                                <textarea
+                                  className="min-h-20 rounded-xl border bg-background px-3 py-2 font-mono text-xs outline-none focus:border-foreground"
+                                  onChange={(event) =>
+                                    setSubtaskDrafts((current) => ({
+                                      ...current,
+                                      [subtask.id]: {
+                                        ...subtaskDraft,
+                                        metadataText: event.target.value,
+                                      },
+                                    }))
+                                  }
+                                  value={subtaskDraft.metadataText}
+                                />
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Idea Conversation</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -547,6 +1024,13 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
         <Alert variant="destructive">
           <AlertTitle>Autosave failed</AlertTitle>
           <AlertDescription>{autosaveError}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      {taskError ? (
+        <Alert variant="destructive">
+          <AlertTitle>Task update failed</AlertTitle>
+          <AlertDescription>{taskError}</AlertDescription>
         </Alert>
       ) : null}
     </section>

@@ -1,10 +1,15 @@
 import { randomUUID } from "node:crypto";
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 
 import {
   ideas,
+  type IdeaTaskMetadata,
   type IdeaUserStory,
+  ideaSubtaskDependencies,
+  ideaSubtasks,
+  ideaTaskDependencies,
+  ideaTasks,
   roadmapItems,
   users,
   visionSummaryDocuments,
@@ -43,7 +48,43 @@ type IdeaRowBase = {
 
 type IdeaSummaryRow = Omit<IdeaRowBase, "specSheet" | "userStories">;
 
-type IdeaDetailRow = IdeaRowBase;
+export type IdeaTaskDependency = {
+  id: string;
+  title: string;
+};
+
+export type IdeaSubtaskDetail = {
+  completedAt: Date | null;
+  createdAt: Date;
+  dependencies: IdeaTaskDependency[];
+  description: string;
+  id: string;
+  isDone: boolean;
+  metadata: IdeaTaskMetadata;
+  position: number;
+  taskId: string;
+  title: string;
+  updatedAt: Date;
+};
+
+export type IdeaTaskDetail = {
+  createdAt: Date;
+  dependencies: IdeaTaskDependency[];
+  description: string;
+  id: string;
+  ideaId: string;
+  isDone: boolean;
+  metadata: IdeaTaskMetadata;
+  position: number;
+  subtasks: IdeaSubtaskDetail[];
+  title: string;
+  updatedAt: Date;
+};
+
+type IdeaDetailRow = IdeaRowBase & {
+  isDone: boolean;
+  tasks: IdeaTaskDetail[];
+};
 
 type UpdateProjectIdeaWorkspaceArgs = {
   context?: string;
@@ -55,6 +96,26 @@ type UpdateProjectIdeaWorkspaceArgs = {
 type UpdateProjectIdeaWorkspaceError =
   | "invalid_roadmap_item"
   | "invalid_user_stories"
+  | "not_found"
+  | null;
+
+type ProjectIdeaTaskPatch = {
+  dependencies?: string[];
+  description?: string;
+  metadata?: IdeaTaskMetadata;
+  position?: number;
+  title?: string;
+};
+
+type ProjectIdeaSubtaskPatch = ProjectIdeaTaskPatch & {
+  completed?: boolean;
+};
+
+type ProjectIdeaTaskMutationError = "invalid_dependency" | "invalid_metadata" | "not_found" | null;
+
+type ProjectIdeaSubtaskMutationError =
+  | "invalid_dependency"
+  | "invalid_metadata"
   | "not_found"
   | null;
 
@@ -99,6 +160,25 @@ function normalizeIdeaUserStories(stories: IdeaUserStory[]) {
     outcome: story.outcome.trim(),
     story: story.story.trim(),
   }));
+}
+
+function isPlainMetadata(value: unknown): value is IdeaTaskMetadata {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.getPrototypeOf(value) === Object.prototype
+  );
+}
+
+function normalizeMetadata(value: IdeaTaskMetadata | undefined) {
+  return value === undefined ? undefined : value;
+}
+
+function normalizeTitle(title: string | undefined, fallback: string) {
+  const trimmed = title?.trim();
+
+  return trimmed && trimmed.length > 0 ? trimmed : fallback;
 }
 
 function ideaSelectFields(includeWorkspaceFields: false): {
@@ -213,7 +293,260 @@ async function getIdeaById(
     .where(and(eq(ideas.projectId, projectId), eq(ideas.id, ideaId)))
     .limit(1);
 
+  const idea = rows[0] ?? null;
+
+  if (!idea) {
+    return null;
+  }
+
+  const tasks = await listIdeaTasks(ideaId, db);
+
+  return {
+    ...idea,
+    isDone: tasks.length > 0 && tasks.every((task) => task.isDone),
+    tasks,
+  };
+}
+
+async function getIdeaBaseById(
+  projectId: string,
+  ideaId: string,
+  db: Queryable = getDb(),
+): Promise<IdeaRowBase | null> {
+  const rows = await db
+    .select(ideaSelectFields(true))
+    .from(ideas)
+    .innerJoin(users, eq(users.id, ideas.createdByUserId))
+    .innerJoin(visions, eq(visions.id, ideas.sourceVisionId))
+    .leftJoin(roadmapItems, eq(roadmapItems.id, ideas.roadmapItemId))
+    .where(and(eq(ideas.projectId, projectId), eq(ideas.id, ideaId)))
+    .limit(1);
+
   return rows[0] ?? null;
+}
+
+async function listIdeaTasks(ideaId: string, db: Queryable = getDb()): Promise<IdeaTaskDetail[]> {
+  const taskRows = await db
+    .select({
+      createdAt: ideaTasks.createdAt,
+      description: ideaTasks.description,
+      id: ideaTasks.id,
+      ideaId: ideaTasks.ideaId,
+      metadata: ideaTasks.metadata,
+      position: ideaTasks.position,
+      title: ideaTasks.title,
+      updatedAt: ideaTasks.updatedAt,
+    })
+    .from(ideaTasks)
+    .where(eq(ideaTasks.ideaId, ideaId))
+    .orderBy(asc(ideaTasks.position), asc(ideaTasks.createdAt), asc(ideaTasks.title));
+
+  if (taskRows.length === 0) {
+    return [];
+  }
+
+  const taskIds = taskRows.map((task) => task.id);
+  const [subtaskRows, taskDependencyRows] = await Promise.all([
+    db
+      .select({
+        completedAt: ideaSubtasks.completedAt,
+        createdAt: ideaSubtasks.createdAt,
+        description: ideaSubtasks.description,
+        id: ideaSubtasks.id,
+        metadata: ideaSubtasks.metadata,
+        position: ideaSubtasks.position,
+        taskId: ideaSubtasks.taskId,
+        title: ideaSubtasks.title,
+        updatedAt: ideaSubtasks.updatedAt,
+      })
+      .from(ideaSubtasks)
+      .where(inArray(ideaSubtasks.taskId, taskIds))
+      .orderBy(asc(ideaSubtasks.position), asc(ideaSubtasks.createdAt), asc(ideaSubtasks.title)),
+    db
+      .select({
+        dependsOnTaskId: ideaTaskDependencies.dependsOnTaskId,
+        taskId: ideaTaskDependencies.taskId,
+      })
+      .from(ideaTaskDependencies)
+      .where(inArray(ideaTaskDependencies.taskId, taskIds))
+      .orderBy(asc(ideaTaskDependencies.taskId), asc(ideaTaskDependencies.dependsOnTaskId)),
+  ]);
+
+  const subtaskIds = subtaskRows.map((subtask) => subtask.id);
+  const subtaskDependencyRows =
+    subtaskIds.length === 0
+      ? []
+      : await db
+          .select({
+            dependsOnSubtaskId: ideaSubtaskDependencies.dependsOnSubtaskId,
+            subtaskId: ideaSubtaskDependencies.subtaskId,
+          })
+          .from(ideaSubtaskDependencies)
+          .where(inArray(ideaSubtaskDependencies.subtaskId, subtaskIds))
+          .orderBy(
+            asc(ideaSubtaskDependencies.subtaskId),
+            asc(ideaSubtaskDependencies.dependsOnSubtaskId),
+          );
+
+  const taskTitleById = new Map(taskRows.map((task) => [task.id, task.title]));
+  const subtaskTitleById = new Map(subtaskRows.map((subtask) => [subtask.id, subtask.title]));
+  const taskDependenciesById = new Map<string, IdeaTaskDependency[]>();
+  const subtaskDependenciesById = new Map<string, IdeaTaskDependency[]>();
+
+  for (const dependency of taskDependencyRows) {
+    const dependencies = taskDependenciesById.get(dependency.taskId) ?? [];
+    dependencies.push({
+      id: dependency.dependsOnTaskId,
+      title: taskTitleById.get(dependency.dependsOnTaskId) ?? "Unknown task",
+    });
+    taskDependenciesById.set(dependency.taskId, dependencies);
+  }
+
+  for (const dependency of subtaskDependencyRows) {
+    const dependencies = subtaskDependenciesById.get(dependency.subtaskId) ?? [];
+    dependencies.push({
+      id: dependency.dependsOnSubtaskId,
+      title: subtaskTitleById.get(dependency.dependsOnSubtaskId) ?? "Unknown subtask",
+    });
+    subtaskDependenciesById.set(dependency.subtaskId, dependencies);
+  }
+
+  const subtasksByTaskId = new Map<string, IdeaSubtaskDetail[]>();
+
+  for (const subtask of subtaskRows) {
+    const subtasks = subtasksByTaskId.get(subtask.taskId) ?? [];
+    subtasks.push({
+      completedAt: subtask.completedAt,
+      createdAt: subtask.createdAt,
+      dependencies: subtaskDependenciesById.get(subtask.id) ?? [],
+      description: subtask.description,
+      id: subtask.id,
+      isDone: Boolean(subtask.completedAt),
+      metadata: subtask.metadata,
+      position: subtask.position,
+      taskId: subtask.taskId,
+      title: subtask.title,
+      updatedAt: subtask.updatedAt,
+    });
+    subtasksByTaskId.set(subtask.taskId, subtasks);
+  }
+
+  return taskRows.map((task) => {
+    const subtasks = subtasksByTaskId.get(task.id) ?? [];
+
+    return {
+      createdAt: task.createdAt,
+      dependencies: taskDependenciesById.get(task.id) ?? [],
+      description: task.description,
+      id: task.id,
+      ideaId: task.ideaId,
+      isDone: subtasks.length > 0 && subtasks.every((subtask) => subtask.isDone),
+      metadata: task.metadata,
+      position: task.position,
+      subtasks,
+      title: task.title,
+      updatedAt: task.updatedAt,
+    };
+  });
+}
+
+async function getAccessibleIdeaBase(
+  viewerId: string,
+  projectId: string,
+  ideaId: string,
+  db: Database,
+) {
+  const project = await getProjectAccess(viewerId, projectId, db);
+
+  if (!project) {
+    return null;
+  }
+
+  const idea = await getIdeaBaseById(projectId, ideaId, db);
+
+  if (!idea) {
+    return null;
+  }
+
+  return { idea, project };
+}
+
+async function getTaskForIdea(ideaId: string, taskId: string, db: Queryable) {
+  const rows = await db
+    .select({
+      id: ideaTasks.id,
+      ideaId: ideaTasks.ideaId,
+    })
+    .from(ideaTasks)
+    .where(and(eq(ideaTasks.ideaId, ideaId), eq(ideaTasks.id, taskId)))
+    .limit(1);
+
+  return rows[0] ?? null;
+}
+
+async function getSubtaskForTask(taskId: string, subtaskId: string, db: Queryable) {
+  const rows = await db
+    .select({
+      id: ideaSubtasks.id,
+      taskId: ideaSubtasks.taskId,
+    })
+    .from(ideaSubtasks)
+    .where(and(eq(ideaSubtasks.taskId, taskId), eq(ideaSubtasks.id, subtaskId)))
+    .limit(1);
+
+  return rows[0] ?? null;
+}
+
+async function validateTaskDependencies(
+  ideaId: string,
+  taskId: string,
+  dependencyIds: string[],
+  db: Queryable,
+) {
+  if (dependencyIds.includes(taskId)) {
+    return false;
+  }
+
+  if (dependencyIds.length === 0) {
+    return true;
+  }
+
+  const taskRows = await db
+    .select({
+      id: ideaTasks.id,
+    })
+    .from(ideaTasks)
+    .where(eq(ideaTasks.ideaId, ideaId))
+    .orderBy(asc(ideaTasks.id));
+  const validTaskIds = new Set(taskRows.map((task) => task.id));
+
+  return dependencyIds.every((dependencyId) => validTaskIds.has(dependencyId));
+}
+
+async function validateSubtaskDependencies(
+  taskId: string,
+  subtaskId: string,
+  dependencyIds: string[],
+  db: Queryable,
+) {
+  if (dependencyIds.includes(subtaskId)) {
+    return false;
+  }
+
+  if (dependencyIds.length === 0) {
+    return true;
+  }
+
+  const subtaskRows = await db
+    .select({
+      id: ideaSubtasks.id,
+    })
+    .from(ideaSubtasks)
+    .where(eq(ideaSubtasks.taskId, taskId))
+    .orderBy(asc(ideaSubtasks.id));
+  const validSubtaskIds = new Set(subtaskRows.map((subtask) => subtask.id));
+
+  return dependencyIds.every((dependencyId) => validSubtaskIds.has(dependencyId));
 }
 
 /**
@@ -310,7 +643,7 @@ export async function updateProjectIdeaWorkspace(
     return { error: "not_found" as const, idea: null };
   }
 
-  const idea = await getIdeaById(projectId, ideaId, db);
+  const idea = await getIdeaBaseById(projectId, ideaId, db);
 
   if (!idea) {
     return { error: "not_found" as const, idea: null };
@@ -372,6 +705,355 @@ export async function updateProjectIdeaWorkspace(
   }
 
   return { error: null as UpdateProjectIdeaWorkspaceError, idea: updatedIdea };
+}
+
+export async function createProjectIdeaTask(
+  viewerId: string,
+  projectId: string,
+  ideaId: string,
+  patch: ProjectIdeaTaskPatch & { id?: string },
+  db: Database = getDb(),
+) {
+  const access = await getAccessibleIdeaBase(viewerId, projectId, ideaId, db);
+
+  if (!access) {
+    return { error: "not_found" as const, idea: null };
+  }
+
+  const metadata = normalizeMetadata(patch.metadata);
+
+  if (metadata !== undefined && !isPlainMetadata(metadata)) {
+    return { error: "invalid_metadata" as const, idea: null };
+  }
+
+  if (
+    patch.dependencies &&
+    !(await validateTaskDependencies(ideaId, patch.id ?? "", patch.dependencies, db))
+  ) {
+    return { error: "invalid_dependency" as const, idea: null };
+  }
+
+  const taskId = patch.id ?? randomUUID();
+  const position =
+    patch.position ??
+    (await db
+      .select({
+        position: ideaTasks.position,
+      })
+      .from(ideaTasks)
+      .where(eq(ideaTasks.ideaId, ideaId))
+      .orderBy(desc(ideaTasks.position))
+      .then((rows) => (rows[0]?.position ?? -1) + 1));
+  const now = new Date();
+
+  await db.transaction(async (tx) => {
+    await tx.insert(ideaTasks).values({
+      createdAt: now,
+      description: patch.description ?? "",
+      id: taskId,
+      ideaId,
+      metadata: metadata ?? {},
+      position,
+      title: normalizeTitle(patch.title, "Untitled task"),
+      updatedAt: now,
+    } as any);
+
+    if (patch.dependencies && patch.dependencies.length > 0) {
+      await tx.insert(ideaTaskDependencies).values(
+        patch.dependencies.map((dependencyId) => ({
+          dependsOnTaskId: dependencyId,
+          taskId,
+        })),
+      );
+    }
+  });
+
+  return {
+    error: null as ProjectIdeaTaskMutationError,
+    idea: await getIdeaById(projectId, ideaId, db),
+  };
+}
+
+export async function updateProjectIdeaTask(
+  viewerId: string,
+  projectId: string,
+  ideaId: string,
+  taskId: string,
+  patch: ProjectIdeaTaskPatch,
+  db: Database = getDb(),
+) {
+  const access = await getAccessibleIdeaBase(viewerId, projectId, ideaId, db);
+
+  if (!access || !(await getTaskForIdea(ideaId, taskId, db))) {
+    return { error: "not_found" as const, idea: null };
+  }
+
+  const metadata = normalizeMetadata(patch.metadata);
+
+  if (metadata !== undefined && !isPlainMetadata(metadata)) {
+    return { error: "invalid_metadata" as const, idea: null };
+  }
+
+  if (
+    patch.dependencies &&
+    !(await validateTaskDependencies(ideaId, taskId, patch.dependencies, db))
+  ) {
+    return { error: "invalid_dependency" as const, idea: null };
+  }
+
+  const updateValues: Partial<{
+    description: string;
+    metadata: IdeaTaskMetadata;
+    position: number;
+    title: string;
+    updatedAt: Date;
+  }> = {
+    updatedAt: new Date(),
+  };
+
+  if (patch.title !== undefined) {
+    updateValues.title = normalizeTitle(patch.title, "Untitled task");
+  }
+
+  if (patch.description !== undefined) {
+    updateValues.description = patch.description;
+  }
+
+  if (patch.position !== undefined) {
+    updateValues.position = patch.position;
+  }
+
+  if (metadata !== undefined) {
+    updateValues.metadata = metadata;
+  }
+
+  await db.transaction(async (tx) => {
+    await tx.update(ideaTasks).set(updateValues).where(eq(ideaTasks.id, taskId));
+
+    if (patch.dependencies !== undefined) {
+      await tx.delete(ideaTaskDependencies).where(eq(ideaTaskDependencies.taskId, taskId));
+
+      if (patch.dependencies.length > 0) {
+        await tx.insert(ideaTaskDependencies).values(
+          patch.dependencies.map((dependencyId) => ({
+            dependsOnTaskId: dependencyId,
+            taskId,
+          })),
+        );
+      }
+    }
+  });
+
+  return {
+    error: null as ProjectIdeaTaskMutationError,
+    idea: await getIdeaById(projectId, ideaId, db),
+  };
+}
+
+export async function deleteProjectIdeaTask(
+  viewerId: string,
+  projectId: string,
+  ideaId: string,
+  taskId: string,
+  db: Database = getDb(),
+) {
+  const access = await getAccessibleIdeaBase(viewerId, projectId, ideaId, db);
+
+  if (!access || !(await getTaskForIdea(ideaId, taskId, db))) {
+    return { error: "not_found" as const, idea: null };
+  }
+
+  await db.delete(ideaTasks).where(eq(ideaTasks.id, taskId));
+
+  return {
+    error: null as ProjectIdeaTaskMutationError,
+    idea: await getIdeaById(projectId, ideaId, db),
+  };
+}
+
+export async function createProjectIdeaSubtask(
+  viewerId: string,
+  projectId: string,
+  ideaId: string,
+  taskId: string,
+  patch: ProjectIdeaSubtaskPatch & { id?: string },
+  db: Database = getDb(),
+) {
+  const access = await getAccessibleIdeaBase(viewerId, projectId, ideaId, db);
+
+  if (!access || !(await getTaskForIdea(ideaId, taskId, db))) {
+    return { error: "not_found" as const, idea: null };
+  }
+
+  const metadata = normalizeMetadata(patch.metadata);
+
+  if (metadata !== undefined && !isPlainMetadata(metadata)) {
+    return { error: "invalid_metadata" as const, idea: null };
+  }
+
+  const subtaskId = patch.id ?? randomUUID();
+
+  if (
+    patch.dependencies &&
+    !(await validateSubtaskDependencies(taskId, subtaskId, patch.dependencies, db))
+  ) {
+    return { error: "invalid_dependency" as const, idea: null };
+  }
+
+  const position =
+    patch.position ??
+    (await db
+      .select({
+        position: ideaSubtasks.position,
+      })
+      .from(ideaSubtasks)
+      .where(eq(ideaSubtasks.taskId, taskId))
+      .orderBy(desc(ideaSubtasks.position))
+      .then((rows) => (rows[0]?.position ?? -1) + 1));
+  const now = new Date();
+
+  await db.transaction(async (tx) => {
+    await tx.insert(ideaSubtasks).values({
+      completedAt: patch.completed ? now : null,
+      createdAt: now,
+      description: patch.description ?? "",
+      id: subtaskId,
+      metadata: metadata ?? {},
+      position,
+      taskId,
+      title: normalizeTitle(patch.title, "Untitled subtask"),
+      updatedAt: now,
+    } as any);
+
+    if (patch.dependencies && patch.dependencies.length > 0) {
+      await tx.insert(ideaSubtaskDependencies).values(
+        patch.dependencies.map((dependencyId) => ({
+          dependsOnSubtaskId: dependencyId,
+          subtaskId,
+        })),
+      );
+    }
+  });
+
+  return {
+    error: null as ProjectIdeaSubtaskMutationError,
+    idea: await getIdeaById(projectId, ideaId, db),
+  };
+}
+
+export async function updateProjectIdeaSubtask(
+  viewerId: string,
+  projectId: string,
+  ideaId: string,
+  taskId: string,
+  subtaskId: string,
+  patch: ProjectIdeaSubtaskPatch,
+  db: Database = getDb(),
+) {
+  const access = await getAccessibleIdeaBase(viewerId, projectId, ideaId, db);
+
+  if (
+    !access ||
+    !(await getTaskForIdea(ideaId, taskId, db)) ||
+    !(await getSubtaskForTask(taskId, subtaskId, db))
+  ) {
+    return { error: "not_found" as const, idea: null };
+  }
+
+  const metadata = normalizeMetadata(patch.metadata);
+
+  if (metadata !== undefined && !isPlainMetadata(metadata)) {
+    return { error: "invalid_metadata" as const, idea: null };
+  }
+
+  if (
+    patch.dependencies &&
+    !(await validateSubtaskDependencies(taskId, subtaskId, patch.dependencies, db))
+  ) {
+    return { error: "invalid_dependency" as const, idea: null };
+  }
+
+  const now = new Date();
+  const updateValues: Partial<{
+    completedAt: Date | null;
+    description: string;
+    metadata: IdeaTaskMetadata;
+    position: number;
+    title: string;
+    updatedAt: Date;
+  }> = {
+    updatedAt: now,
+  };
+
+  if (patch.title !== undefined) {
+    updateValues.title = normalizeTitle(patch.title, "Untitled subtask");
+  }
+
+  if (patch.description !== undefined) {
+    updateValues.description = patch.description;
+  }
+
+  if (patch.position !== undefined) {
+    updateValues.position = patch.position;
+  }
+
+  if (metadata !== undefined) {
+    updateValues.metadata = metadata;
+  }
+
+  if (patch.completed !== undefined) {
+    updateValues.completedAt = patch.completed ? now : null;
+  }
+
+  await db.transaction(async (tx) => {
+    await tx.update(ideaSubtasks).set(updateValues).where(eq(ideaSubtasks.id, subtaskId));
+
+    if (patch.dependencies !== undefined) {
+      await tx
+        .delete(ideaSubtaskDependencies)
+        .where(eq(ideaSubtaskDependencies.subtaskId, subtaskId));
+
+      if (patch.dependencies.length > 0) {
+        await tx.insert(ideaSubtaskDependencies).values(
+          patch.dependencies.map((dependencyId) => ({
+            dependsOnSubtaskId: dependencyId,
+            subtaskId,
+          })),
+        );
+      }
+    }
+  });
+
+  return {
+    error: null as ProjectIdeaSubtaskMutationError,
+    idea: await getIdeaById(projectId, ideaId, db),
+  };
+}
+
+export async function deleteProjectIdeaSubtask(
+  viewerId: string,
+  projectId: string,
+  ideaId: string,
+  taskId: string,
+  subtaskId: string,
+  db: Database = getDb(),
+) {
+  const access = await getAccessibleIdeaBase(viewerId, projectId, ideaId, db);
+
+  if (
+    !access ||
+    !(await getTaskForIdea(ideaId, taskId, db)) ||
+    !(await getSubtaskForTask(taskId, subtaskId, db))
+  ) {
+    return { error: "not_found" as const, idea: null };
+  }
+
+  await db.delete(ideaSubtasks).where(eq(ideaSubtasks.id, subtaskId));
+
+  return {
+    error: null as ProjectIdeaSubtaskMutationError,
+    idea: await getIdeaById(projectId, ideaId, db),
+  };
 }
 
 export type ProjectIdea = Awaited<ReturnType<typeof listProjectIdeas>>[number];
