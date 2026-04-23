@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 
+import { generateText, Output } from "ai";
 import { and, desc, eq } from "drizzle-orm";
+import { z } from "zod";
 
 import {
   ideas,
@@ -17,9 +19,17 @@ import { getAccessibleVision } from "@/lib/vision/server";
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 type Queryable = Database | Transaction;
 
+const IDEA_MODEL = "anthropic/claude-sonnet-4.6";
+
 type ConvertVisionToIdeaArgs = {
   roadmapItemId?: string;
   title?: string;
+};
+
+type IdeaGenerationInput = {
+  context: string;
+  sourceVisionTitle: string;
+  title: string;
 };
 
 type IdeaRowBase = {
@@ -42,7 +52,6 @@ type IdeaRowBase = {
 };
 
 type IdeaSummaryRow = Omit<IdeaRowBase, "specSheet" | "userStories">;
-
 type IdeaDetailRow = IdeaRowBase;
 
 type UpdateProjectIdeaWorkspaceArgs = {
@@ -58,47 +67,258 @@ type UpdateProjectIdeaWorkspaceError =
   | "not_found"
   | null;
 
-/**
- * Return the trimmed `title` when it contains non-whitespace characters, otherwise use `fallback`.
- *
- * @param title - The candidate title which may be `undefined` or contain surrounding whitespace.
- * @param fallback - The value to return when `title` is missing or empty after trimming.
- * @returns The trimmed `title` if it contains at least one character after trimming, otherwise `fallback`.
- */
+type UpdateIdeaDocumentsArgs = {
+  specSheet?: string;
+  userStories?: IdeaUserStory[];
+};
+
+type RegenerateIdeaDocumentsArgs = {
+  specSheet?: boolean;
+  userStories?: boolean;
+};
+
+type IdeaGenerationTargets = {
+  specSheet: boolean;
+  userStories: boolean;
+};
+
+const generatedIdeaDocumentsSchema = z.object({
+  specSheet: z.string().trim().min(1).max(30000),
+  userStories: z
+    .array(
+      z.object({
+        outcome: z.string().trim().min(1).max(500),
+        story: z.string().trim().min(1).max(500),
+      }),
+    )
+    .min(4)
+    .max(12),
+});
+const generatedSpecSheetSchema = z.object({
+  specSheet: z.string().trim().min(1).max(30000),
+});
+const generatedUserStoriesSchema = z.object({
+  userStories: z
+    .array(
+      z.object({
+        outcome: z.string().trim().min(1).max(500),
+        story: z.string().trim().min(1).max(500),
+      }),
+    )
+    .min(4)
+    .max(12),
+});
+const MAX_STORIES = 50;
+const MAX_ID_LEN = 64;
+const MAX_STORY_LEN = 2000;
+const MAX_OUTCOME_LEN = 2000;
+
 function normalizeIdeaTitle(title: string | undefined, fallback: string) {
   const trimmedTitle = title?.trim();
 
   return trimmedTitle && trimmedTitle.length > 0 ? trimmedTitle : fallback;
 }
 
-/**
- * Validates that every idea user story contains a non-empty trimmed `id`, `story`, and `outcome`.
- *
- * @param stories - The array of idea user stories to validate
- * @returns `true` if every story's `id`, `story`, and `outcome` are non-empty after trimming, `false` otherwise.
- */
-function isValidIdeaUserStories(stories: IdeaUserStory[]) {
-  return stories.every((story) => {
-    const normalizedId = story.id.trim();
-    const normalizedStory = story.story.trim();
-    const normalizedOutcome = story.outcome.trim();
-
-    return normalizedId.length > 0 && normalizedStory.length > 0 && normalizedOutcome.length > 0;
-  });
-}
-
-/**
- * Normalize idea user stories by trimming leading and trailing whitespace from each field.
- *
- * @param stories - Array of idea user story objects whose `id`, `story`, and `outcome` fields will be trimmed
- * @returns An array of idea user stories where each object's `id`, `story`, and `outcome` are trimmed
- */
 function normalizeIdeaUserStories(stories: IdeaUserStory[]) {
   return stories.map((story) => ({
     id: story.id.trim(),
     outcome: story.outcome.trim(),
     story: story.story.trim(),
   }));
+}
+
+function isValidIdeaUserStories(stories: IdeaUserStory[]) {
+  if (stories.length > MAX_STORIES) {
+    return false;
+  }
+
+  return stories.every((story) => {
+    const normalizedId = story.id.trim();
+    const normalizedStory = story.story.trim();
+    const normalizedOutcome = story.outcome.trim();
+
+    return (
+      normalizedId.length > 0 &&
+      normalizedId.length <= MAX_ID_LEN &&
+      normalizedStory.length > 0 &&
+      normalizedStory.length <= MAX_STORY_LEN &&
+      normalizedOutcome.length > 0 &&
+      normalizedOutcome.length <= MAX_OUTCOME_LEN
+    );
+  });
+}
+
+function buildFallbackSpecSheet(input: IdeaGenerationInput) {
+  return [
+    "# Spec Sheet",
+    "",
+    "## Problem",
+    input.context.trim() || "Capture the core user problem and why this idea matters.",
+    "",
+    "## Goal",
+    `Ship "${input.title}" as a clear next step from vision "${input.sourceVisionTitle}".`,
+    "",
+    "## Scope",
+    "- Define MVP boundaries and the primary success path.",
+    "- Identify key constraints and dependencies.",
+    "",
+    "## Success metrics",
+    "- User reaches desired outcome faster with less friction.",
+    "- Team can validate value with measurable usage signals.",
+    "",
+    "## Risks",
+    "- Unknown technical constraints and integration costs.",
+    "- Ambiguous user expectations without clear acceptance tests.",
+  ].join("\n");
+}
+
+function buildFallbackUserStories(input: IdeaGenerationInput): IdeaUserStory[] {
+  return [
+    {
+      id: randomUUID(),
+      outcome: "align the team on scope and outcomes",
+      story: "As a project owner, I want a concise spec sheet",
+    },
+    {
+      id: randomUUID(),
+      outcome: "implement increments without ambiguity",
+      story: "As a collaborator, I want clear user stories",
+    },
+    {
+      id: randomUUID(),
+      outcome: "complete my goal with confidence",
+      story: `As an end user impacted by ${input.title}, I want the core workflow to feel obvious`,
+    },
+    {
+      id: randomUUID(),
+      outcome: "track measurable impact",
+      story: "As a product lead, I want explicit success metrics in the spec",
+    },
+  ];
+}
+
+async function generateIdeaDocuments(input: IdeaGenerationInput, targets: IdeaGenerationTargets) {
+  if (targets.specSheet && targets.userStories) {
+    try {
+      const result = await generateText({
+        model: IDEA_MODEL,
+        output: Output.object({
+          description:
+            "A PRD-style spec sheet and actor-goal-benefit user stories for a project idea.",
+          name: "ideaSpecAndStories",
+          schema: generatedIdeaDocumentsSchema,
+        }),
+        prompt: [
+          "Create an idea-level PRD-style spec sheet and user stories.",
+          "Write concrete, concise markdown.",
+          "Spec sheet sections: Problem, Goals, Non-goals, Scope, User flows, Risks, Success metrics.",
+          'User stories must be actor-goal-benefit and use "As a..., I want..., so that...".',
+          "Return 4 to 8 user stories.",
+          `Idea title: ${input.title}`,
+          `Source vision title: ${input.sourceVisionTitle}`,
+          "Idea context:",
+          input.context.trim() || "No context available.",
+        ].join("\n"),
+      });
+
+      return {
+        specSheet: result.output.specSheet,
+        userStories: result.output.userStories.map((story) => ({
+          id: randomUUID(),
+          outcome: story.outcome,
+          story: story.story,
+        })),
+      };
+    } catch {
+      return {
+        specSheet: buildFallbackSpecSheet(input),
+        userStories: buildFallbackUserStories(input),
+      };
+    }
+  }
+
+  if (targets.specSheet) {
+    try {
+      const result = await generateText({
+        model: IDEA_MODEL,
+        output: Output.object({
+          description: "A PRD-style spec sheet for a project idea.",
+          name: "ideaSpecSheet",
+          schema: generatedSpecSheetSchema,
+        }),
+        prompt: [
+          "Create an idea-level PRD-style spec sheet in markdown.",
+          "Use sections: Problem, Goals, Non-goals, Scope, User flows, Risks, Success metrics.",
+          `Idea title: ${input.title}`,
+          `Source vision title: ${input.sourceVisionTitle}`,
+          "Idea context:",
+          input.context.trim() || "No context available.",
+        ].join("\n"),
+      });
+
+      return { specSheet: result.output.specSheet };
+    } catch {
+      return { specSheet: buildFallbackSpecSheet(input) };
+    }
+  }
+
+  if (targets.userStories) {
+    try {
+      const result = await generateText({
+        model: IDEA_MODEL,
+        output: Output.object({
+          description: "Actor-goal-benefit user stories for a project idea.",
+          name: "ideaUserStories",
+          schema: generatedUserStoriesSchema,
+        }),
+        prompt: [
+          "Create actor-goal-benefit user stories for this idea.",
+          'Use format intent: "As a..., I want..., so that...".',
+          "Return 4 to 8 user stories.",
+          `Idea title: ${input.title}`,
+          `Source vision title: ${input.sourceVisionTitle}`,
+          "Idea context:",
+          input.context.trim() || "No context available.",
+        ].join("\n"),
+      });
+
+      return {
+        userStories: result.output.userStories.map((story) => ({
+          id: randomUUID(),
+          outcome: story.outcome,
+          story: story.story,
+        })),
+      };
+    } catch {
+      return { userStories: buildFallbackUserStories(input) };
+    }
+  }
+
+  return {};
+}
+
+function getGenerationTargets(input: IdeaGenerationTargets) {
+  return {
+    specSheet: Boolean(input.specSheet),
+    userStories: Boolean(input.userStories),
+  };
+}
+
+async function generateIdeaDocumentsForTargets(
+  input: IdeaGenerationInput,
+  requestedTargets: IdeaGenerationTargets,
+) {
+  const targets = getGenerationTargets(requestedTargets);
+
+  if (!targets.specSheet && !targets.userStories) {
+    return {};
+  }
+
+  try {
+    return await generateIdeaDocuments(input, targets);
+  } catch {
+    return {};
+  }
 }
 
 function ideaSelectFields(includeWorkspaceFields: false): {
@@ -135,12 +355,6 @@ function ideaSelectFields(includeWorkspaceFields: true): {
   updatedAt: typeof ideas.updatedAt;
   userStories: typeof ideas.userStories;
 };
-/**
- * Builds a selection field map for querying idea rows, optionally including workspace fields.
- *
- * @param includeWorkspaceFields - When `true`, the returned map includes `specSheet` and `userStories`; when `false`, those workspace fields are omitted.
- * @returns A selection field map for ideas joined with users, visions, and roadmap items. When `includeWorkspaceFields` is `true`, the map also contains `specSheet` and `userStories`.
- */
 function ideaSelectFields(includeWorkspaceFields: boolean) {
   const baseFields = {
     context: ideas.context,
@@ -170,13 +384,6 @@ function ideaSelectFields(includeWorkspaceFields: boolean) {
   };
 }
 
-/**
- * Fetches the summary row for an idea linked to a specific vision within a project.
- *
- * @param projectId - The project identifier to filter ideas by
- * @param visionId - The source vision identifier to find the linked idea
- * @returns The matching `IdeaSummaryRow` if found, otherwise `null`
- */
 async function getIdeaBySourceVisionId(
   projectId: string,
   visionId: string,
@@ -194,11 +401,6 @@ async function getIdeaBySourceVisionId(
   return rows[0] ?? null;
 }
 
-/**
- * Fetches the detailed idea record for a project by idea ID.
- *
- * @returns The idea detail row including workspace fields, or `null` if no matching idea exists.
- */
 async function getIdeaById(
   projectId: string,
   ideaId: string,
@@ -216,11 +418,6 @@ async function getIdeaById(
   return rows[0] ?? null;
 }
 
-/**
- * Fetches the project's idea linked to a vision when the viewer has project access.
- *
- * @returns The idea summary row for the given vision, or `null` if access is denied or no idea exists.
- */
 export async function getIdeaBySourceVision(
   viewerId: string,
   projectId: string,
@@ -236,14 +433,6 @@ export async function getIdeaBySourceVision(
   return getIdeaBySourceVisionId(projectId, visionId, db);
 }
 
-/**
- * Fetches a project's idea detail if the viewer has access.
- *
- * @param viewerId - ID of the requesting user
- * @param projectId - ID of the project containing the idea
- * @param ideaId - ID of the idea to retrieve
- * @returns The idea detail row including workspace fields, or `null` if access is denied or the idea does not exist
- */
 export async function getProjectIdeaById(
   viewerId: string,
   projectId: string,
@@ -259,11 +448,6 @@ export async function getProjectIdeaById(
   return getIdeaById(projectId, ideaId, db);
 }
 
-/**
- * Lists summary information for ideas in a project that the viewer is allowed to see.
- *
- * @returns An array of idea summary rows for the given project; returns an empty array when the viewer has no access or there are no ideas.
- */
 export async function listProjectIdeas(
   viewerId: string,
   projectId: string,
@@ -285,18 +469,6 @@ export async function listProjectIdeas(
     .orderBy(desc(ideas.createdAt), ideas.title);
 }
 
-/**
- * Apply workspace-only updates to an existing project idea and return the refreshed idea.
- *
- * Updates permitted fields from `patch` (context, roadmap linkage, spec sheet, user stories), validates roadmap item membership and user stories, persists the changes, and returns the updated idea.
- *
- * @param patch - Patchable workspace fields: `context` (string), `roadmapItemId` (string | null), `specSheet` (string), and `userStories` (array of user-story objects). `roadmapItemId` is validated against the project's roadmap when provided; `userStories` must pass validation and will be normalized before saving.
- * @returns An object `{ error, idea }` where `idea` is the updated idea detail on success and `error` is one of:
- * - `"not_found"` when the project or idea does not exist or the updated idea cannot be loaded,
- * - `"invalid_roadmap_item"` when `roadmapItemId` is provided but does not belong to the project,
- * - `"invalid_user_stories"` when `userStories` is present but invalid,
- * - `null` on success.
- */
 export async function updateProjectIdeaWorkspace(
   viewerId: string,
   projectId: string,
@@ -324,7 +496,7 @@ export async function updateProjectIdeaWorkspace(
     }
   }
 
-  let normalizedStories: IdeaUserStory[] | undefined = undefined;
+  let normalizedStories: IdeaUserStory[] | undefined;
 
   if (patch.userStories !== undefined) {
     if (!Array.isArray(patch.userStories) || !isValidIdeaUserStories(patch.userStories)) {
@@ -377,20 +549,6 @@ export async function updateProjectIdeaWorkspace(
 export type ProjectIdea = Awaited<ReturnType<typeof listProjectIdeas>>[number];
 export type ProjectIdeaDetail = Awaited<ReturnType<typeof getProjectIdeaById>>;
 
-/**
- * Create an idea from an existing vision in the project when the viewer has sufficient project role.
- *
- * Attempts to create a new idea linked to `visionId` (using `title` as an override and optionally linking to
- * `roadmapItemId`) unless an idea for that vision already exists. On success returns the created or existing idea.
- *
- * @param {ConvertVisionToIdeaArgs} { roadmapItemId, title } - Optional conversion options: `roadmapItemId` links the new idea to a roadmap item if valid; `title` overrides the vision title.
- * @returns An object with:
- *  - `error`: `"not_found" | "forbidden" | "invalid_roadmap_item" | null` — `null` when conversion succeeded.
- *    - `"not_found"` if the project or vision is missing or the created idea cannot be retrieved after insertion.
- *    - `"forbidden"` if the viewer's project role does not permit conversion.
- *    - `"invalid_roadmap_item"` if a provided `roadmapItemId` does not belong to the project's roadmap.
- *  - `idea`: the resulting idea detail when `error` is `null`, otherwise `null`.
- */
 export async function convertVisionToIdea(
   viewerId: string,
   projectId: string,
@@ -439,6 +597,14 @@ export async function convertVisionToIdea(
     .where(eq(visionSummaryDocuments.visionId, visionId))
     .limit(1)
     .then((rows) => rows[0]?.content ?? "");
+  const generated = await generateIdeaDocumentsForTargets(
+    {
+      context: summary,
+      sourceVisionTitle: vision.title,
+      title: nextTitle,
+    },
+    { specSheet: true, userStories: true },
+  );
 
   await db.transaction(async (tx) => {
     await tx
@@ -451,8 +617,22 @@ export async function convertVisionToIdea(
         projectId,
         roadmapItemId: roadmapItemId || null,
         sourceVisionId: visionId,
+        specSheet:
+          generated.specSheet ??
+          buildFallbackSpecSheet({
+            context: summary,
+            sourceVisionTitle: vision.title,
+            title: nextTitle,
+          }),
         title: nextTitle,
         updatedAt: now,
+        userStories:
+          generated.userStories ??
+          buildFallbackUserStories({
+            context: summary,
+            sourceVisionTitle: vision.title,
+            title: nextTitle,
+          }),
       })
       .onConflictDoNothing({ target: ideas.sourceVisionId });
 
@@ -472,4 +652,80 @@ export async function convertVisionToIdea(
   }
 
   return { error: null, idea };
+}
+
+export async function updateIdeaDocuments(
+  viewerId: string,
+  projectId: string,
+  ideaId: string,
+  updates: UpdateIdeaDocumentsArgs,
+  db: Database = getDb(),
+) {
+  if (updates.specSheet === undefined && updates.userStories === undefined) {
+    return { error: "invalid_update" as const, idea: null };
+  }
+
+  const result = await updateProjectIdeaWorkspace(
+    viewerId,
+    projectId,
+    ideaId,
+    {
+      specSheet: updates.specSheet,
+      userStories: updates.userStories,
+    },
+    db,
+  );
+
+  if (result.error === "invalid_user_stories") {
+    return { error: "invalid_update" as const, idea: null };
+  }
+
+  return result.error === null
+    ? { error: null, idea: result.idea }
+    : { error: result.error, idea: null };
+}
+
+export async function regenerateIdeaDocuments(
+  viewerId: string,
+  projectId: string,
+  ideaId: string,
+  options: RegenerateIdeaDocumentsArgs,
+  db: Database = getDb(),
+) {
+  if (!options.specSheet && !options.userStories) {
+    return { error: "invalid_update" as const, idea: null };
+  }
+
+  const existingIdea = await getProjectIdeaById(viewerId, projectId, ideaId, db);
+
+  if (!existingIdea) {
+    return { error: "not_found" as const, idea: null };
+  }
+
+  const regenerated = await generateIdeaDocumentsForTargets(
+    {
+      context: existingIdea.context,
+      sourceVisionTitle: existingIdea.sourceVisionTitle,
+      title: existingIdea.title,
+    },
+    {
+      specSheet: Boolean(options.specSheet),
+      userStories: Boolean(options.userStories),
+    },
+  );
+
+  const result = await updateProjectIdeaWorkspace(
+    viewerId,
+    projectId,
+    ideaId,
+    {
+      specSheet: options.specSheet ? regenerated.specSheet : undefined,
+      userStories: options.userStories ? regenerated.userStories : undefined,
+    },
+    db,
+  );
+
+  return result.error === null
+    ? { error: null, idea: result.idea }
+    : { error: result.error, idea: null };
 }

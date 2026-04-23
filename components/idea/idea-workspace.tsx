@@ -155,31 +155,6 @@ function buildPatch(
 }
 
 /**
- * Determines whether two story arrays are equal by comparing each element positionally for exact `id`, `story`, and `outcome` matches.
- *
- * @param left - The first array of stories (compared position-by-position)
- * @param right - The second array of stories (compared position-by-position)
- * @returns `true` if both arrays have the same length and every corresponding story has identical `id`, `story`, and `outcome`, `false` otherwise
- */
-function legacyAreStoriesEqual(left: IdeaStory[], right: IdeaStory[]) {
-  if (left.length !== right.length) {
-    return false;
-  }
-
-  return left.every((story, index) => {
-    const target = right[index];
-
-    if (!target) {
-      return false;
-    }
-
-    return (
-      story.id === target.id && story.story === target.story && story.outcome === target.outcome
-    );
-  });
-}
-
-/**
  * Render an editable workspace for an idea with debounced autosave, manual save, and story editing.
  *
  * Displays editors for context (markdown with preview), spec sheet, roadmap item selection, and user stories;

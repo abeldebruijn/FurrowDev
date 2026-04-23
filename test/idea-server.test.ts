@@ -1,14 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-const { getAccessibleVision, getDb, getProjectAccess, getProjectRoadmapItems } = vi.hoisted(() => ({
-  getAccessibleVision: vi.fn(),
-  getDb: vi.fn(),
-  getProjectAccess: vi.fn(),
-  getProjectRoadmapItems: vi.fn(),
-}));
+const { generateText, getAccessibleVision, getDb, getProjectAccess, getProjectRoadmapItems } =
+  vi.hoisted(() => ({
+    generateText: vi.fn(),
+    getAccessibleVision: vi.fn(),
+    getDb: vi.fn(),
+    getProjectAccess: vi.fn(),
+    getProjectRoadmapItems: vi.fn(),
+  }));
 
 vi.mock("@/lib/db", () => ({
   getDb,
+}));
+
+vi.mock("ai", () => ({
+  Output: {
+    object: (value: unknown) => value,
+  },
+  generateText,
 }));
 
 vi.mock("drizzle-orm", () => ({
@@ -66,6 +75,7 @@ import {
   convertVisionToIdea,
   getProjectIdeaById,
   listProjectIdeas,
+  regenerateIdeaDocuments,
   updateProjectIdeaWorkspace,
 } from "../lib/idea/server";
 
@@ -84,6 +94,7 @@ function createSelectBuilder(rows: unknown[]) {
 
 describe("idea server helpers", () => {
   beforeEach(() => {
+    generateText.mockReset();
     getAccessibleVision.mockReset();
     getDb.mockReset();
     getProjectAccess.mockReset();
@@ -112,7 +123,7 @@ describe("idea server helpers", () => {
     expect(db.select).not.toHaveBeenCalled();
   });
 
-  it("updates editable idea fields", async () => {
+  it("updates editable idea workspace fields", async () => {
     const ideaBefore = {
       context: "Context",
       createdAt: new Date("2026-04-15T10:00:00.000Z"),
@@ -271,9 +282,68 @@ describe("idea server helpers", () => {
     expect(db.update).not.toHaveBeenCalled();
   });
 
-  it("copies the summary into idea context and archives the source vision", async () => {
+  it("rejects oversized user stories payloads", async () => {
+    const ideaRow = {
+      id: "idea-1",
+    };
+    const db = {
+      select: vi.fn(() => createSelectBuilder([ideaRow])),
+      update: vi.fn(),
+    };
+    getProjectAccess.mockResolvedValue({
+      id: "project-1",
+      isAdmin: false,
+      isMaintainer: true,
+      isOwner: false,
+      roadmapId: "roadmap-1",
+    });
+
+    await expect(
+      updateProjectIdeaWorkspace(
+        "viewer-1",
+        "project-1",
+        "idea-1",
+        {
+          userStories: Array.from({ length: 51 }, (_, index) => ({
+            id: `story-${index}`,
+            outcome: "Outcome",
+            story: "As a user, I want a stable flow",
+          })),
+        },
+        db as any,
+      ),
+    ).resolves.toEqual({
+      error: "invalid_user_stories",
+      idea: null,
+    });
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it("creates idea with generated spec sheet and user stories", async () => {
     const insertedValues: unknown[] = [];
     const updatedValues: unknown[] = [];
+    const generatedStories = [
+      {
+        id: "story-1",
+        outcome: "so that checkout is faster",
+        story: "As a buyer, I want fewer checkout steps",
+      },
+      {
+        id: "story-2",
+        outcome: "so that I can monitor impact",
+        story: "As a PM, I want clear metrics",
+      },
+      {
+        id: "story-3",
+        outcome: "so that support load drops",
+        story: "As support, I want fewer failed payments",
+      },
+      {
+        id: "story-4",
+        outcome: "so that release risk is lower",
+        story: "As engineering, I want scoped rollout",
+      },
+    ];
     const ideaRow = {
       context: "## Current understanding",
       createdAt: new Date("2026-04-15T10:00:00.000Z"),
@@ -320,6 +390,12 @@ describe("idea server helpers", () => {
       transaction: vi.fn(async (callback) => callback(tx)),
     };
 
+    generateText.mockResolvedValue({
+      output: {
+        specSheet: "# Spec",
+        userStories: generatedStories.map(({ id: _id, ...story }) => story),
+      },
+    });
     getProjectAccess.mockResolvedValue({
       id: "project-1",
       isAdmin: false,
@@ -340,20 +416,204 @@ describe("idea server helpers", () => {
       error: null,
       idea: ideaRow,
     });
-    expect(insertedValues[0]).toEqual(
+
+    const inserted = insertedValues[0] as { specSheet: string; userStories: Array<{ id: string }> };
+    expect(inserted).toEqual(
       expect.objectContaining({
         context: "## Current understanding",
         createdByUserId: "viewer-1",
         projectId: "project-1",
         sourceVisionId: "vision-1",
+        specSheet: "# Spec",
         title: "Shared idea",
       }),
     );
+    expect(inserted.userStories).toHaveLength(4);
+    expect(inserted.userStories.every((story) => story.id.length > 0)).toBe(true);
     expect(updatedValues[0]).toEqual(
       expect.objectContaining({
         archivedAt: expect.any(Date),
         updatedAt: expect.any(Date),
       }),
     );
+  });
+
+  it("regenerates documents without changing idea context", async () => {
+    const existingIdea = {
+      context: "## Keep context",
+      createdAt: new Date("2026-04-15T10:00:00.000Z"),
+      createdByName: "Riley",
+      createdByUserId: "viewer-1",
+      id: "idea-1",
+      projectId: "project-1",
+      roadmapItemId: null,
+      roadmapItemMajorVersion: null,
+      roadmapItemMinorVersion: null,
+      roadmapItemName: null,
+      sourceVisionId: "vision-1",
+      sourceVisionTitle: "Checkout rethink",
+      specSheet: "# Old",
+      title: "Shared idea",
+      updatedAt: new Date("2026-04-15T10:00:00.000Z"),
+      userStories: [],
+    };
+    const updatedIdea = {
+      ...existingIdea,
+      specSheet: "# Regenerated",
+      userStories: [
+        {
+          id: "story-1",
+          outcome: "Outcome",
+          story: "As a user",
+        },
+      ],
+    };
+    const selectQueue = [
+      createSelectBuilder([existingIdea]),
+      createSelectBuilder([existingIdea]),
+      createSelectBuilder([updatedIdea]),
+    ];
+    const setValues: unknown[] = [];
+    const db = {
+      select: vi.fn(() => selectQueue.shift()),
+      update: vi.fn(() => ({
+        set: vi.fn((value) => {
+          setValues.push(value);
+
+          return {
+            where: vi.fn(() => Promise.resolve()),
+          };
+        }),
+      })),
+    };
+
+    generateText.mockResolvedValue({
+      output: {
+        specSheet: "# Regenerated",
+        userStories: [
+          {
+            outcome: "Outcome",
+            story: "As a user",
+          },
+          {
+            outcome: "Outcome 2",
+            story: "As a user 2",
+          },
+          {
+            outcome: "Outcome 3",
+            story: "As a user 3",
+          },
+          {
+            outcome: "Outcome 4",
+            story: "As a user 4",
+          },
+        ],
+      },
+    });
+    getProjectAccess.mockResolvedValue({
+      id: "project-1",
+      isAdmin: false,
+      isMaintainer: false,
+      isOwner: false,
+      roadmapId: "roadmap-1",
+    });
+
+    await expect(
+      regenerateIdeaDocuments(
+        "viewer-1",
+        "project-1",
+        "idea-1",
+        { specSheet: true, userStories: true },
+        db as any,
+      ),
+    ).resolves.toEqual({
+      error: null,
+      idea: updatedIdea,
+    });
+
+    expect(setValues[0]).toEqual(
+      expect.objectContaining({
+        specSheet: "# Regenerated",
+        updatedAt: expect.any(Date),
+      }),
+    );
+    expect((setValues[0] as { context?: string }).context).toBeUndefined();
+  });
+
+  it("regenerates only requested document targets", async () => {
+    const existingIdea = {
+      context: "## Keep context",
+      createdAt: new Date("2026-04-15T10:00:00.000Z"),
+      createdByName: "Riley",
+      createdByUserId: "viewer-1",
+      id: "idea-1",
+      projectId: "project-1",
+      roadmapItemId: null,
+      roadmapItemMajorVersion: null,
+      roadmapItemMinorVersion: null,
+      roadmapItemName: null,
+      sourceVisionId: "vision-1",
+      sourceVisionTitle: "Checkout rethink",
+      specSheet: "# Old",
+      title: "Shared idea",
+      updatedAt: new Date("2026-04-15T10:00:00.000Z"),
+      userStories: [
+        {
+          id: "story-1",
+          outcome: "Outcome",
+          story: "As a user",
+        },
+      ],
+    };
+    const updatedIdea = {
+      ...existingIdea,
+      specSheet: "# Regenerated only",
+    };
+    const selectQueue = [
+      createSelectBuilder([existingIdea]),
+      createSelectBuilder([existingIdea]),
+      createSelectBuilder([updatedIdea]),
+    ];
+    const setValues: unknown[] = [];
+    const db = {
+      select: vi.fn(() => selectQueue.shift()),
+      update: vi.fn(() => ({
+        set: vi.fn((value) => {
+          setValues.push(value);
+
+          return {
+            where: vi.fn(() => Promise.resolve()),
+          };
+        }),
+      })),
+    };
+
+    generateText.mockResolvedValue({
+      output: {
+        specSheet: "# Regenerated only",
+      },
+    });
+    getProjectAccess.mockResolvedValue({
+      id: "project-1",
+      isAdmin: false,
+      isMaintainer: false,
+      isOwner: false,
+      roadmapId: "roadmap-1",
+    });
+
+    await expect(
+      regenerateIdeaDocuments("viewer-1", "project-1", "idea-1", { specSheet: true }, db as any),
+    ).resolves.toEqual({
+      error: null,
+      idea: updatedIdea,
+    });
+
+    expect(generateText).toHaveBeenCalledTimes(1);
+    expect(setValues[0]).toEqual(
+      expect.objectContaining({
+        specSheet: "# Regenerated only",
+      }),
+    );
+    expect((setValues[0] as { userStories?: unknown }).userStories).toBeUndefined();
   });
 });
