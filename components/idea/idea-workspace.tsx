@@ -843,7 +843,7 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
         </div>
       </div>
 
-      <Tabs className="w-full" defaultValue="text">
+      <Tabs className="order-4 w-full" defaultValue="text">
         <div className="flex flex-row items-end justify-between gap-3">
           <div>Idea Context</div>
           <TabsList>
@@ -868,7 +868,7 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
         </div>
       </Tabs>
 
-      <Tabs className="w-full" defaultValue="text">
+      <Tabs className="order-3 w-full" defaultValue="text">
         <div className="flex flex-row items-end justify-between gap-3">
           <div>Spec Sheet</div>
           <TabsList>
@@ -893,7 +893,7 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
         </div>
       </Tabs>
 
-      <div>
+      <div className="order-2">
         <div className="mb-2">User Stories</div>
         <div className="space-y-3">
           {userStories.length === 0 ? (
@@ -1014,7 +1014,7 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
         </div>
       </div>
 
-      <Card>
+      <Card className="order-1">
         <CardHeader className="flex flex-row items-center justify-between gap-3">
           <CardTitle>Tasks</CardTitle>
           <Dialog onOpenChange={setIsGenerateTasksOpen} open={isGenerateTasksOpen}>
@@ -1545,41 +1545,22 @@ export function IdeaWorkspace({ idea, projectId, roadmapItems }: IdeaWorkspacePr
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Idea Conversation</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-            Idea conversation will appear here.
-          </div>
-          <textarea
-            className="min-h-24 w-full rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:border-foreground"
-            disabled
-            placeholder="Composer shell (not persisted in issue #9)."
-          />
-          <Button disabled type="button" variant="outline">
-            Send (coming soon)
-          </Button>
-        </CardContent>
-      </Card>
-
       {error ? (
-        <Alert variant="destructive">
+        <Alert className="order-last" variant="destructive">
           <AlertTitle>Save failed</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
 
       {autosaveError ? (
-        <Alert variant="destructive">
+        <Alert className="order-last" variant="destructive">
           <AlertTitle>Autosave failed</AlertTitle>
           <AlertDescription>{autosaveError}</AlertDescription>
         </Alert>
       ) : null}
 
       {taskError ? (
-        <Alert variant="destructive">
+        <Alert className="order-last" variant="destructive">
           <AlertTitle>Task update failed</AlertTitle>
           <AlertDescription>{taskError}</AlertDescription>
         </Alert>
