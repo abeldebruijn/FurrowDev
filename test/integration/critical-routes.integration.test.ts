@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vite-plus/test";
+import { NextRequest } from "next/server";
 
 const { getWorkOSSession, getZeroContext } = vi.hoisted(() => ({
   getWorkOSSession: vi.fn(),
@@ -40,11 +41,11 @@ describe("critical route integration", () => {
     getWorkOSSession.mockResolvedValueOnce(null);
 
     const response = await patchProjectIdea(
-      new Request("http://localhost/api/project/project-1/ideas/idea/idea-1", {
+      new NextRequest("http://localhost/api/project/project-1/ideas/idea/idea-1", {
         body: JSON.stringify({ context: "Updated context" }),
         headers: { "content-type": "application/json" },
         method: "PATCH",
-      }) as any,
+      }),
       {
         params: Promise.resolve({
           "idea-id": "idea-1",
@@ -61,11 +62,11 @@ describe("critical route integration", () => {
     getWorkOSSession.mockResolvedValueOnce(null);
 
     const response = await patchProjectOwnership(
-      new Request("http://localhost/api/project/project-1/ownership", {
+      new NextRequest("http://localhost/api/project/project-1/ownership", {
         body: JSON.stringify({ orgOwnerId: null }),
         headers: { "content-type": "application/json" },
         method: "PATCH",
-      }) as any,
+      }),
       {
         params: Promise.resolve({
           "project-id": "project-1",
@@ -81,11 +82,11 @@ describe("critical route integration", () => {
     getZeroContext.mockResolvedValueOnce(null);
 
     const response = await postZeroQuery(
-      new Request("http://localhost/api/zero/query", {
+      new NextRequest("http://localhost/api/zero/query", {
         body: JSON.stringify({ args: {}, name: "getProjectById" }),
         headers: { "content-type": "application/json" },
         method: "POST",
-      }) as any,
+      }),
     );
 
     expect(response.status).toBe(401);
