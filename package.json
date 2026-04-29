@@ -10,7 +10,9 @@
     "build": "next build",
     "start": "next start",
     "zero:schema": "node --experimental-strip-types --no-warnings scripts/generate-zero-schema.mts",
-    "zero:cache-dev": "./scripts/zero-cache-dev.sh"
+    "zero:cache-dev": "./scripts/zero-cache-dev.sh",
+    "test:integration": "vp test test/integration",
+    "test:integration:critical": "vp test test/integration/critical-routes.integration.test.ts"
   },
   "dependencies": {
     "@ai-sdk/react": "^3.0.155",

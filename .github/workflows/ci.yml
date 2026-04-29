@@ -26,6 +26,8 @@ jobs:
             command: vp check
           - task-name: Test
             command: vp test
+          - task-name: Integration Test
+            command: vp run test:integration
 
     steps:
       - name: Check out repository
