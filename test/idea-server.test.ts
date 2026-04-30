@@ -171,6 +171,7 @@ describe("idea server helpers", () => {
     };
 
     getProjectAccess.mockResolvedValue({
+      canConvertVisionToIdea: true,
       id: "project-1",
       isAdmin: false,
       isMaintainer: true,
@@ -397,6 +398,7 @@ describe("idea server helpers", () => {
       },
     });
     getProjectAccess.mockResolvedValue({
+      canConvertVisionToIdea: true,
       id: "project-1",
       isAdmin: false,
       isMaintainer: true,

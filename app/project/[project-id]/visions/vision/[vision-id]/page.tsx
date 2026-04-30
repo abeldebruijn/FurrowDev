@@ -36,7 +36,7 @@ export default async function VisionPage({ params }: VisionPageProps) {
 
   return (
     <VisionWorkspace
-      canConvertToIdea={project.isOwner || project.isAdmin || project.isMaintainer}
+      canConvertToIdea={project.canConvertVisionToIdea}
       eligibleCollaborators={eligibleCollaborators}
       initialCollaborators={collaborators.map((collaborator) => ({
         name: collaborator.name,

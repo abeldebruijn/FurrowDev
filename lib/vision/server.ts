@@ -5,6 +5,7 @@ import { and, desc, eq, inArray, isNull, max, or, sql } from "drizzle-orm";
 
 import {
   admins,
+  maintainers,
   organisations,
   projects,
   users,
@@ -453,7 +454,7 @@ export async function listEligibleVisionCollaborators(
     return [];
   }
 
-  const [projectRow, adminRows] = await Promise.all([
+  const [projectRow, adminRows, maintainerRows] = await Promise.all([
     db
       .select({
         organisationOwnerId: organisations.ownerId,
@@ -470,6 +471,12 @@ export async function listEligibleVisionCollaborators(
       })
       .from(admins)
       .where(eq(admins.projectId, projectId)),
+    db
+      .select({
+        userId: maintainers.userId,
+      })
+      .from(maintainers)
+      .where(eq(maintainers.projectId, projectId)),
   ]);
 
   const accessibleUserIds = new Set<string>();
@@ -484,6 +491,10 @@ export async function listEligibleVisionCollaborators(
 
   for (const admin of adminRows) {
     accessibleUserIds.add(admin.userId);
+  }
+
+  for (const maintainer of maintainerRows) {
+    accessibleUserIds.add(maintainer.userId);
   }
 
   if (accessibleUserIds.size === 0) {

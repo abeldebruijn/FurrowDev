@@ -15,13 +15,13 @@ export default async function ProjectSettingsPage({ params }: ProjectSettingsPag
   const routeParams = await params;
   const { project, viewer } = await getProjectPageData(routeParams["project-id"]);
 
-  if (!project.canViewSettings) {
+  if (!project.canViewProjectSettings) {
     notFound();
   }
 
   const [maintainers, ownedOrganisations] = await Promise.all([
     listProjectMaintainers(viewer.id, project.id),
-    project.isOwner ? listViewerOwnedOrganisations(viewer.id) : Promise.resolve([]),
+    project.canMoveOwnership ? listViewerOwnedOrganisations(viewer.id) : Promise.resolve([]),
   ]);
 
   return (

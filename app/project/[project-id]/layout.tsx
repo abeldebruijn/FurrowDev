@@ -48,7 +48,7 @@ export default async function ProjectLayout({ children, params }: ProjectLayoutP
           },
         ]
       : []),
-    ...(project.canViewSettings
+    ...(project.canViewProjectSettings
       ? [
           {
             href: `/project/${projectId}/settings`,
