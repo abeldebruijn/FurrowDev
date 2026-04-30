@@ -74,8 +74,13 @@ describe("getProjectPageData", () => {
     });
     getDb.mockReturnValue("db");
     getProjectAccess.mockResolvedValue({
+      canConvertVisionToIdea: true,
+      canEditProjectProfile: true,
+      canEditWidgetLayout: true,
+      canManageMaintainers: true,
+      canMoveOwnership: true,
       canViewModeration: false,
-      canViewSettings: true,
+      canViewProjectSettings: true,
       conceptProjectId: null,
       conceptProjectName: null,
       createdAt: new Date("2026-01-01T00:00:00.000Z"),

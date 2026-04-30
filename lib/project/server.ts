@@ -15,6 +15,7 @@ import {
   users,
 } from "@/drizzle/schema";
 import { getDb, type Database } from "@/lib/db";
+import { getProjectAccessCapabilities, type ProjectAccessCapabilities } from "@/lib/project/access";
 import {
   getConceptProjectRoadmap,
   getConceptProjectRoadmapItems,
@@ -38,45 +39,44 @@ export type AccessibleProject = {
   userOwner: string | null;
 };
 
-export type ProjectAccess = AccessibleProject & {
-  canViewModeration: boolean;
-  canViewSettings: boolean;
-  isAdmin: boolean;
-  isMaintainer: boolean;
-  isOrganisationProject: boolean;
-  isOwner: boolean;
-  layout: {
-    id: string;
-    largeLayout: {
-      hSize: number;
-      widgetName: string;
-      wSize: number;
-      xPos: number;
-      yPos: number;
-    }[];
-    mediumAutoLayout: boolean;
-    mediumLayout:
-      | {
-          hSize: number;
-          widgetName: string;
-          wSize: number;
-          xPos: number;
-          yPos: number;
-        }[]
-      | null;
-    smallAutoLayout: boolean;
-    smallLayout:
-      | {
-          hSize: number;
-          widgetName: string;
-          wSize: number;
-          xPos: number;
-          yPos: number;
-        }[]
-      | null;
-    version: number;
-  } | null;
-};
+export type ProjectAccess = AccessibleProject &
+  ProjectAccessCapabilities & {
+    isAdmin: boolean;
+    isMaintainer: boolean;
+    isOrganisationProject: boolean;
+    isOwner: boolean;
+    layout: {
+      id: string;
+      largeLayout: {
+        hSize: number;
+        widgetName: string;
+        wSize: number;
+        xPos: number;
+        yPos: number;
+      }[];
+      mediumAutoLayout: boolean;
+      mediumLayout:
+        | {
+            hSize: number;
+            widgetName: string;
+            wSize: number;
+            xPos: number;
+            yPos: number;
+          }[]
+        | null;
+      smallAutoLayout: boolean;
+      smallLayout:
+        | {
+            hSize: number;
+            widgetName: string;
+            wSize: number;
+            xPos: number;
+            yPos: number;
+          }[]
+        | null;
+      version: number;
+    } | null;
+  };
 
 export type ProjectRoadmap = Awaited<ReturnType<typeof getProjectRoadmap>>;
 export type ProjectRoadmapItem = Awaited<ReturnType<typeof getProjectRoadmapItems>>[number];
@@ -227,8 +227,15 @@ export async function getProjectAccess(
   const isAdmin = project.adminUserId === viewerId;
   const isMaintainer = project.maintainerUserId === viewerId;
   const isOrganisationProject = project.orgOwner !== null;
+  const capabilities = getProjectAccessCapabilities({
+    isAdmin,
+    isMaintainer,
+    isOrganisationProject,
+    isOwner,
+  });
 
   return {
+    ...capabilities,
     conceptProjectId: project.conceptProjectId,
     conceptProjectName: project.conceptProjectName,
     createdAt: project.createdAt,
@@ -251,8 +258,6 @@ export async function getProjectAccess(
     roadmapId: project.roadmapId,
     ubiquitousLanguageMarkdown: project.ubiquitousLanguageMarkdown,
     userOwner: project.userOwner,
-    canViewModeration: isOrganisationProject && (isOwner || isAdmin),
-    canViewSettings: isOwner || isAdmin || isMaintainer,
     isAdmin,
     isMaintainer,
     isOrganisationProject,
@@ -343,7 +348,7 @@ export async function listProjectMaintainers(
 ) {
   const project = await getProjectAccess(viewerId, projectId, db);
 
-  if (!project?.canViewSettings) {
+  if (!project?.canManageMaintainers) {
     return [];
   }
 
@@ -372,7 +377,7 @@ export async function searchProjectMaintainerCandidates(
 
   const project = await getProjectAccess(viewerId, projectId, db);
 
-  if (!project?.isOwner) {
+  if (!project?.canManageMaintainers) {
     return [];
   }
 
@@ -564,7 +569,7 @@ export async function updateAccessibleProject(
 ) {
   const project = await getProjectAccess(viewerId, projectId, db);
 
-  if (!project?.canViewSettings) {
+  if (!project?.canEditProjectProfile) {
     return null;
   }
 
@@ -610,7 +615,7 @@ export async function addProjectMaintainer(
     return { error: "not_found" as const };
   }
 
-  if (!project.isOwner) {
+  if (!project.canManageMaintainers) {
     return { error: "forbidden" as const };
   }
 
@@ -663,7 +668,7 @@ export async function removeProjectMaintainer(
     return { error: "not_found" as const };
   }
 
-  if (!project.isOwner) {
+  if (!project.canManageMaintainers) {
     return { error: "forbidden" as const };
   }
 
@@ -686,7 +691,7 @@ export async function moveProjectOwnership(
     return { error: "not_found" as const };
   }
 
-  if (!project.isOwner) {
+  if (!project.canMoveOwnership) {
     return { error: "forbidden" as const };
   }
 
@@ -735,7 +740,7 @@ export async function saveAccessibleProjectWidgetLayout(
     return { error: "not_found" as const };
   }
 
-  if (!project.canViewSettings) {
+  if (!project.canEditWidgetLayout) {
     return { error: "forbidden" as const };
   }
 

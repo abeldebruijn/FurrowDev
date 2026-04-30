@@ -37,7 +37,10 @@ type OrganisationOption = {
 };
 
 type SettingsProject = {
-  canViewSettings: boolean;
+  canEditProjectProfile: boolean;
+  canManageMaintainers: boolean;
+  canMoveOwnership: boolean;
+  canViewProjectSettings: boolean;
   description: string | null;
   id: string;
   isAdmin: boolean;
@@ -103,7 +106,7 @@ export function ProjectSettingsPage({
   }, [project.id, project.name, project.description, project.orgOwner]);
 
   useEffect(() => {
-    if (!project.isOwner) {
+    if (!project.canManageMaintainers) {
       return;
     }
 
@@ -148,7 +151,7 @@ export function ProjectSettingsPage({
       abortController.abort();
       window.clearTimeout(timeout);
     };
-  }, [maintainerQuery, project.id, project.isOwner]);
+  }, [maintainerQuery, project.canManageMaintainers, project.id]);
 
   async function saveSettings(body: Record<string, string>) {
     const response = await fetch(`/api/project/${project.id}/settings`, {
@@ -294,12 +297,18 @@ export function ProjectSettingsPage({
         <CardContent className="flex flex-col gap-4">
           <label className="flex flex-col gap-2 text-sm font-medium text-foreground">
             Name
-            <Input maxLength={120} onChange={(event) => setName(event.target.value)} value={name} />
+            <Input
+              disabled={!project.canEditProjectProfile}
+              maxLength={120}
+              onChange={(event) => setName(event.target.value)}
+              value={name}
+            />
           </label>
           <label className="flex flex-col gap-2 text-sm font-medium text-foreground">
             Description
             <textarea
               className="min-h-32 w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={!project.canEditProjectProfile}
               maxLength={600}
               onChange={(event) => setDescription(event.target.value)}
               value={description}
@@ -307,7 +316,11 @@ export function ProjectSettingsPage({
           </label>
         </CardContent>
         <CardFooter className="justify-end">
-          <Button disabled={isSavingProfile} onClick={handleSaveProfile} type="button">
+          <Button
+            disabled={isSavingProfile || !project.canEditProjectProfile}
+            onClick={handleSaveProfile}
+            type="button"
+          >
             <Save data-icon="inline-start" />
             {isSavingProfile ? "Saving..." : "Save profile"}
           </Button>
@@ -342,7 +355,7 @@ export function ProjectSettingsPage({
                     key={maintainer.id}
                   >
                     <span>{maintainer.name}</span>
-                    {project.isOwner ? (
+                    {project.canManageMaintainers ? (
                       <Button
                         disabled={isSavingMaintainer}
                         onClick={() => void handleRemoveMaintainer(maintainer.id)}
@@ -359,7 +372,7 @@ export function ProjectSettingsPage({
             )}
           </div>
 
-          {project.isOwner ? (
+          {project.canManageMaintainers ? (
             <div className="flex flex-col gap-3">
               <p className="text-sm font-medium text-foreground">Add maintainer</p>
               <Combobox
@@ -403,7 +416,7 @@ export function ProjectSettingsPage({
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Only the project owner can add or remove maintainers.
+              Only project owners and admins can add or remove maintainers.
             </p>
           )}
         </CardContent>
@@ -428,7 +441,7 @@ export function ProjectSettingsPage({
             </span>
           </div>
 
-          {project.isOwner ? (
+          {project.canMoveOwnership ? (
             <>
               <label className="flex flex-col gap-2 text-sm font-medium text-foreground">
                 Owner
@@ -457,7 +470,7 @@ export function ProjectSettingsPage({
             </p>
           )}
         </CardContent>
-        {project.isOwner && ownedOrganisations.length > 0 ? (
+        {project.canMoveOwnership && ownedOrganisations.length > 0 ? (
           <CardFooter className="justify-end">
             <Button disabled={isSavingOwnership} onClick={handleMoveOwnership} type="button">
               <Building2 data-icon="inline-start" />
