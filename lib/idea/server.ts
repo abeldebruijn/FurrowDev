@@ -131,6 +131,37 @@ type ProjectIdeaSubtaskMutationError =
 
 type ProjectIdeaReorderError = "invalid_order" | "not_found" | null;
 
+export type GeneratedIdeaTaskTitle = {
+  key: string;
+  title: string;
+};
+
+export type GeneratedIdeaSubtaskDraft = {
+  dependencies: string[];
+  description: string;
+  key: string;
+  metadata: IdeaTaskMetadata;
+  title: string;
+};
+
+export type GeneratedIdeaTaskDraft = {
+  dependencies: string[];
+  description: string;
+  key: string;
+  metadata: IdeaTaskMetadata;
+  subtasks: GeneratedIdeaSubtaskDraft[];
+  title: string;
+};
+
+export type GeneratedIdeaTaskApplyMode = "append" | "replace_all" | "replace_empty";
+
+type GeneratedIdeaTaskError =
+  | "invalid_dependency"
+  | "invalid_metadata"
+  | "invalid_payload"
+  | "not_found"
+  | null;
+
 type UpdateIdeaDocumentsArgs = {
   specSheet?: string;
   userStories?: IdeaUserStory[];
@@ -171,6 +202,43 @@ const generatedUserStoriesSchema = z.object({
     )
     .min(4)
     .max(12),
+});
+const generatedTaskTitlesSchema = z.object({
+  tasks: z
+    .array(
+      z.object({
+        key: z.string().trim().min(1).max(80),
+        title: z.string().trim().min(1).max(160),
+      }),
+    )
+    .min(1)
+    .max(20),
+});
+const generatedTaskDetailsSchema = z.object({
+  tasks: z
+    .array(
+      z.object({
+        dependencies: z.array(z.string().trim().min(1).max(80)).default([]),
+        description: z.string().trim().max(2000).default(""),
+        key: z.string().trim().min(1).max(80),
+        metadata: z.record(z.string(), z.unknown()).default({}),
+        subtasks: z
+          .array(
+            z.object({
+              dependencies: z.array(z.string().trim().min(1).max(80)).default([]),
+              description: z.string().trim().max(2000).default(""),
+              key: z.string().trim().min(1).max(80),
+              metadata: z.record(z.string(), z.unknown()).default({}),
+              title: z.string().trim().min(1).max(180),
+            }),
+          )
+          .min(1)
+          .max(12),
+        title: z.string().trim().min(1).max(160),
+      }),
+    )
+    .min(1)
+    .max(20),
 });
 const MAX_STORIES = 50;
 const MAX_ID_LEN = 64;
@@ -230,6 +298,156 @@ function normalizeTitle(title: string | undefined, fallback: string) {
   const trimmed = title?.trim();
 
   return trimmed && trimmed.length > 0 ? trimmed : fallback;
+}
+
+function normalizeGeneratedKey(value: string, fallback: string) {
+  const trimmed = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return trimmed || fallback;
+}
+
+function normalizeGeneratedTaskTitles(tasks: GeneratedIdeaTaskTitle[]) {
+  const seenKeys = new Set<string>();
+
+  return tasks.map((task, index) => {
+    const fallbackKey = `task-${index + 1}`;
+    let key = normalizeGeneratedKey(task.key, fallbackKey);
+
+    if (seenKeys.has(key)) {
+      key = `${key}-${index + 1}`;
+    }
+
+    seenKeys.add(key);
+
+    return {
+      key,
+      title: normalizeTitle(task.title, `Task ${index + 1}`),
+    };
+  });
+}
+
+function normalizeGeneratedTaskDrafts(tasks: GeneratedIdeaTaskDraft[]) {
+  const taskKeys = new Set<string>();
+
+  return tasks.map((task, taskIndex) => {
+    const fallbackKey = `task-${taskIndex + 1}`;
+    let taskKey = normalizeGeneratedKey(task.key, fallbackKey);
+
+    if (taskKeys.has(taskKey)) {
+      taskKey = `${taskKey}-${taskIndex + 1}`;
+    }
+
+    taskKeys.add(taskKey);
+
+    const subtaskKeys = new Set<string>();
+    const subtasks = task.subtasks.map((subtask, subtaskIndex) => {
+      const subtaskFallbackKey = `${taskKey}-subtask-${subtaskIndex + 1}`;
+      let subtaskKey = normalizeGeneratedKey(subtask.key, subtaskFallbackKey);
+
+      if (subtaskKeys.has(subtaskKey)) {
+        subtaskKey = `${subtaskKey}-${subtaskIndex + 1}`;
+      }
+
+      subtaskKeys.add(subtaskKey);
+
+      return {
+        dependencies: Array.from(
+          new Set(
+            subtask.dependencies.map((dependency) => normalizeGeneratedKey(dependency, dependency)),
+          ),
+        ),
+        description: subtask.description.trim(),
+        key: subtaskKey,
+        metadata: subtask.metadata,
+        title: normalizeTitle(subtask.title, `SubTask ${subtaskIndex + 1}`),
+      };
+    });
+
+    return {
+      dependencies: Array.from(
+        new Set(
+          task.dependencies.map((dependency) => normalizeGeneratedKey(dependency, dependency)),
+        ),
+      ),
+      description: task.description.trim(),
+      key: taskKey,
+      metadata: task.metadata,
+      subtasks,
+      title: normalizeTitle(task.title, `Task ${taskIndex + 1}`),
+    };
+  });
+}
+
+function validateGeneratedTaskDrafts(tasks: GeneratedIdeaTaskDraft[]) {
+  const taskKeys = new Set(tasks.map((task) => task.key));
+
+  for (const task of tasks) {
+    if (!isPlainMetadata(task.metadata)) {
+      return "invalid_metadata" as const;
+    }
+
+    for (const dependency of task.dependencies) {
+      if (dependency === task.key || !taskKeys.has(dependency)) {
+        return "invalid_dependency" as const;
+      }
+    }
+
+    const subtaskKeys = new Set(task.subtasks.map((subtask) => subtask.key));
+
+    for (const subtask of task.subtasks) {
+      if (!isPlainMetadata(subtask.metadata)) {
+        return "invalid_metadata" as const;
+      }
+
+      for (const dependency of subtask.dependencies) {
+        if (dependency === subtask.key || !subtaskKeys.has(dependency)) {
+          return "invalid_dependency" as const;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function summarizeIdeaForTaskGeneration(idea: IdeaDetailRow) {
+  const userStories =
+    idea.userStories.length === 0
+      ? "No user stories."
+      : idea.userStories
+          .map((story, index) => `${index + 1}. ${story.story}\nOutcome: ${story.outcome}`)
+          .join("\n");
+  const existingTasks =
+    idea.tasks.length === 0
+      ? "No existing tasks."
+      : idea.tasks
+          .map(
+            (task, index) =>
+              `${index + 1}. ${task.title} (${task.subtasks.length} subtasks, ${
+                task.isDone ? "done" : "not done"
+              })`,
+          )
+          .join("\n");
+
+  return [
+    `Idea title: ${idea.title}`,
+    `Source vision: ${idea.sourceVisionTitle}`,
+    idea.roadmapItemName
+      ? `Roadmap item: v${idea.roadmapItemMajorVersion}.${idea.roadmapItemMinorVersion} - ${idea.roadmapItemName}`
+      : "Roadmap item: none",
+    "Idea context:",
+    idea.context.trim() || "No context.",
+    "Spec sheet:",
+    idea.specSheet.trim() || "No spec sheet.",
+    "User stories:",
+    userStories,
+    "Existing tasks:",
+    existingTasks,
+  ].join("\n\n");
 }
 
 function isValidIdeaUserStories(stories: IdeaUserStory[]) {
@@ -1354,6 +1572,362 @@ export async function reorderProjectIdeaSubtasks(
 
   return {
     error: null as ProjectIdeaReorderError,
+    idea: await getIdeaById(projectId, ideaId, db),
+  };
+}
+
+function buildFallbackTaskTitles(idea: IdeaDetailRow): GeneratedIdeaTaskTitle[] {
+  const storyTitles = idea.userStories.slice(0, 6).map((story, index) => ({
+    key: `task-${index + 1}`,
+    title:
+      story.story.replace(/^as an? .*?, i want to?/i, "").trim() || `Deliver story ${index + 1}`,
+  }));
+
+  return normalizeGeneratedTaskTitles(
+    storyTitles.length > 0
+      ? storyTitles
+      : [
+          { key: "task-1", title: "Confirm implementation scope" },
+          { key: "task-2", title: "Build the core workflow" },
+          { key: "task-3", title: "Validate the delivery" },
+        ],
+  );
+}
+
+function buildFallbackTaskDetails(titles: GeneratedIdeaTaskTitle[]): GeneratedIdeaTaskDraft[] {
+  return normalizeGeneratedTaskDrafts(
+    titles.map((task, index) => ({
+      dependencies: index === 0 ? [] : [titles[index - 1]?.key ?? ""].filter(Boolean),
+      description: `Deliver ${task.title}.`,
+      key: task.key,
+      metadata: { assignee: "agent" },
+      subtasks: [
+        {
+          dependencies: [],
+          description: `Clarify the expected behavior for ${task.title}.`,
+          key: `${task.key}-scope`,
+          metadata: { type: "planning" },
+          title: "Clarify scope",
+        },
+        {
+          dependencies: [`${task.key}-scope`],
+          description: `Implement the work needed for ${task.title}.`,
+          key: `${task.key}-implement`,
+          metadata: { type: "implementation" },
+          title: "Implement changes",
+        },
+        {
+          dependencies: [`${task.key}-implement`],
+          description: `Verify ${task.title} works as expected.`,
+          key: `${task.key}-verify`,
+          metadata: { type: "verification" },
+          title: "Verify behavior",
+        },
+      ],
+      title: task.title,
+    })),
+  );
+}
+
+export async function generateProjectIdeaTaskTitles(
+  viewerId: string,
+  projectId: string,
+  ideaId: string,
+  db: Database = getDb(),
+) {
+  const idea = await getProjectIdeaById(viewerId, projectId, ideaId, db);
+
+  if (!idea) {
+    return { error: "not_found" as const, tasks: [] };
+  }
+
+  try {
+    const result = await generateText({
+      model: IDEA_MODEL,
+      output: Output.object({
+        description: "A concise implementation task title list for an Idea.",
+        name: "ideaTaskTitles",
+        schema: generatedTaskTitlesSchema,
+      }),
+      prompt: [
+        "Generate implementation task titles for this product idea.",
+        "Return 3 to 8 tasks by default unless the idea clearly needs another count.",
+        "Tasks should describe delivery work, not user stories.",
+        "Use stable lower-kebab keys such as api-contract or workspace-ui.",
+        summarizeIdeaForTaskGeneration(idea),
+      ].join("\n\n"),
+    });
+
+    return {
+      error: null as GeneratedIdeaTaskError,
+      tasks: normalizeGeneratedTaskTitles(result.output.tasks),
+    };
+  } catch {
+    return {
+      error: null as GeneratedIdeaTaskError,
+      tasks: buildFallbackTaskTitles(idea),
+    };
+  }
+}
+
+export async function refineProjectIdeaTaskTitles(
+  viewerId: string,
+  projectId: string,
+  ideaId: string,
+  titles: GeneratedIdeaTaskTitle[],
+  direction: "more_abstract" | "more_detailed",
+  db: Database = getDb(),
+) {
+  const idea = await getProjectIdeaById(viewerId, projectId, ideaId, db);
+
+  if (!idea) {
+    return { error: "not_found" as const, tasks: [] };
+  }
+
+  const currentTitles = normalizeGeneratedTaskTitles(titles);
+
+  if (currentTitles.length === 0) {
+    return { error: "invalid_payload" as const, tasks: [] };
+  }
+
+  try {
+    const result = await generateText({
+      model: IDEA_MODEL,
+      output: Output.object({
+        description: "A refined implementation task title list for an Idea.",
+        name: "refinedIdeaTaskTitles",
+        schema: generatedTaskTitlesSchema,
+      }),
+      prompt: [
+        "Refine this implementation task list.",
+        direction === "more_detailed"
+          ? "Make the list more detailed by splitting broad tasks into smaller delivery tasks."
+          : "Make the list more abstract by consolidating overlapping tasks into fewer delivery tasks.",
+        "Preserve useful wording where possible, and return stable lower-kebab keys.",
+        summarizeIdeaForTaskGeneration(idea),
+        "Current task titles:",
+        currentTitles.map((task, index) => `${index + 1}. ${task.key}: ${task.title}`).join("\n"),
+      ].join("\n\n"),
+    });
+
+    return {
+      error: null as GeneratedIdeaTaskError,
+      tasks: normalizeGeneratedTaskTitles(result.output.tasks),
+    };
+  } catch {
+    return {
+      error: null as GeneratedIdeaTaskError,
+      tasks: currentTitles,
+    };
+  }
+}
+
+export async function generateProjectIdeaTaskDetails(
+  viewerId: string,
+  projectId: string,
+  ideaId: string,
+  titles: GeneratedIdeaTaskTitle[],
+  db: Database = getDb(),
+) {
+  const idea = await getProjectIdeaById(viewerId, projectId, ideaId, db);
+
+  if (!idea) {
+    return { error: "not_found" as const, tasks: [] };
+  }
+
+  const taskTitles = normalizeGeneratedTaskTitles(titles);
+
+  if (taskTitles.length === 0) {
+    return { error: "invalid_payload" as const, tasks: [] };
+  }
+
+  try {
+    const result = await generateText({
+      model: IDEA_MODEL,
+      output: Output.object({
+        description: "Detailed tasks and subtasks for an Idea implementation plan.",
+        name: "ideaTaskDetails",
+        schema: generatedTaskDetailsSchema,
+      }),
+      prompt: [
+        "Generate task details and subtasks for these approved task titles.",
+        "Keep the task keys exactly as provided.",
+        "Each task needs 2 to 6 concrete subtasks.",
+        "Generated subtasks must start incomplete; do not include completion fields.",
+        "Dependencies may reference only keys in the same scope: task dependencies use task keys, subtask dependencies use sibling subtask keys.",
+        "Metadata must be a JSON object and may include category, type, or assignee.",
+        summarizeIdeaForTaskGeneration(idea),
+        "Approved task titles:",
+        taskTitles.map((task, index) => `${index + 1}. ${task.key}: ${task.title}`).join("\n"),
+      ].join("\n\n"),
+    });
+    const tasks = normalizeGeneratedTaskDrafts(result.output.tasks);
+    const validationError = validateGeneratedTaskDrafts(tasks);
+
+    if (validationError) {
+      return { error: validationError, tasks: [] };
+    }
+
+    return {
+      error: null as GeneratedIdeaTaskError,
+      tasks,
+    };
+  } catch {
+    const tasks = buildFallbackTaskDetails(taskTitles);
+
+    return {
+      error: null as GeneratedIdeaTaskError,
+      tasks,
+    };
+  }
+}
+
+export async function applyGeneratedProjectIdeaTasks(
+  viewerId: string,
+  projectId: string,
+  ideaId: string,
+  tasks: GeneratedIdeaTaskDraft[],
+  mode: GeneratedIdeaTaskApplyMode,
+  db: Database = getDb(),
+) {
+  const access = await getAccessibleIdeaBase(viewerId, projectId, ideaId, db);
+
+  if (!access) {
+    return { error: "not_found" as const, idea: null };
+  }
+
+  const generatedTasks = normalizeGeneratedTaskDrafts(tasks);
+
+  if (generatedTasks.length === 0) {
+    return { error: "invalid_payload" as const, idea: null };
+  }
+
+  const validationError = validateGeneratedTaskDrafts(generatedTasks);
+
+  if (validationError) {
+    return { error: validationError, idea: null };
+  }
+
+  const existingTasks = await listIdeaTasks(ideaId, db);
+  const taskIdsToDelete =
+    mode === "replace_all"
+      ? existingTasks.map((task) => task.id)
+      : mode === "replace_empty"
+        ? existingTasks.filter((task) => task.subtasks.length === 0).map((task) => task.id)
+        : [];
+
+  await db.transaction(async (tx) => {
+    await lockPositionScope(tx, ideaId);
+
+    if (taskIdsToDelete.length > 0) {
+      await tx.delete(ideaTasks).where(inArray(ideaTasks.id, taskIdsToDelete));
+    }
+
+    const startPosition =
+      mode === "replace_all"
+        ? 0
+        : await tx
+            .select({
+              position: ideaTasks.position,
+            })
+            .from(ideaTasks)
+            .where(eq(ideaTasks.ideaId, ideaId))
+            .orderBy(desc(ideaTasks.position))
+            .then((rows) => (rows[0]?.position ?? -1) + 1);
+    const taskIdByKey = new Map<string, string>();
+    const subtaskIdByTaskKey = new Map<string, Map<string, string>>();
+    const taskRows = generatedTasks.map((task, index) => {
+      const id = randomUUID();
+      taskIdByKey.set(task.key, id);
+
+      return {
+        description: task.description,
+        id,
+        ideaId,
+        metadata: task.metadata,
+        position: startPosition + index,
+        title: task.title,
+      } satisfies typeof ideaTasks.$inferInsert;
+    });
+
+    await tx.insert(ideaTasks).values(taskRows);
+
+    const subtaskRows: (typeof ideaSubtasks.$inferInsert)[] = [];
+
+    for (const task of generatedTasks) {
+      const taskId = taskIdByKey.get(task.key);
+
+      if (!taskId) {
+        continue;
+      }
+
+      const subtaskIdByKey = new Map<string, string>();
+      subtaskIdByTaskKey.set(task.key, subtaskIdByKey);
+
+      task.subtasks.forEach((subtask, index) => {
+        const id = randomUUID();
+        subtaskIdByKey.set(subtask.key, id);
+        subtaskRows.push({
+          completedAt: null,
+          description: subtask.description,
+          id,
+          metadata: subtask.metadata,
+          position: index,
+          taskId,
+          title: subtask.title,
+        });
+      });
+    }
+
+    if (subtaskRows.length > 0) {
+      await tx.insert(ideaSubtasks).values(subtaskRows);
+    }
+
+    const taskDependencyRows = generatedTasks.flatMap((task) => {
+      const taskId = taskIdByKey.get(task.key);
+
+      if (!taskId) {
+        return [];
+      }
+
+      return task.dependencies.map((dependencyKey) => ({
+        dependsOnTaskId: taskIdByKey.get(dependencyKey) ?? "",
+        taskId,
+      }));
+    });
+
+    if (taskDependencyRows.length > 0) {
+      await tx.insert(ideaTaskDependencies).values(taskDependencyRows);
+    }
+
+    const subtaskDependencyRows = generatedTasks.flatMap((task) => {
+      const subtaskIdByKey = subtaskIdByTaskKey.get(task.key);
+
+      if (!subtaskIdByKey) {
+        return [];
+      }
+
+      return task.subtasks.flatMap((subtask) => {
+        const subtaskId = subtaskIdByKey.get(subtask.key);
+
+        if (!subtaskId) {
+          return [];
+        }
+
+        return subtask.dependencies.map((dependencyKey) => ({
+          dependsOnSubtaskId: subtaskIdByKey.get(dependencyKey) ?? "",
+          subtaskId,
+        }));
+      });
+    });
+
+    if (subtaskDependencyRows.length > 0) {
+      await tx.insert(ideaSubtaskDependencies).values(subtaskDependencyRows);
+    }
+  });
+
+  return {
+    error: null as GeneratedIdeaTaskError,
     idea: await getIdeaById(projectId, ideaId, db),
   };
 }

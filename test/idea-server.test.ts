@@ -106,8 +106,12 @@ vi.mock("@/lib/vision/server", () => ({
 import {
   convertVisionToIdea,
   createProjectIdeaTask,
+  applyGeneratedProjectIdeaTasks,
+  generateProjectIdeaTaskDetails,
+  generateProjectIdeaTaskTitles,
   getProjectIdeaById,
   listProjectIdeas,
+  refineProjectIdeaTaskTitles,
   regenerateIdeaDocuments,
   updateProjectIdeaWorkspace,
 } from "../lib/idea/server";
@@ -863,5 +867,302 @@ describe("idea server helpers", () => {
       }),
     );
     expect((setValues[0] as { userStories?: unknown }).userStories).toBeUndefined();
+  });
+
+  it("generates task titles and details with structured AI output", async () => {
+    const ideaRow = {
+      context: "Context",
+      createdAt: new Date("2026-04-15T10:00:00.000Z"),
+      createdByName: "Riley",
+      createdByUserId: "viewer-1",
+      id: "idea-1",
+      projectId: "project-1",
+      roadmapItemId: null,
+      roadmapItemMajorVersion: null,
+      roadmapItemMinorVersion: null,
+      roadmapItemName: null,
+      sourceVisionId: "vision-1",
+      sourceVisionTitle: "Checkout rethink",
+      specSheet: "Spec",
+      title: "Shared idea",
+      updatedAt: new Date("2026-04-15T10:00:00.000Z"),
+      userStories: [],
+    };
+    const db = {
+      select: vi
+        .fn()
+        .mockReturnValueOnce(createSelectBuilder([ideaRow]))
+        .mockReturnValueOnce(createSelectBuilder([]))
+        .mockReturnValueOnce(createSelectBuilder([ideaRow]))
+        .mockReturnValueOnce(createSelectBuilder([]))
+        .mockReturnValueOnce(createSelectBuilder([ideaRow]))
+        .mockReturnValueOnce(createSelectBuilder([])),
+    };
+    getProjectAccess.mockResolvedValue({
+      id: "project-1",
+      isAdmin: false,
+      isMaintainer: true,
+      isOwner: false,
+      roadmapId: "roadmap-1",
+    });
+    generateText
+      .mockResolvedValueOnce({
+        output: {
+          tasks: [{ key: "api", title: "Build API" }],
+        },
+      })
+      .mockResolvedValueOnce({
+        output: {
+          tasks: [{ key: "api-contract", title: "Define API contract" }],
+        },
+      })
+      .mockResolvedValueOnce({
+        output: {
+          tasks: [
+            {
+              dependencies: [],
+              description: "Build the API.",
+              key: "api-contract",
+              metadata: { assignee: "agent" },
+              subtasks: [
+                {
+                  dependencies: [],
+                  description: "Create route tests.",
+                  key: "route-tests",
+                  metadata: { type: "test" },
+                  title: "Create route tests",
+                },
+              ],
+              title: "Define API contract",
+            },
+          ],
+        },
+      });
+
+    await expect(
+      generateProjectIdeaTaskTitles("viewer-1", "project-1", "idea-1", db as any),
+    ).resolves.toEqual({
+      error: null,
+      tasks: [{ key: "api", title: "Build API" }],
+    });
+    await expect(
+      refineProjectIdeaTaskTitles(
+        "viewer-1",
+        "project-1",
+        "idea-1",
+        [{ key: "api", title: "Build API" }],
+        "more_detailed",
+        db as any,
+      ),
+    ).resolves.toEqual({
+      error: null,
+      tasks: [{ key: "api-contract", title: "Define API contract" }],
+    });
+    await expect(
+      generateProjectIdeaTaskDetails(
+        "viewer-1",
+        "project-1",
+        "idea-1",
+        [{ key: "api-contract", title: "Define API contract" }],
+        db as any,
+      ),
+    ).resolves.toEqual({
+      error: null,
+      tasks: [
+        expect.objectContaining({
+          key: "api-contract",
+          metadata: { assignee: "agent" },
+          subtasks: [expect.objectContaining({ key: "route-tests" })],
+        }),
+      ],
+    });
+  });
+
+  it("rejects invalid generated task dependencies", async () => {
+    const db = {
+      select: vi.fn(() => createSelectBuilder([{ id: "idea-1" }])),
+      transaction: vi.fn(),
+    };
+    getProjectAccess.mockResolvedValue({
+      id: "project-1",
+      isAdmin: false,
+      isMaintainer: true,
+      isOwner: false,
+      roadmapId: "roadmap-1",
+    });
+
+    await expect(
+      applyGeneratedProjectIdeaTasks(
+        "viewer-1",
+        "project-1",
+        "idea-1",
+        [
+          {
+            dependencies: ["missing"],
+            description: "Build API",
+            key: "api",
+            metadata: {},
+            subtasks: [
+              {
+                dependencies: [],
+                description: "Create route",
+                key: "route",
+                metadata: {},
+                title: "Create route",
+              },
+            ],
+            title: "Build API",
+          },
+        ],
+        "append",
+        db as any,
+      ),
+    ).resolves.toEqual({ error: "invalid_dependency", idea: null });
+    expect(db.transaction).not.toHaveBeenCalled();
+  });
+
+  it("applies generated tasks and replaces only empty existing tasks", async () => {
+    const ideaRow = {
+      context: "Context",
+      createdAt: new Date("2026-04-15T10:00:00.000Z"),
+      createdByName: "Riley",
+      createdByUserId: "viewer-1",
+      id: "idea-1",
+      projectId: "project-1",
+      roadmapItemId: null,
+      roadmapItemMajorVersion: null,
+      roadmapItemMinorVersion: null,
+      roadmapItemName: null,
+      sourceVisionId: "vision-1",
+      sourceVisionTitle: "Checkout rethink",
+      specSheet: "Spec",
+      title: "Shared idea",
+      updatedAt: new Date("2026-04-15T10:00:00.000Z"),
+      userStories: [],
+    };
+    const existingTaskRows = [
+      {
+        createdAt: new Date("2026-04-15T10:00:00.000Z"),
+        description: "",
+        id: "empty-task",
+        ideaId: "idea-1",
+        metadata: {},
+        position: 0,
+        title: "Empty task",
+        updatedAt: new Date("2026-04-15T10:00:00.000Z"),
+      },
+      {
+        createdAt: new Date("2026-04-15T10:00:00.000Z"),
+        description: "",
+        id: "kept-task",
+        ideaId: "idea-1",
+        metadata: {},
+        position: 1,
+        title: "Kept task",
+        updatedAt: new Date("2026-04-15T10:00:00.000Z"),
+      },
+    ];
+    const existingSubtaskRows = [
+      {
+        completedAt: null,
+        createdAt: new Date("2026-04-15T10:00:00.000Z"),
+        description: "",
+        id: "kept-subtask",
+        metadata: {},
+        position: 0,
+        taskId: "kept-task",
+        title: "Kept subtask",
+        updatedAt: new Date("2026-04-15T10:00:00.000Z"),
+      },
+    ];
+    const deletedWhere: unknown[] = [];
+    const insertedValues: unknown[] = [];
+    const selectQueue = [
+      createSelectBuilder([ideaRow]),
+      createSelectBuilder(existingTaskRows),
+      createSelectBuilder(existingSubtaskRows),
+      createSelectBuilder([]),
+      createSelectBuilder([]),
+      createSelectBuilder([ideaRow]),
+      createSelectBuilder([]),
+    ];
+    const tx = {
+      delete: vi.fn(() => ({
+        where: vi.fn((value) => {
+          deletedWhere.push(value);
+
+          return Promise.resolve();
+        }),
+      })),
+      execute: vi.fn(() => Promise.resolve()),
+      insert: vi.fn(() => ({
+        values: vi.fn((value) => {
+          insertedValues.push(value);
+
+          return Promise.resolve();
+        }),
+      })),
+      select: vi.fn(() => createSelectBuilder([{ position: 1 }])),
+    };
+    const db = {
+      select: vi.fn(() => selectQueue.shift()),
+      transaction: vi.fn((callback) => callback(tx)),
+    };
+    getProjectAccess.mockResolvedValue({
+      id: "project-1",
+      isAdmin: false,
+      isMaintainer: true,
+      isOwner: false,
+      roadmapId: "roadmap-1",
+    });
+
+    await expect(
+      applyGeneratedProjectIdeaTasks(
+        "viewer-1",
+        "project-1",
+        "idea-1",
+        [
+          {
+            dependencies: [],
+            description: "Build API",
+            key: "api",
+            metadata: { assignee: "agent" },
+            subtasks: [
+              {
+                dependencies: [],
+                description: "Create route",
+                key: "route",
+                metadata: { type: "implementation" },
+                title: "Create route",
+              },
+            ],
+            title: "Build API",
+          },
+        ],
+        "replace_empty",
+        db as any,
+      ),
+    ).resolves.toEqual({
+      error: null,
+      idea: expect.objectContaining({
+        isDone: false,
+        tasks: [],
+      }),
+    });
+    expect(deletedWhere).toHaveLength(1);
+    expect(insertedValues[0]).toEqual([
+      expect.objectContaining({
+        metadata: { assignee: "agent" },
+        position: 2,
+        title: "Build API",
+      }),
+    ]);
+    expect(insertedValues[1]).toEqual([
+      expect.objectContaining({
+        metadata: { type: "implementation" },
+        position: 0,
+        title: "Create route",
+      }),
+    ]);
   });
 });
